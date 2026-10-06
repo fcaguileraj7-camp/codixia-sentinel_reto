@@ -1,0 +1,25 @@
+# Entornos virtuales
+.venv/
+env/
+venv/
+ENV/
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.pytest_cache/
+
+# Variables de entorno y secretos
+.env
+*.local.env
+
+# Logs y bitácoras de depuración
+*.log
+logs/
+
+# IDEs
+.vscode/
+.idea/
+*.swp
