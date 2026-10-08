@@ -395,9 +395,36 @@ pytest tests/ -v
 
 ---
 
-## 10. 🤖 Guía de Prompts para los Asistentes IA del Equipo
+## 10. 💰 Gestión de Créditos y Optimización de Tokens (Presupuesto $80.00 USD)
 
-Cuando un miembro del equipo abra Cursor, ChatGPT o Claude para programar su módulo, puede copiar y pegar el siguiente bloque:
+> ⚠️ **REGLA DE ORO DEL EQUIPO:** El saldo de **$80.00 USD** asignado en el portal `reto.pltk.mx` es una **BOLSA COMPARTIDA** entre los 5 integrantes de Codixia (Alberth, Miguel, Nicolle, Juan José y Fabián).  
+> Los tramos se liberan al aprobar cada hito semanal. Si un integrante consume el saldo de forma descontrolada, dejará sin créditos a todo el equipo.
+
+### 10.1 Los 5 Mandamientos de Protección de Tokens
+1. **Desarrollo y Tests en Local ($0.00 USD):**
+   - Cuando desarrolles regex, reglas de texto, interfaces o maquetación, **NO hagas llamadas a la API real**.
+   - Usa los tests de `pytest` y el cliente en modo fallback. Las 12 pruebas unitarias corren en local en 2 segundos y gastan **$0.00**.
+   - Solo haz llamadas reales a Grok para verificar integración final, grabar el video demo (Hito S2) y evaluar el dataset (Hito S3).
+2. **Filtro Heurístico Previo (Heuristic Triage):**
+   - Nunca envíes todo directamente a Grok.
+   - Si un mensaje es claramente un saludo inofensivo (*"Hola mamá, ya salí de clase"*), el sistema responde en local con riesgo BAJO **sin consumir tokens de Grok**.
+   - Grok se reserva para **ambigüedad, ingeniería social compleja, extorsión y análisis multimodal de imágenes**.
+3. **Dieta Estricta de Tokens (`max_tokens=500`):**
+   - En `src/client.py` se ha configurado un tope máximo de salida de 500 tokens. Grok solo debe devolver un veredicto estructurado en JSON, no párrafos innecesarios.
+   - En los prompts de entrada, envía solo resúmenes limpios (`findings`, `urls`), nunca volcados gigantes de datos crudos.
+4. **Distribución del Presupuesto por Hito Semanal:**
+   - **Semana 1 (S1 · Oct 5 - 11):** $5 a $10 USD (Verificación y entrega inicial).
+   - **Semana 2 (S2 · Oct 12 - 18):** $15 a $20 USD (Integración de tools, visión y video demo).
+   - **Semana 3 (S3 · Oct 19 - 25):** $15 a $20 USD (Evaluación del dataset de 30 casos y reporte de costo unitario).
+   - **Colchón de Reserva (S4 · Oct 26 - Nov 1):** $30 a $40 USD (Prueba de carga de 1.000 reqs, previo a la recarga del siguiente tramo de Platica).
+5. **Prohibidos los Bucles Desatendidos sin Supervisión:**
+   - Nadie debe ejecutar un script con bucles `for` o `while` masivos contra la API real sin antes medir el costo exacto con 5 peticiones y coordinarlo con el equipo.
+
+---
+
+## 11. 🤖 Guía de Prompts para los Asistentes IA del Equipo
+
+Cuando un miembro del equipo abra Cursor, ChatGPT o Claude para programar su módulo, debe copiar y pegar el siguiente bloque:
 
 ```markdown
 Hola, soy [Tu Nombre] del equipo Codixia para el Reto Agente 2026.
@@ -407,6 +434,11 @@ Por favor lee el archivo MASTER_PLAN_CODIXIA.md en la raíz del proyecto.
 Mi rol es: [Tu Rol según la sección 4]
 Mi archivo asignado es: [Tu archivo según la sección 4]
 El contrato de datos que debo cumplir está en la sección 6.
+
+⚠️ IMPORTANTE SOBRE TOKENS Y PRUEBAS:
+- No generes llamadas a APIs externas en las pruebas unitarias de tests/.
+- Utiliza mocks y pruebas deterministas locales (costo $0.00 USD).
+- Respeta el límite de max_tokens=500 y escribe prompts limpios y concisos.
 
 Por favor, ayúdame a implementar mi función respetando los tipos de retorno,
 escribiendo código limpio en Python 3.10+ y creando sus pruebas correspondientes en tests/.

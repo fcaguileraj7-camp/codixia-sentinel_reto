@@ -99,6 +99,7 @@ SentinelGuard aprovecha las fortalezas exclusivas del modelo **Grok 4.7**:
 - **Razonamiento Multimodal**: Análisis visual de comprobantes de pago falsos y capturas de chats adulteradas.
 - **Detección de Manipulación Psicológica**: Identifica sesgos de urgencia fabricada, miedo y autoridad falsa típicos de la extorsión en América Latina.
 - **Toma de Decisiones bajo Incertidumbre**: Evalúa falsos positivos antes de disparar alarmas de emergencia a familiares.
+- **Eficiencia de Costos y Tokens**: Implementa límite estricto de tokens (`max_tokens=500`), telemetría de costo en USD por tarea y modo local resiliente para desarrollo a costo $0.00.
 
 ---
 

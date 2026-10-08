@@ -23,6 +23,12 @@
 | **S4** | **Semana 4 · Semana de Carga**<br>*(Carga Masiva Dual)* | **Oct 26 - Nov 1** | Procesar **1.000 unidades desatendidas en 12 horas** (mixto: fraude digital + telemetría de taxis), bitácora y latencias. | **Juan José & Santiago** |
 | **Final** | **Refinamiento & Demo Day**<br>*(Agente Integral Dual)* | **Noviembre**<br>*(Cierre del Reto)* | Sesiones de mentoría 1 a 1 con fundadores de Platica, video final de impacto, diapositivas y postulación a premiación. | **Todo el Equipo Codixia** |
 
+> 💰 **GESTIÓN DE CRÉDITOS Y TOKENS ($80.00 USD ASIGNADOS):**  
+> - **Bolsa Compartida:** Los $80 USD asignados en el portal son compartidos entre los 5 integrantes.
+> - **Desarrollo en Local ($0.00):** Se debe programar y probar en local usando `pytest` y el mock fallback de `src/client.py`.
+> - **Tope de Seguridad:** Todas las llamadas a Grok tienen `max_tokens=500` para evitar respuestas largas innecesarias.
+> - **Prohibidos bucles masivos:** Nunca correr scripts desatendidos con la API real sin previa medición de costo.
+
 ---
 
 ## 👥 2. Matriz Maestra de Asignaciones por Fase y Semana
