@@ -350,6 +350,9 @@ gitGraph
 | **S4** | **Lunes 12 de Octubre** | Semana de carga: Arnés desatendido para procesar 1.000 solicitudes en 12h con reporte de fallos y latencias. | **Juan José** (Load test) + **Santiago** (Optimización) |
 | **S5** | **Martes 13 de Octubre** | Entrega final, pitch de presentación, video de impacto y postulación para premiación. | **Todo el equipo Codixia** |
 
+> 📌 **Detalle granular por persona:** Para ver la lista de tareas específicas hito por hito asignadas a cada desarrollador (Nicolle, Santiago, Miguel, Juan José y Fabián), consulta el documento oficial:  
+> **👉 [HITOS_Y_ASIGNACIONES.md](file:///c:/dev/hackathon/platica_mx/HITOS_Y_ASIGNACIONES.md)**
+
 ---
 
 ## 9. 🚀 Guía Rápida para Levantar el Entorno Local
