@@ -342,15 +342,17 @@ gitGraph
 
 ## 8. 📅 Cronograma de Hitos Oficiales (Track 1)
 
-| Hito | Fecha Límite | Objetivo Clave | Responsable Principal de Entrega |
-| :--- | :--- | :--- | :--- |
-| **S1** | **Viernes 9 de Octubre** | Agente corriendo end-to-end con Grok, repositorio limpio, README con justificación del problema y simulación funcional. | **Fabián Aguilera** (Consolidación) + Todo el equipo |
-| **S2** | **Sábado 10 de Octubre** | Conexión de herramientas reales, 10 ejecuciones documentadas y video demo de 2 minutos. | **Nicolle, Santiago & Miguel** (Tools) + **Juan José** (Video demo con Streamlit) |
-| **S3** | **Domingo 11 de Octubre** | Memoria multi-turno + Dataset de evaluación con 30+ casos reales de estafas en Colombia, reporte de tokens y costos. | **Juan José** (Dataset) + **Fabián** (Memory) |
-| **S4** | **Lunes 12 de Octubre** | Semana de carga: Arnés desatendido para procesar 1.000 solicitudes en 12h con reporte de fallos y latencias. | **Juan José** (Load test) + **Santiago** (Optimización) |
-| **S5** | **Martes 13 de Octubre** | Entrega final, pitch de presentación, video de impacto y postulación para premiación. | **Todo el equipo Codixia** |
+> 💡 **Nota de Organización:** El reto se estructura en **Semanas Completas de Desarrollo (S1 = Semana 1, S2 = Semana 2, etc.)** abarcando octubre y noviembre de 2026. A medida que se aprueba cada hito semanal, Platica libera nuevas partidas de saldo y créditos en la plataforma.
 
-> 📌 **Detalle granular por persona:** Para ver la lista de tareas específicas hito por hito asignadas a cada desarrollador (Nicolle, Santiago, Miguel, Juan José y Fabián), consulta el documento oficial:  
+| Hito | Nombre del Hito | Alcance Temporal | Objetivo Clave | Responsable Principal de Entrega |
+| :---: | :--- | :---: | :--- | :--- |
+| **S1** | **Semana 1 · Agente Corriendo** | **Semana 1 (Oct 7 - 13)** | Agente corriendo end-to-end con Grok, repositorio limpio, README con justificación del problema y simulación funcional. | **Fabián Aguilera** (Consolidación) + Todo el equipo |
+| **S2** | **Semana 2 · Herramientas Reales** | **Semana 2 (Oct 14 - 20)** | Conexión de 3+ herramientas reales, tolerancia a fallos, 10 ejecuciones documentadas y video demo de 2 minutos. | **Nicolle, Santiago & Miguel** (Tools) + **Juan José** (Video demo con Streamlit) |
+| **S3** | **Semana 3 · Datos Reales** | **Semana 3 (Oct 21 - 27)** | Memoria multi-turno + Dataset de evaluación con 30+ casos reales de estafas en Colombia, reporte de tokens y costos. | **Juan José** (Dataset) + **Fabián** (Memory) |
+| **S4** | **Semana 4 · Semana de Carga** | **Semana 4 (Oct 28 - Nov 3)** | Semana de carga: Arnés desatendido para procesar 1.000 solicitudes en 12h con reporte de fallos y latencias. | **Juan José** (Load test) + **Santiago** (Optimización) |
+| **Final** | **Refinamiento & Pitch** | **Noviembre (Cierre del Reto)** | Sesiones de feedback 1 a 1 con mentores, entrega final, pitch de presentación, video de impacto y postulación para premiación. | **Todo el equipo Codixia** |
+
+> 📌 **Detalle granular por persona:** Para ver la lista de tareas específicas semana a semana asignadas a cada desarrollador (Nicolle, Santiago, Miguel, Juan José y Fabián), consulta el documento oficial:  
 > **👉 [HITOS_Y_ASIGNACIONES.md](file:///c:/dev/hackathon/platica_mx/HITOS_Y_ASIGNACIONES.md)**
 
 ---

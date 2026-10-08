@@ -2,27 +2,31 @@
 ## Reto Agente 2026 (Platica.mx × Campuslands)
 ### Proyecto: SentinelGuard AI · Escudo Digital Antifraude y Extorsión
 
-> **Documento Oficial de Entregables, Responsabilidades y Calendario**  
-> Cada integrante del equipo tiene una asignación equitativa (20%) con entregables específicos por cada hito (S1 a S5).  
+> **Documento Oficial de Entregables, Responsabilidades y Calendario Semanal**  
+> **Estructura del Reto:** El reto tiene una duración de semanas completas (octubre - noviembre/diciembre 2026). Cada hito (**S1, S2, S3, S4**) representa una **Semana Completa de Desarrollo**, permitiendo iterar, probar y madurar cada módulo con calma y calidad profesional.  
+> Cada integrante del equipo tiene una asignación equitativa (20%) con entregables específicos por cada semana.  
 > **Estado:** Aprobado por el equipo · Octubre 2026
 
 ---
 
-## 🧭 1. Resumen Ejecutivo de Hitos Oficiales (Track 1)
+## 🧭 1. Resumen Ejecutivo de los Hitos Oficiales (Track 1)
 
-| Hito | Nombre del Hito | Fecha Límite | Qué exige la Organización (Platica / Campuslands) | Responsable de Entrega en Portal |
+| Hito | Nombre del Hito | Alcance Temporal | Qué exige la Organización (Platica / Campuslands) | Responsable de Entrega en Portal |
 | :---: | :--- | :---: | :--- | :--- |
-| **S1** | **Agente Corriendo** | **Viernes 9 Octubre** | Repositorio público en GitHub, README claro con problema fundamentado, cliente funcional contra Grok y ejecución de prueba documentada. | **Fabián Aguilera** (Subir link al portal) |
-| **S2** | **Herramientas Reales** | **Sábado 10 Octubre** | Mínimo 3 herramientas reales conectadas al agente, tolerancia a fallos, 10 ejecuciones grabadas y **video demo de 2 minutos**. | **Miguel & Juan José** (Video y UI) + Equipo |
-| **S3** | **Datos Reales** | **Domingo 11 Octubre** | Memoria multi-turno + Conjunto de evaluación con **30+ casos reales** de estafas en Colombia, reporte de costo y consumo de tokens. | **Juan José & Fabián** |
-| **S4** | **Semana de Carga** | **Lunes 12 Octubre** | Procesar **1.000 unidades de trabajo desatendidas** en 12 horas, bitácora de latencias, tasa de éxito y fallos. | **Juan José & Santiago** |
-| **S5** | **Entrega Final & Pitch** | **Martes 13 Octubre** | Repositorio final congelado, video de impacto, diapositivas y postulación a premiación. | **Todo el Equipo Codixia** |
+| **S1** | **Semana 1 · Agente Corriendo** | **Semana 1 (Oct 7 - 13)** | Repositorio público en GitHub, README claro con problema fundamentado, cliente funcional contra Grok y ejecución de prueba documentada. | **Fabián Aguilera** (Subir link al portal) |
+| **S2** | **Semana 2 · Herramientas Reales** | **Semana 2 (Oct 14 - 20)** | Mínimo 3 herramientas reales conectadas al agente, tolerancia a fallos, 10 ejecuciones grabadas y **video demo de 2 minutos**. | **Miguel & Juan José** (Video y UI) + Equipo |
+| **S3** | **Semana 3 · Datos Reales** | **Semana 3 (Oct 21 - 27)** | Memoria multi-turno + Conjunto de evaluación con **30+ casos reales** de estafas en Colombia, reporte de costo y consumo de tokens. | **Juan José & Fabián** |
+| **S4** | **Semana 4 · Semana de Carga** | **Semana 4 (Oct 28 - Nov 3)** | Procesar **1.000 unidades de trabajo desatendidas** en 12 horas, bitácora de latencias, tasa de éxito y fallos. | **Juan José & Santiago** |
+| **Entrega Final** | **Refinamiento & Pitch** | **Noviembre (Cierre del Reto)** | Sesiones de feedback 1 a 1 con mentores de Platica, repositorio final congelado, video de impacto, diapositivas y postulación a premiación. | **Todo el Equipo Codixia** |
+
+> 💡 **Nota clave confirmada por Iván (CEO Platica) en el Kick-off:**  
+> Los hitos **S1, S2, S3 y S4 son semanales**. A medida que la organización aprueba cada hito semanal, se van liberando nuevos tramos de créditos en la plataforma `reto.pltk.mx`. Tras las primeras 2 semanas se habilitan espacios de feedback 1 a 1 para asesorar a los equipos hacia el cierre de noviembre.
 
 ---
 
-## 👥 2. Matriz Cruzada: ¿Qué entrega cada uno en cada Hito?
+## 👥 2. Matriz Cruzada: ¿Qué entrega cada uno en cada Semana?
 
-| Miembro | Hito S1 (9 Oct) | Hito S2 (10 Oct) | Hito S3 (11 Oct) | Hito S4 (12 Oct) | Hito S5 (13 Oct) |
+| Miembro | Semana 1 (S1)<br>*Agente Corriendo* | Semana 2 (S2)<br>*3 Tools Reales + Video* | Semana 3 (S3)<br>*30 Casos + Memoria* | Semana 4 (S4)<br>*1.000 Reqs de Carga* | Cierre Final<br>*Pitch & Premiación* |
 | :--- | :--- | :--- | :--- | :--- | :--- |
 | **Fabián Aguilera**<br>*(Lead Architect)* | • Scaffolding base<br>• Cliente Grok + Fallback<br>• `main.py` CLI<br>• Envío en portal | • Orquestador dinámico (tool calling en `sentinel.py`)<br>• Integración de las 4 tools | • Memoria multi-turno en `src/agent/memory.py`<br>• Context window management | • Optimización de concurrencia para 1.000 reqs<br>• Resiliencia y control de errores | • Congelamiento de versión en GitHub (Tag v1.0)<br>• Cierre técnico y revisión final |
 | **Nicolle**<br>*(Social Eng. NLP)* | • Catálogo inicial de entidades financieras<br>• `tests/test_threat.py` | • Detección avanzada de urgencia y amenazas penales<br>• 10 casos de prueba en log | • Calibración de score de riesgo (0-100)<br>• Aporte de 10 casos de estafas al dataset S3 | • Pruebas de estrés NLP (evitar caídas por textos raros o emojis pesados) | • Redacción de métricas de precisión NLP para el pitch |
@@ -39,21 +43,21 @@
 ### 👤 1. FABIÁN AGUILERA — Lead Architect & Core Orchestrator
 **Objetivo:** Garantizar que el motor del agente sea robusto, modular, tolerante a fallos y que las herramientas de los compañeros se integren limpiamente.
 
-- **Para Hito S1 (Viernes 9 Oct):**
+- **Semana 1 (Hito S1):**
   - [x] Crear repositorio público en GitHub y configurar ramas (`main`, `dev`).
   - [x] Scaffolding de arquitectura (`src/`, `tests/`, `data/`, `scripts/`).
   - [x] Implementar `src/client.py` con OpenAI SDK apuntando a `https://api.reto.pltk.mx/v1` con fallback local inteligente.
   - [x] Redactar `MASTER_PLAN_CODIXIA.md` y `README.md`.
   - [x] Registrar la entrega oficial de S1 en el portal `reto.pltk.mx`.
-- **Para Hito S2 (Sábado 10 Oct):**
+- **Semana 2 (Hito S2):**
   - [ ] Implementar el ciclo de Tool Calling dinámico en `src/agent/sentinel.py` (llamar condicionalmente a `threat_inspector`, `url_sandbox`, `vision_parser` y `police_reporter`).
   - [ ] Revisar y aprobar los Pull Requests de Nicolle, Santiago y Miguel hacia la rama `dev`.
-- **Para Hito S3 (Domingo 11 Oct):**
+- **Semana 3 (Hito S3):**
   - [ ] Crear el módulo `src/agent/memory.py` para almacenar historial de conversación y contexto previo entre mensajes del mismo usuario.
   - [ ] Medir y registrar el consumo de tokens promedio por turno de conversación.
-- **Para Hito S4 (Lunes 12 Oct):**
+- **Semana 4 (Hito S4):**
   - [ ] Optimizar la velocidad de respuesta del bucle del agente para que el script de carga de Juan José corra sin timeouts.
-- **Para Hito S5 (Martes 13 Oct):**
+- **Cierre Final (Hito S5):**
   - [ ] Merge final de `dev` a `main`, etiquetar release `v1.0.0` y verificar que el repositorio cumpla con todas las rúbricas.
 
 ---
@@ -61,22 +65,22 @@
 ### 👤 2. NICOLLE — Social Engineering & NLP Specialist
 **Objetivo:** Desarrollar el cerebro de detección psicológica y lingüística del agente contra el engaño humano.
 
-- **Para Hito S1 (Viernes 9 Oct):**
+- **Semana 1 (Hito S1):**
   - [x] Crear el módulo base `src/tools/threat_inspector.py`.
   - [x] Configurar lista de bancos de Colombia (*Bancolombia, Nequi, Daviplata, BBVA, Scotiabank*).
   - [x] Crear `tests/test_threat.py` y verificar que pase con `pytest`.
-- **Para Hito S2 (Sábado 10 Oct):**
+- **Semana 2 (Hito S2):**
   - [ ] Ampliar las reglas de ingeniería social:
     - Falsa urgencia (*"última oportunidad"*, *"en menos de 1 hora"*).
     - Falsa autoridad judicial (*"orden de captura"*, *"mandamiento de pago DIAN"*, *"embargo de bienes"*).
     - Extorsión carcelaria (*"frente urbano"*, *"le tenemos ubicada la casa"*).
   - [ ] Generar un log con 10 ejecuciones documentadas de mensajes detectados.
-- **Para Hito S3 (Domingo 11 Oct):**
+- **Semana 3 (Hito S3):**
   - [ ] Calibrar el algoritmo de puntaje (`risk_score` de 0 a 100) para minimizar falsos positivos en mensajes cotidianos.
   - [ ] Aportar y validar al menos 10 casos de estafas de texto en `data/scam_dataset_30.json`.
-- **Para Hito S4 (Lunes 12 Oct):**
+- **Semana 4 (Hito S4):**
   - [ ] Realizar pruebas de robustez: asegurarse de que el analizador no falle si el mensaje contiene emojis masivos, caracteres nulos o textos de más de 5.000 palabras.
-- **Para Hito S5 (Martes 13 Oct):**
+- **Cierre Final (Hito S5):**
   - [ ] Redactar el resumen de efectividad del analizador NLP para las diapositivas finales.
 
 ---
@@ -84,20 +88,20 @@
 ### 👤 3. SANTIAGO — Network & Threat Sandbox Specialist
 **Objetivo:** Proteger al usuario de la trampa digital en la web (enlaces maliciosos, dominios clonados y acortadores engañosos).
 
-- **Para Hito S1 (Viernes 9 Oct):**
+- **Semana 1 (Hito S1):**
   - [x] Crear el módulo base `src/tools/url_sandbox.py`.
   - [x] Detección de dominios con TLDs de alto riesgo (`.xyz`, `.cc`, `.top`, `.ru`).
   - [x] Crear `tests/test_sandbox.py` y verificar que pase con `pytest`.
-- **Para Hito S2 (Sábado 10 Oct):**
+- **Semana 2 (Hito S2):**
   - [ ] Implementar la función de desenrollado de acortadores (`bit.ly`, `tinyurl.com`, `t.co`, `cutt.ly`):
     - Realizar petición HTTP `HEAD` con `requests` y timeout estricto (2 segundos) para obtener la URL de destino final sin descargar archivos maliciosos.
   - [ ] Implementar detector de *typosquatting* (ejemplo: detectar si `banc0lombia` o `nequii-pagos` imita la marca legal).
-- **Para Hito S3 (Domingo 11 Oct):**
+- **Semana 3 (Hito S3):**
   - [ ] Crear lista de bloqueo local (*Blacklist*) de dominios reportados en Colombia por la Policía Cibernética.
   - [ ] Integrar el análisis de URL dentro del contrato de datos de salida para el agente central.
-- **Para Hito S4 (Lunes 12 Oct):**
+- **Semana 4 (Hito S4):**
   - [ ] Implementar caché en memoria (`@lru_cache`) para URLs analizadas: si el arnés de 1.000 peticiones repite una URL, se responde en <1 milisegundo sin hacer peticiones externas.
-- **Para Hito S5 (Martes 13 Oct):**
+- **Cierre Final (Hito S5):**
   - [ ] Elaborar el diagrama técnico de inspección de red para la presentación.
 
 ---
@@ -105,17 +109,17 @@
 ### 👤 4. MIGUEL — Multimodal Vision & Security Reporting
 **Objetivo:** Detectar comprobantes de pago falsos mediante visión computacional y compilar los expedientes legales oficiales.
 
-- **Para Hito S1 (Viernes 9 Oct):**
+- **Semana 1 (Hito S1):**
   - [x] Crear el módulo base `src/tools/police_reporter.py` y `src/tools/vision_parser.py`.
   - [x] Crear `tests/test_vision.py` con pruebas unitarias pasando.
-- **Para Hito S2 (Sábado 10 Oct):**
+- **Semana 2 (Hito S2):**
   - [ ] Conectar `src/tools/vision_parser.py` con Grok Vision (`grok-4.7`) enviando imágenes en Base64 para evaluar comprobantes de Nequi/Bancolombia falsificados (tipografía desalineada, fecha adulterada, saldo incongruente).
   - [ ] Grabar y editar el **Video Demo de 2 minutos** (exigido para S2), mostrando al agente detectando una estafa en vivo y generando la denuncia.
-- **Para Hito S3 (Domingo 11 Oct):**
+- **Semana 3 (Hito S3):**
   - [ ] Enriquecer el formato de `police_reporter.py` para que genere expedientes listos para radicar en el portal CAI Virtual de la Policía (`caivirtual.policia.gov.co`), incluyendo hash SHA-256 de la evidencia.
-- **Para Hito S4 (Lunes 12 Oct):**
+- **Semana 4 (Hito S4):**
   - [ ] Probar tolerancia de carga en el generador de reportes con 100 incidentes secuenciales sin fugas de memoria.
-- **Para Hito S5 (Martes 13 Oct):**
+- **Cierre Final (Hito S5):**
   - [ ] Pulir el video final de impacto para el jurado con la narrativa del proyecto.
 
 ---
@@ -123,27 +127,27 @@
 ### 👤 5. JUAN JOSÉ — Dataset Engineering, Stress Testing & UI
 **Objetivo:** Desarrollar la interfaz visual interactiva, probar científicamente el agente con datos reales y certificar la escalabilidad en carga.
 
-- **Para Hito S1 (Viernes 9 Oct):**
+- **Semana 1 (Hito S1):**
   - [x] Clonar el repositorio y correr `python main.py --demo` y `pytest tests/ -v` en su entorno local para certificar paridad de desarrollo.
   - [x] Probar `data/scam_dataset_30.json` preliminar.
-- **Para Hito S2 (Sábado 10 Oct):**
+- **Semana 2 (Hito S2):**
   - [ ] Desarrollar y estilizar la interfaz web interactiva en `app_streamlit.py`:
     - Caja de texto para pegar mensajes de WhatsApp.
     - Selector de casos predefinidos de prueba.
     - Visualización visual de nivel de riesgo (Rojo = Crítico, Amarillo = Medio, Verde = Seguro).
     - Pestaña para visualizar la denuncia generada para la Policía.
   - [ ] Dejar la interfaz lista para que Miguel grabe el video demo de 2 minutos.
-- **Para Hito S3 (Domingo 11 Oct):**
+- **Semana 3 (Hito S3):**
   - [ ] Completar y certificar los **30 casos reales** en `data/scam_dataset_30.json`:
     - 10 casos de Phishing bancario (Nequi, Bancolombia, Daviplata).
     - 10 casos de Extorsión carcelaria y WhatsApp (amenazas, falso familiar).
     - 5 casos de Falsas ofertas laborales o compras Marketplace.
     - 5 casos legítimos de control (para medir falsos positivos).
   - [ ] Medir la precisión (% de acierto) y redactar el reporte de consumo de tokens y costos estimados por mensaje.
-- **Para Hito S4 (Lunes 12 Oct):**
+- **Semana 4 (Hito S4):**
   - [ ] Ejecutar el arnés de prueba de carga de 1.000 peticiones (`scripts/load_test_1000.py`).
   - [ ] Generar el reporte `load_test_summary.json` documentando: latencia promedio, peticiones por segundo y porcentaje de éxito (objetivo >99%).
-- **Para Hito S5 (Martes 13 Oct):**
+- **Cierre Final (Hito S5):**
   - [ ] Diseñar las diapositivas de la presentación final y apoyar en la sustentación ante los jueces.
 
 ---
