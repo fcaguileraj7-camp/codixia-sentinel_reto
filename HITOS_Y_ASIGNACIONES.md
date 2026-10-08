@@ -13,10 +13,10 @@
 
 | Hito | Nombre del Hito | Alcance Temporal | Qué exige la Organización (Platica / Campuslands) | Responsable de Entrega en Portal |
 | :---: | :--- | :---: | :--- | :--- |
-| **S1** | **Semana 1 · Agente Corriendo** | **Semana 1 (Oct 7 - 13)** | Repositorio público en GitHub, README claro con problema fundamentado, cliente funcional contra Grok y ejecución de prueba documentada. | **Fabián Aguilera** (Subir link al portal) |
-| **S2** | **Semana 2 · Herramientas Reales** | **Semana 2 (Oct 14 - 20)** | Mínimo 3 herramientas reales conectadas al agente, tolerancia a fallos, 10 ejecuciones grabadas y **video demo de 2 minutos**. | **Miguel & Juan José** (Video y UI) + Equipo |
-| **S3** | **Semana 3 · Datos Reales** | **Semana 3 (Oct 21 - 27)** | Memoria multi-turno + Conjunto de evaluación con **30+ casos reales** de estafas en Colombia, reporte de costo y consumo de tokens. | **Juan José & Fabián** |
-| **S4** | **Semana 4 · Semana de Carga** | **Semana 4 (Oct 28 - Nov 3)** | Procesar **1.000 unidades de trabajo desatendidas** en 12 horas, bitácora de latencias, tasa de éxito y fallos. | **Juan José & Santiago** |
+| **S1** | **Semana 1 · Agente Corriendo** | **Semana 1 (Oct 5 - 11)** | Repositorio público en GitHub, README claro con problema fundamentado, cliente funcional contra Grok y ejecución de prueba documentada. | **Fabián Aguilera** (Subir link al portal) |
+| **S2** | **Semana 2 · Herramientas Reales** | **Semana 2 (Oct 12 - 18)** | Mínimo 3 herramientas reales conectadas al agente, tolerancia a fallos, 10 ejecuciones grabadas y **video demo de 2 minutos**. | **Miguel & Juan José** (Video y UI) + Equipo |
+| **S3** | **Semana 3 · Datos Reales** | **Semana 3 (Oct 19 - 25)** | Memoria multi-turno + Conjunto de evaluación con **30+ casos reales** de estafas en Colombia, reporte de costo y consumo de tokens. | **Juan José & Fabián** |
+| **S4** | **Semana 4 · Semana de Carga** | **Semana 4 (Oct 26 - Nov 1)** | Procesar **1.000 unidades de trabajo desatendidas** en 12 horas, bitácora de latencias, tasa de éxito y fallos. | **Juan José & Santiago** |
 | **Entrega Final** | **Refinamiento & Pitch** | **Noviembre (Cierre del Reto)** | Sesiones de feedback 1 a 1 con mentores de Platica, repositorio final congelado, video de impacto, diapositivas y postulación a premiación. | **Todo el Equipo Codixia** |
 
 > 💡 **Nota clave confirmada por Iván (CEO Platica) en el Kick-off:**  

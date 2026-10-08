@@ -151,10 +151,10 @@ SentinelGuard aprovecha las fortalezas exclusivas del modelo **Grok 4.7**:
 
 ## 📅 6. Hoja de Ruta de los Hitos (Track 1)
 
-* [x] **Semana 1 (S1) · Agente corriendo (Oct 7 - 13)**: Repositorio estructurado, README con fundamentación del problema, cliente contra Grok funcional y simulaciones iniciales de amenazas end-to-end.
-* [ ] **Semana 2 (S2) · Herramientas reales (Oct 14 - 20)**: Conexión completa de herramientas modulares (`ThreatInspector`, `UrlSandbox`, `VisionParser`, `PoliceReporter`), tolerancia a fallos, 10 ejecuciones grabadas y video demo de 2 minutos.
-* [ ] **Semana 3 (S3) · Datos reales (Oct 21 - 27)**: Set de evaluación con 30+ casos reales de estafas en Colombia, memoria multi-turno, reporte de costo y consumo de tokens.
-* [ ] **Semana 4 (S4) · Semana de carga (Oct 28 - Nov 3)**: 1.000 unidades de trabajo procesadas en 12 horas de operación desatendida con bitácora completa.
+* [x] **Semana 1 (S1) · Agente corriendo (Oct 5 - 11)**: Repositorio estructurado, README con fundamentación del problema, cliente contra Grok funcional y simulaciones iniciales de amenazas end-to-end.
+* [ ] **Semana 2 (S2) · Herramientas reales (Oct 12 - 18)**: Conexión completa de herramientas modulares (`ThreatInspector`, `UrlSandbox`, `VisionParser`, `PoliceReporter`), tolerancia a fallos, 10 ejecuciones grabadas y video demo de 2 minutos.
+* [ ] **Semana 3 (S3) · Datos reales (Oct 19 - 25)**: Set de evaluación con 30+ casos reales de estafas en Colombia, memoria multi-turno, reporte de costo y consumo de tokens.
+* [ ] **Semana 4 (S4) · Semana de carga (Oct 26 - Nov 1)**: 1.000 unidades de trabajo procesadas en 12 horas de operación desatendida con bitácora completa.
 * [ ] **Cierre Final & Pitch (Noviembre)**: Sesiones de feedback con mentores, pitch deck, video final y postulación a premiación.
 
 > 📚 **Documentación técnica para el equipo y jurados:**

@@ -346,10 +346,10 @@ gitGraph
 
 | Hito | Nombre del Hito | Alcance Temporal | Objetivo Clave | Responsable Principal de Entrega |
 | :---: | :--- | :---: | :--- | :--- |
-| **S1** | **Semana 1 · Agente Corriendo** | **Semana 1 (Oct 7 - 13)** | Agente corriendo end-to-end con Grok, repositorio limpio, README con justificación del problema y simulación funcional. | **Fabián Aguilera** (Consolidación) + Todo el equipo |
-| **S2** | **Semana 2 · Herramientas Reales** | **Semana 2 (Oct 14 - 20)** | Conexión de 3+ herramientas reales, tolerancia a fallos, 10 ejecuciones documentadas y video demo de 2 minutos. | **Nicolle, Santiago & Miguel** (Tools) + **Juan José** (Video demo con Streamlit) |
-| **S3** | **Semana 3 · Datos Reales** | **Semana 3 (Oct 21 - 27)** | Memoria multi-turno + Dataset de evaluación con 30+ casos reales de estafas en Colombia, reporte de tokens y costos. | **Juan José** (Dataset) + **Fabián** (Memory) |
-| **S4** | **Semana 4 · Semana de Carga** | **Semana 4 (Oct 28 - Nov 3)** | Semana de carga: Arnés desatendido para procesar 1.000 solicitudes en 12h con reporte de fallos y latencias. | **Juan José** (Load test) + **Santiago** (Optimización) |
+| **S1** | **Semana 1 · Agente Corriendo** | **Semana 1 (Oct 5 - 11)** | Agente corriendo end-to-end con Grok, repositorio limpio, README con justificación del problema y simulación funcional. | **Fabián Aguilera** (Consolidación) + Todo el equipo |
+| **S2** | **Semana 2 · Herramientas Reales** | **Semana 2 (Oct 12 - 18)** | Conexión de 3+ herramientas reales, tolerancia a fallos, 10 ejecuciones documentadas y video demo de 2 minutos. | **Nicolle, Santiago & Miguel** (Tools) + **Juan José** (Video demo con Streamlit) |
+| **S3** | **Semana 3 · Datos Reales** | **Semana 3 (Oct 19 - 25)** | Memoria multi-turno + Dataset de evaluación con 30+ casos reales de estafas en Colombia, reporte de tokens y costos. | **Juan José** (Dataset) + **Fabián** (Memory) |
+| **S4** | **Semana 4 · Semana de Carga** | **Semana 4 (Oct 26 - Nov 1)** | Semana de carga: Arnés desatendido para procesar 1.000 solicitudes en 12h con reporte de fallos y latencias. | **Juan José** (Load test) + **Santiago** (Optimización) |
 | **Final** | **Refinamiento & Pitch** | **Noviembre (Cierre del Reto)** | Sesiones de feedback 1 a 1 con mentores, entrega final, pitch de presentación, video de impacto y postulación para premiación. | **Todo el equipo Codixia** |
 
 > 📌 **Detalle granular por persona:** Para ver la lista de tareas específicas semana a semana asignadas a cada desarrollador (Nicolle, Santiago, Miguel, Juan José y Fabián), consulta el documento oficial:  
