@@ -127,15 +127,18 @@ platica_mx/
 
 ## 4. 👥 Matriz de Roles y Asignación Equitativa (20% por Miembro)
 
-Para garantizar un trabajo equilibrado, claro y sin bloqueos, cada integrante tiene **propiedad exclusiva de un componente**, con entradas y salidas bien definidas:
+Para garantizar un trabajo equilibrado, claro y sin bloqueos, el equipo opera bajo una **estrategia secuencial por bloques**:
+1. **FASE 1 (Semanas 1 y 2):** 100% del equipo enfocado en el **Escudo Digital Antifraude** para lograr un MVP impecable y grabar el video demo de 2 minutos.
+2. **FASE 2 (Semana 3):** Incorporación del **Acompañamiento Físico (Rutas y Taxis nocturnos)** usando las mismas habilidades sobre la arquitectura modular existente.
+3. **FASE 3 (Semana 4):** Prueba de carga masiva unificada (1.000 requerimientos duales).
 
-| Miembro | Rol de Ingeniería | Archivos que Lidera | Responsabilidad Principal |
-| :--- | :--- | :--- | :--- |
-| **Fabián Aguilera** | *Lead Architect & Core Orchestrator* | `src/agent/sentinel.py`<br>`src/client.py`<br>`src/config.py`<br>`main.py` | Orquestación del ciclo del agente, integración del cliente Grok, manejo de errores y coordinación general de Git. |
-| **Nicolle** | *Social Engineering & NLP Specialist* | `src/tools/threat_inspector.py`<br>`tests/test_threat.py` | Detección de patrones psicológicos de urgencia, intimidación, palabras clave de fraude colombiano y banco-spoofing. |
-| **Santiago** | *Network & Threat Sandbox Specialist* | `src/tools/url_sandbox.py`<br>`tests/test_sandbox.py` | Desenrollado de acortadores (bit.ly, t.co), cálculo de entropía de URL, dominios clonados (*typosquatting*) y validación TLD. |
-| **Miguel** | *Multimodal Vision & Security Reporting* | `src/tools/vision_parser.py`<br>`src/tools/police_reporter.py`<br>`tests/test_vision.py` | Procesamiento visual de comprobantes falsos (Nequi/Bancolombia) y compilación del informe formal en PDF/Markdown para CAI Virtual. |
-| **Juan José** | *Dataset Engineering, Stress Testing & UI* | `data/scam_dataset_30.json`<br>`app_streamlit.py`<br>`scripts/load_test_1000.py`<br>`tests/test_performance.py` | Curaduría de 30 casos reales (Hito S3), interfaz visual en Streamlit para el video demo, y arnés de prueba de 1.000 ejecuciones (Hito S4). |
+| Miembro | Rol de Ingeniería | Archivos que Lidera | Responsabilidad en Módulo 1 (Semanas 1-2) | Responsabilidad en Módulo 2 (Semana 3) |
+| :--- | :--- | :--- | :--- | :--- |
+| **Fabián Aguilera** | *Lead Architect & Orchestrator* | `src/agent/sentinel.py`<br>`src/client.py`<br>`src/config.py`<br>`main.py` | Orquestación del ciclo del agente, integración de tools y cliente Grok. | Temporizador autónomo de check-ins de taxi y memoria multi-turno. |
+| **Nicolle** | *Social Eng. & NLP Specialist* | `src/tools/threat_inspector.py`<br>`tests/test_threat.py` | Disparadores psicológicos de urgencia, extorsión carcelaria y bancos. | Detección de estrés/pánico y coacción en respuestas del pasajero. |
+| **Santiago** | *Network & Telemetry Specialist* | `src/tools/url_sandbox.py`<br>`tests/test_sandbox.py` | Desenrollado de acortadores y detección de *typosquatting* bancario. | Telemetría de ruta, detección de paradas anómalas y desvíos GPS. |
+| **Miguel** | *Vision & Security Dispatch* | `src/tools/vision_parser.py`<br>`src/tools/police_reporter.py`<br>`tests/test_vision.py` | Comprobantes falsos con Grok Vision, reporte CAI y **Video Demo 2 min**. | Escalada de alerta SOS física con placa de vehículo y audio disuasorio. |
+| **Juan José** | *Data, UI & Stress Testing* | `data/scam_dataset_30.json`<br>`app_streamlit.py`<br>`scripts/load_test_1000.py`<br>`tests/test_performance.py` | Dashboard Streamlit (Antifraude), dataset de 30 casos y carga S4. | Pestaña de monitoreo de taxi en UI y casos de trayectos seguros/peligro. |
 
 ---
 
