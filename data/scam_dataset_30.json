@@ -1,0 +1,122 @@
+[
+  {
+    "id": "CASE-001",
+    "category": "PHISHING_BANCO",
+    "expected_verdict": "CRÍTICO",
+    "text": "Bancolombia le informa: Su cuenta ha sido bloqueada temporalmente por intentos fallidos. Ingrese inmediatamente a https://banc0lombia-seguridad.cc/login para desbloquearla antes de 2 horas.",
+    "entity_target": "Bancolombia",
+    "has_malicious_url": true
+  },
+  {
+    "id": "CASE-002",
+    "category": "EXTORSION_CARCELARIA",
+    "expected_verdict": "CRÍTICO",
+    "text": "Hablamos del Frente Urbano. Tenemos ubicado a usted y a su negocio en Bucaramanga. Si no nos colabora con 2 millones antes del mediodía por Nequi al 3124567890, aténgase a las consecuencias.",
+    "entity_target": "Comercio Local",
+    "has_malicious_url": false
+  },
+  {
+    "id": "CASE-003",
+    "category": "SUPLANTACION_FAMILIAR",
+    "expected_verdict": "CRÍTICO",
+    "text": "Hola tío, cambié de número porque me robaron en el aeropuerto. Tengo las maletas retenidas en la aduana y necesito que me consigne 450 mil a este Daviplata para que no me las decomisen porfa.",
+    "entity_target": "Familiar",
+    "has_malicious_url": false
+  },
+  {
+    "id": "CASE-004",
+    "category": "FALSA_OFERTA_LABORAL",
+    "expected_verdict": "ALTO",
+    "text": "Amazon Colombia está contratando personal para trabajar desde casa 2 horas al día ganando hasta $350.000 diarios. Para postularte y activar tu cuenta deposita $50.000 en https://trabajo-amazon-latam.top",
+    "entity_target": "Amazon",
+    "has_malicious_url": true
+  },
+  {
+    "id": "CASE-005",
+    "category": "PHISHING_NEQUI",
+    "expected_verdict": "CRÍTICO",
+    "text": "Nequi Alerta: Su disponible fue suspendido por actividad inusual. Actualice sus datos de inmediato en https://nequii-seguridad.online o su saldo pasará a custodia de la DIAN.",
+    "entity_target": "Nequi",
+    "has_malicious_url": true
+  },
+  {
+    "id": "CASE-006",
+    "category": "SUPLANTACION_DIAN",
+    "expected_verdict": "CRÍTICO",
+    "text": "DIAN NOTIFICACIÓN JUDICIAL: Tiene un mandamiento de pago pendiente y orden de embargo sobre sus cuentas bancarias. Descargue el expediente con su cédula en https://dian-notificaciones.xyz/expediente",
+    "entity_target": "DIAN",
+    "has_malicious_url": true
+  },
+  {
+    "id": "CASE-007",
+    "category": "FALSO_PREMIO",
+    "expected_verdict": "ALTO",
+    "text": "¡Felicidades! Tu número fue seleccionado en el sorteo de Claro y Éxito para ganar una Toyota Prado 2026 y 50 millones. Comunícate al 3209876543 con el Dr. Carlos Mario para reclamar tu premio.",
+    "entity_target": "Claro / Éxito",
+    "has_malicious_url": false
+  },
+  {
+    "id": "CASE-008",
+    "category": "COMPRA_MARKETPLACE",
+    "expected_verdict": "ALTO",
+    "text": "Hola amigo, ya le hice la transferencia por los audífonos por Daviplata, ya le mandé el pantallazo del comprobante. Porfa mándelos ya en Uber porque salgo de viaje, en la app le aparece en 24 horas por ser interbancario.",
+    "entity_target": "Marketplace",
+    "has_malicious_url": false
+  },
+  {
+    "id": "CASE-009",
+    "category": "SUPLANTACION_SIMIT",
+    "expected_verdict": "CRÍTICO",
+    "text": "SIMIT FOTOMULTAS: Su vehículo con placas registradas tiene un comparendo vigente por exceso de velocidad con 50% de descuento hoy. Pague en línea: https://simit-multas-colombia.site/pagos",
+    "entity_target": "SIMIT",
+    "has_malicious_url": true
+  },
+  {
+    "id": "CASE-010",
+    "category": "EXTORSION_SEXTORSION",
+    "expected_verdict": "CRÍTICO",
+    "text": "Tengo grabaciones íntimas de su cámara web mientras navegaba en páginas privadas. Si no me transfiere 0.05 Bitcoin a esta billetera en 24 horas, enviaré el video a todos sus contactos de Facebook y trabajo.",
+    "entity_target": "Privacidad Personal",
+    "has_malicious_url": false
+  },
+  {
+    "id": "CASE-011",
+    "category": "LEGITIMO_CONTROL",
+    "expected_verdict": "BAJO",
+    "text": "Hola mamá, ¿cómo estás? Ya llegué a la universidad, te llamo a la hora del almuerzo para cuadrar lo de la cena de esta noche.",
+    "entity_target": "Familiar",
+    "has_malicious_url": false
+  },
+  {
+    "id": "CASE-012",
+    "category": "LEGITIMO_CONTROL",
+    "expected_verdict": "BAJO",
+    "text": "Bancolombia le informa que su pago por $45.000 en Supermercado Éxito fue exitoso. Si no reconoce esta transacción comuníquese a la línea de atención oficial 018000912345.",
+    "entity_target": "Bancolombia",
+    "has_malicious_url": false
+  },
+  {
+    "id": "CASE-013",
+    "category": "LEGITIMO_CONTROL",
+    "expected_verdict": "BAJO",
+    "text": "Tu código de verificación de WhatsApp es 849-204. No compartas este código con nadie.",
+    "entity_target": "WhatsApp",
+    "has_malicious_url": false
+  },
+  {
+    "id": "CASE-014",
+    "category": "LEGITIMO_CONTROL",
+    "expected_verdict": "BAJO",
+    "text": "Hola Juan, recuerda que mañana tenemos la reunión de planeación del sprint a las 9:00 AM en la sala de juntas de Campuslands.",
+    "entity_target": "Trabajo",
+    "has_malicious_url": false
+  },
+  {
+    "id": "CASE-015",
+    "category": "LEGITIMO_CONTROL",
+    "expected_verdict": "BAJO",
+    "text": "Nequi: Le enviaste $20.000 a Maria Perez. Tu nuevo saldo disponible es $85.400.",
+    "entity_target": "Nequi",
+    "has_malicious_url": false
+  }
+]
