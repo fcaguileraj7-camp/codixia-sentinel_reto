@@ -134,33 +134,24 @@ Para garantizar un trabajo equilibrado, claro y sin bloqueos, el equipo opera ba
 
 | Miembro | Rol de Ingeniería | Archivos que Lidera | Responsabilidad en Módulo 1 (Semanas 1-2) | Responsabilidad en Módulo 2 (Semana 3) |
 | :--- | :--- | :--- | :--- | :--- |
-| **Fabián Aguilera** | *Lead Architect & Orchestrator* | `src/agent/sentinel.py`<br>`src/client.py`<br>`src/config.py`<br>`main.py` | Orquestación del ciclo del agente, integración de tools y cliente Grok. | Temporizador autónomo de check-ins de taxi y memoria multi-turno. |
-| **Nicolle** | *Social Eng. & NLP Specialist* | `src/tools/threat_inspector.py`<br>`tests/test_threat.py` | Disparadores psicológicos de urgencia, extorsión carcelaria y bancos. | Detección de estrés/pánico y coacción en respuestas del pasajero. |
-| **Santiago** | *Network & Telemetry Specialist* | `src/tools/url_sandbox.py`<br>`tests/test_sandbox.py` | Desenrollado de acortadores y detección de *typosquatting* bancario. | Telemetría de ruta, detección de paradas anómalas y desvíos GPS. |
-| **Miguel** | *Vision & Security Dispatch* | `src/tools/vision_parser.py`<br>`src/tools/police_reporter.py`<br>`tests/test_vision.py` | Comprobantes falsos con Grok Vision, reporte CAI y **Video Demo 2 min**. | Escalada de alerta SOS física con placa de vehículo y audio disuasorio. |
-| **Juan José** | *Data, UI & Stress Testing* | `data/scam_dataset_30.json`<br>`app_streamlit.py`<br>`scripts/load_test_1000.py`<br>`tests/test_performance.py` | Dashboard Streamlit (Antifraude), dataset de 30 casos y carga S4. | Pestaña de monitoreo de taxi en UI y casos de trayectos seguros/peligro. |
+| **Fabián Aguilera** | **Rol 1: Lead Architect & Orchestrator** | `src/agent/sentinel.py`<br>`src/client.py`<br>`src/config.py`<br>`main.py` | Orquestación del ciclo del agente, integración de tools y cliente Grok. | Temporizador autónomo de check-ins de taxi y memoria multi-turno. |
+| **Santiago** | **Rol 2: Network & Threat Sandbox Specialist** | `src/tools/url_sandbox.py`<br>`tests/test_sandbox.py` | Desenrollado de acortadores (`bit.ly`, `t.co`) y detección de *typosquatting* bancario. | Telemetría de ruta, detección de paradas anómalas y desvíos GPS. |
+| **Miguel** | **Rol 3: Seguridad Física & Acompañamiento en Rutas** | `src/tools/route_companion.py`<br>`src/tools/emergency_escalator.py`<br>`tests/test_route.py` | Integración de alertas preventivas y soporte en pruebas de escalada. | **Lidera el Módulo de Taxis**: registro de vehículos, check-in periódico y despacho SOS físico. |
+| **Nicolle** | **Rol 4: Social Eng. NLP, Visión & CAI Virtual** | `src/tools/threat_inspector.py`<br>`src/tools/vision_parser.py`<br>`src/tools/police_reporter.py`<br>`tests/test_threat.py`<br>`tests/test_vision.py` | Disparadores de urgencia, extorsión carcelaria, análisis de comprobantes falsos con Grok Vision y **Video Demo 2 min**. | Detección de estrés/pánico y coacción en respuestas del pasajero en taxi. |
+| **Juan José** | **Rol 5: Dataset, Stress Testing & Streamlit UI** | `data/scam_dataset_30.json`<br>`app_streamlit.py`<br>`scripts/load_test_1000.py`<br>`tests/test_performance.py` | Dashboard Streamlit (Antifraude), dataset de 30 casos y arnés de carga S4. | Pestaña de monitoreo de taxi en UI y casos de trayectos seguros/peligro. |
 
 ---
 
 ## 5. 🛠️ Detalle de Tareas por Rol
 
-### 5.1 Fabián Aguilera (Orquestación & Core)
+### 5.1 Fabián Aguilera (Rol 1: Orquestación & Core)
 - **Objetivo:** Mantener el bucle principal robusto, desacoplado y tolerante a fallas.
 - **Entregables:**
-  - `src/agent/sentinel.py`: Orquestador que llama dinámicamente a las tools creadas por Nicolle, Santiago y Miguel.
-  - `src/client.py`: Manejo de autenticación contra `https://api.reto.pltk.mx/v1`, reintentos exponenciales y fallback local cuando el gateway esté en mantenimiento o sin saldo.
+  - `src/agent/sentinel.py`: Orquestador que llama dinámicamente a las tools creadas por Santiago, Nicolle y Miguel.
+  - `src/client.py`: Manejo de autenticación contra `https://api.reto.pltk.mx/v1`, límite de tokens (`max_tokens=500`), cálculo de costo y fallback local.
   - `src/agent/memory.py`: Almacenamiento de contexto para conversaciones de más de un turno (requerimiento de S3).
 
-### 5.2 Nicolle (NLP & Ingeniería Social)
-- **Objetivo:** Convertir el análisis de texto en una herramienta precisa que no dependa solo de palabras sueltas sino de la intención psicológica.
-- **Entregables:**
-  - `src/tools/threat_inspector.py`:
-    - Ampliar el catálogo de entidades financieras colombianas (*Nequi, Bancolombia, Daviplata, Scotiabank, DIAN, SIMIT, Fiscalía*).
-    - Detectar vectores de ingeniería social: *Falsa urgencia*, *Amenaza penal inmediata*, *Falso premio*, *Suplantación de familiar secuestrado*.
-    - Retornar un puntaje numérico de riesgo (0-100) y lista de señales de alarma detectadas.
-  - `tests/test_threat.py`: Al menos 5 pruebas con casos benignos y maliciosos.
-
-### 5.3 Santiago (Sandbox de URLs & Red)
+### 5.2 Santiago (Rol 2: Sandbox de URLs & Ciberseguridad de Red)
 - **Objetivo:** Aislar e inspeccionar de manera segura cualquier enlace contenido en un mensaje sospechoso.
 - **Entregables:**
   - `src/tools/url_sandbox.py`:
@@ -170,27 +161,33 @@ Para garantizar un trabajo equilibrado, claro y sin bloqueos, el equipo opera ba
     - Verificación de certificados y dominios de alto riesgo (`.xyz`, `.top`, `.ru`, `.cc`).
   - `tests/test_sandbox.py`: Pruebas de detección con enlaces maliciosos simulados.
 
-### 5.4 Miguel (Visión Multimodal & Reportes de Policía)
-- **Objetivo:** Dotar a SentinelGuard de ojos para verificar comprobantes bancarios y crear la evidencia legal formal.
+### 5.3 Miguel (Rol 3: Seguridad Física, Rutas & Acompañamiento en Taxis)
+- **Objetivo:** Desarrollar el copiloto de seguridad física para trayectos nocturnos y transporte en taxi.
 - **Entregables:**
-  - `src/tools/vision_parser.py`:
-    - Función que acepta la ruta de una imagen o base64.
-    - Extrae datos clave de comprobantes Nequi/Bancolombia: valor, fecha, número de referencia, tipografía adulterada.
-    - Usa Grok Vision (`grok-4.7`) para certificar autenticidad.
-  - `src/tools/police_reporter.py`:
-    - Genera un reporte formateado (Markdown / Texto oficial) listo para radicar en el portal CAI Virtual de la Policía Nacional de Colombia, incluyendo: fecha, hora, número emisor, enlaces detectados, nivel de amenaza y transcripción.
-  - `tests/test_vision.py`: Pruebas de generación correcta del reporte.
+  - `src/tools/route_companion.py`:
+    - Registro de viajes con placa, origen, destino y temporizador de intervalo.
+    - Evaluación de respuestas periódicas para confirmar bienestar o detectar peligro.
+  - `src/tools/emergency_escalator.py`:
+    - Despacho de alertas SOS con placa del vehículo y última coordenada.
+    - Libreto disuasivo de audio en altavoz ("Vehículo bajo monitoreo satelital").
+  - `tests/test_route.py`: Pruebas unitarias de registro de viaje y detección de palabras de alerta.
 
-### 5.5 Juan José (Dataset S3, UI Streamlit & Pruebas de Carga S4)
-- **Objetivo:** Demostrar la efectividad científica del agente y crear la interfaz visual para la presentación.
+### 5.4 Nicolle (Rol 4: Social Engineering NLP, Visión Multimodal & CAI Virtual)
+- **Objetivo:** Dotar a SentinelGuard de ojos para verificar comprobantes bancarios, detectar ingeniería social y compilar denuncias legales.
 - **Entregables:**
-  - `data/scam_dataset_30.json`:
-    - 30 casos documentados y etiquetados de estafas en Colombia (10 phishing bancario, 10 extorsión carcelaria / WhatsApp, 5 comprobantes falsos, 5 mensajes legítimos de control).
-    - Permite medir la precisión y tasa de falsos positivos del agente.
-  - `app_streamlit.py`:
-    - Aplicación web sencilla y moderna donde un jurado o usuario puede pegar un mensaje o subir una imagen y ver en tiempo real cómo SentinelGuard analiza y responde.
-  - `scripts/load_test_1000.py`:
-    - Script autónomo para el Hito S4 que corre 1.000 consultas desatendidas midiendo tiempo de respuesta promedio, tasa de éxito y tokens consumidos.
+  - `src/tools/threat_inspector.py`: Detección de patrones psicológicos de urgencia, intimidación, suplantación de entidades financieras y extorsión carcelaria.
+  - `src/tools/vision_parser.py`: Verificación con Grok Vision de comprobantes adulterados de Nequi/Bancolombia.
+  - `src/tools/police_reporter.py`: Generador de radicado formal formateado para CAI Virtual de la Policía Nacional.
+  - **Liderar el Video Demo de 2 minutos** (exigido para el Hito S2).
+  - `tests/test_threat.py` y `tests/test_vision.py`: Pruebas unitarias pasando al 100%.
+
+### 5.5 Juan José (Rol 5: Dataset S3, UI Streamlit & Pruebas de Carga S4)
+- **Objetivo:** Demostrar la efectividad científica del agente y crear la interfaz visual interactiva para la presentación.
+- **Entregables:**
+  - `data/scam_dataset_30.json`: 30 casos documentados y etiquetados de estafas en Colombia y trayectos.
+  - `app_streamlit.py`: Aplicación web interactiva donde el jurado puede probar el agente en vivo.
+  - `scripts/load_test_1000.py`: Script para el Hito S4 que corre 1.000 consultas desatendidas con métricas de latencia y costo.
+  - `tests/test_performance.py`: Pruebas de evaluación del dataset.
 
 ---
 

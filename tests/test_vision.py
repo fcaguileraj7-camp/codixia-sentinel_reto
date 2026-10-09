@@ -1,6 +1,6 @@
 """
 Pruebas Unitarias para PoliceReporter y VisionParser
-Rol: Miguel (Multimodal Vision & Security Reporting)
+Rol 4: Nicolle (Detección de Engaño Psicológico, Visión & CAI Virtual)
 """
 
 from src.tools.police_reporter import generate_police_report

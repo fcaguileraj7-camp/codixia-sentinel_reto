@@ -1,11 +1,11 @@
 """
 Módulo de Reportes Oficiales para CAI Virtual de Policía
-Liderado por: Miguel (Rol: Multimodal Vision & Security Reporting)
+Liderado por: Nicolle (Rol 4: Detección de Engaño Psicológico, Visión & CAI Virtual)
 Reto Agente 2026 - SentinelGuard AI
 """
 
 import datetime
-from typing import Dict, Any, List
+from typing import Dict, Any
 
 def generate_police_report(evidence: Dict[str, Any]) -> Dict[str, Any]:
     """
@@ -22,7 +22,6 @@ def generate_police_report(evidence: Dict[str, Any]) -> Dict[str, Any]:
     findings = evidence.get("findings", [])
     detected_urls = evidence.get("detected_urls", [])
 
-    # Formatear el markdown legal oficial
     formatted_markdown = f"""# EXPEDIENTE DE DENUNCIA DIGITAL — POLICÍA NACIONAL DE COLOMBIA
 **Radicado Técnico:** {report_id}
 **Fecha y Hora:** {timestamp}

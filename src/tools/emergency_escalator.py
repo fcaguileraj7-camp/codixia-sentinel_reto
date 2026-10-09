@@ -1,3 +1,9 @@
+"""
+Módulo de Escalada y Despacho de Emergencias SOS (EmergencyEscalator)
+Liderado por: Miguel (Rol 3: Especialista en Seguridad Física, Rutas & Acompañamiento en Taxis)
+Reto Agente 2026 - SentinelGuard AI
+"""
+
 import datetime
 from typing import Dict, Any, List
 
@@ -7,7 +13,8 @@ def escalate_emergency(
     contacts: List[str] = None
 ) -> Dict[str, Any]:
     """
-    Ejecuta el protocolo de escalada de emergencia: compila evidencia y despacha notificaciones.
+    Ejecuta el protocolo de escalada de emergencia física o digital:
+    compila la evidencia, coordenadas, placa del vehículo y notifica contactos de confianza.
     """
     now = datetime.datetime.now().isoformat()
     contacts = contacts or ["Contacto_Emergencia_1", "Contacto_Emergencia_2"]
@@ -27,7 +34,7 @@ def escalate_emergency(
         plate = evidence_payload.get("vehicle_plate", "NO_REGISTRADA")
         dispatch_message = (
             f"🚨 ALERTA SOS: Se ha perdido comunicación o se detectó emergencia en trayecto. "
-            f"Vehículo Placa: {plate}. Última hora: {now}. Contactando autoridades."
+            f"Vehículo Placa: {plate}. Última hora: {now}. Contactando autoridades y familiares."
         )
         decoy_audio_script = (
             f"Atención conductor: Vehículo placa {plate} se encuentra bajo monitoreo satelital en tiempo real. "

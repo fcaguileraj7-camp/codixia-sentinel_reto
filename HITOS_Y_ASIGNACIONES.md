@@ -19,7 +19,7 @@
 | :---: | :--- | :---: | :--- | :--- |
 | **S1** | **Semana 1 · Agente Corriendo**<br>*(Base Escudo Digital)* | **Oct 5 - 11**<br>*(Semana actual)* | Repositorio estructurado, README fundamentado, cliente funcional contra Grok y prueba documentada. | **Fabián Aguilera**<br>*(¡Completado al 100%!)* |
 | **S2** | **Semana 2 · Herramientas Reales**<br>*(MVP 100% Escudo Digital)* | **Oct 12 - 18** | Conexión de 3+ herramientas antifraude reales, tolerancia a fallos, 10 ejecuciones grabadas y **video demo de 2 minutos**. | **Nicolle, Santiago, Miguel** (Tools)<br>+ **Juan José** (UI Streamlit) |
-| **S3** | **Semana 3 · Datos Reales**<br>*(Activación Acompañamiento Físico)* | **Oct 19 - 25** | Memoria multi-turno + Incorporación del módulo de taxis/rutas + Dataset de **30+ casos reales evaluados** y reporte de costos. | **Juan José & Fabián** (Dataset & Memory)<br>+ Equipo en Módulo Físico |
+| **S3** | **Semana 3 · Datos Reales**<br>*(Activación Acompañamiento Físico)* | **Oct 19 - 25** | Memoria multi-turno + Incorporación del módulo de taxis/rutas + Dataset de **30+ casos reales evaluados** y reporte de costos. | **Juan José & Fabián** (Dataset & Memory)<br>+ **Miguel** (Módulo Rutas/Taxis) |
 | **S4** | **Semana 4 · Semana de Carga**<br>*(Carga Masiva Dual)* | **Oct 26 - Nov 1** | Procesar **1.000 unidades desatendidas en 12 horas** (mixto: fraude digital + telemetría de taxis), bitácora y latencias. | **Juan José & Santiago** |
 | **Final** | **Refinamiento & Demo Day**<br>*(Agente Integral Dual)* | **Noviembre**<br>*(Cierre del Reto)* | Sesiones de mentoría 1 a 1 con fundadores de Platica, video final de impacto, diapositivas y postulación a premiación. | **Todo el Equipo Codixia** |
 
@@ -33,13 +33,13 @@
 
 ## 👥 2. Matriz Maestra de Asignaciones por Fase y Semana
 
-| Integrante | Rol en el Equipo | FASE 1: Semanas 1 y 2 (Oct 5 - 18)<br>🛡️ **100% Escudo Digital (Antifraude)** | FASE 2: Semana 3 (Oct 19 - 25)<br>🚖 **Activación Acompañamiento Físico (Taxis)** | FASE 3: Semana 4 (Oct 26 - Nov 1)<br>⚡ **Carga Masiva (1.000 Reqs Duales)** | CIERRE: Noviembre<br>🏆 **Pitch & Premiación** |
+| Integrante | Rol Oficial en el Equipo | Archivos Principales | FASE 1: Semanas 1 y 2 (Oct 5 - 18)<br>🛡️ **Escudo Digital (Antifraude)** | FASE 2: Semana 3 (Oct 19 - 25)<br>🚖 **Acompañamiento Físico (Taxis)** | FASE 3: Semana 4 (Oct 26 - Nov 1)<br>⚡ **Carga Masiva (1.000 Reqs Duales)** |
 | :--- | :--- | :--- | :--- | :--- | :--- |
-| **Fabián Aguilera** | *Lead Architect & Orchestrator* | **S1:** Cliente Grok + Base repo.<br>**S2:** Orquestador dinámico de Tools Antifraude (`threat`, `url`, `vision`, `police`). | **S3:** Bucle de temporizador desatendido (*timer loop*) para check-ins de taxi + Memoria multi-turno (`memory.py`). | **S4:** Optimización de concurrencia y latencia para absorber las 1.000 peticiones mixtas. | **Final:** Release `v1.0.0` unificado, auditoría técnica de rúbricas del jurado. |
-| **Nicolle** | *Social Eng. & NLP Specialist* | **S1:** Detección de bancos.<br>**S2:** Detección de urgencia, extorsión carcelaria y falso familiar en WhatsApp. | **S3:** Detector de estrés y palabras de pánico del pasajero en taxi (*"ayuda"*, *"no me deja bajar"*, coacción). | **S4:** Pruebas de estrés NLP con textos malformados y audios/mensajes simulados. | **Final:** Redacción de métricas de precisión de detección de amenazas. |
-| **Santiago** | *Network & Telemetry Specialist* | **S1:** Extracción de URLs.<br>**S2:** Desenrollado de acortadores (`bit.ly`, `t.co`) y detección de *typosquatting* bancario. | **S3:** Telemetría de ruta: detección de paradas sospechosas prolongadas o desvíos de trayecto. | **S4:** Caché en memoria (`lru_cache`) para responder telemetría en <1 ms. | **Final:** Diagramas técnicos de seguridad de red y geolocalización. |
-| **Miguel** | *Vision & Emergency Dispatch* | **S1:** Formato base CAI.<br>**S2:** Comprobantes falsos con Grok Vision + **Edición del Video Demo 2 min (Antifraude)**. | **S3:** Escalada de emergencia física: despacho de alerta SOS con placa, GPS y audio disuasivo en altavoz. | **S4:** Pruebas de robustez en generación de reportes y alertas continuas. | **Final:** Video final de impacto mostrando ambos casos de uso integrados. |
-| **Juan José** | *Dataset, UI & Stress Testing* | **S1:** Verificación local.<br>**S2:** Interfaz web en **`app_streamlit.py`** (Pestaña Antifraude) para el video demo de 2 min. | **S3:** Pestaña de Acompañamiento en Streamlit + Dataset dual (20 estafas + 10 trayectos de taxi). | **S4:** Ejecución del arnés de **1.000 peticiones en 12h** (`load_test_1000.py`) con bitácora. | **Final:** Estructuración del guion del pitch y co-presentación en vivo. |
+| **Fabián Aguilera** | **Rol 1: Lead Architect & Core Orchestrator** | `src/agent/sentinel.py`<br>`src/client.py`<br>`main.py` | Orquestador dinámico de Tools Antifraude y cliente Grok. | Memoria multi-turno en `src/agent/memory.py` y gestión de tokens. | Optimización de concurrencia y latencia del bucle central. |
+| **Santiago** | **Rol 2: Network & Threat Sandbox Specialist** | `src/tools/url_sandbox.py`<br>`tests/test_sandbox.py` | Desenrollado de acortadores (`bit.ly`, `t.co`) y detector de *typosquatting* bancario. | Telemetría de red y optimización de latencia de conexiones. | Implementación de caché en memoria (`lru_cache`) para acelerar consultas. |
+| **Miguel** | **Rol 3: Seguridad Física, Rutas & Acompañamiento** | `src/tools/route_companion.py`<br>`src/tools/emergency_escalator.py`<br>`tests/test_route.py` | Apoyo en integración de herramientas y pruebas de escalada en Fase 1. | **Lidera el módulo de Taxis**: registro de placas, temporizador de check-in y alerta SOS física. | Pruebas de estrés y robustez de monitoreo desatendido en viajes continuos. |
+| **Nicolle** | **Rol 4: Social Eng. NLP, Visión & CAI Virtual** | `src/tools/threat_inspector.py`<br>`src/tools/vision_parser.py`<br>`src/tools/police_reporter.py`<br>`tests/test_threat.py`<br>`tests/test_vision.py` | Detección de urgencia, extorsión carcelaria, análisis de comprobantes falsos con Grok Vision y expediente para CAI Virtual. | Detección acústica/NLP de estrés y palabras de auxilio del pasajero en taxi. | Pruebas de robustez contra entradas malformadas y textos con emojis masivos. |
+| **Juan José** | **Rol 5: Dataset Engineering, Stress & UI** | `data/scam_dataset_30.json`<br>`app_streamlit.py`<br>`scripts/load_test_1000.py`<br>`tests/test_performance.py` | Interfaz interactiva en Streamlit para el demo de 2 min y dataset preliminar. | Pestaña de monitoreo de viajes en Streamlit + Dataset dual de 30 casos reales. | Ejecución del arnés de **1.000 consultas desatendidas** en 12h y reporte de costos. |
 
 ---
 
@@ -49,11 +49,11 @@ Las habilidades técnicas desarrolladas en las Semanas 1 y 2 se reutilizan direc
 
 | Miembro | En el Módulo 1 (Escudo Digital · Semanas 1 y 2) | En el Módulo 2 (Acompañamiento Físico · Semana 3) |
 | :--- | :--- | :--- |
-| **Fabián** | Orquesta el análisis de capturas, enlaces y chats fraudulentos. | Orquesta el temporizador autónomo de check-in preventivo en viajes. |
-| **Nicolle** | Analiza si el mensaje es estafa, extorsión o suplantación financiera. | Analiza si el pasajero está asustado o siendo coaccionado en cabina. |
-| **Santiago** | Inspecciona URLs, dominios maliciosos y acortadores. | Inspecciona la coherencia de la ruta y desvíos GPS sospechosos. |
-| **Miguel** | Genera denuncias formales para el CAI Virtual de la Policía. | Dispara la alerta SOS con placa a contactos y audio disuasorio en altavoz. |
-| **Juan José** | Construye la UI de análisis de texto/enlaces y casos de estafa. | Construye el simulador de ruta en Streamlit y casos de trayecto seguro/peligro. |
+| **Fabián (Rol 1)** | Orquesta el análisis de capturas, enlaces y chats fraudulentos. | Orquesta el temporizador autónomo de check-in preventivo en viajes. |
+| **Santiago (Rol 2)** | Inspecciona URLs, dominios maliciosos y acortadores engañosos. | Optimiza la conectividad y latencia de telemetría de ruta. |
+| **Miguel (Rol 3)** | Apoya la integración de alertas y escalada de incidentes. | Lidera el módulo de taxi: registro de placa, destino y protocolo SOS. |
+| **Nicolle (Rol 4)** | Analiza manipulación psicológica, comprobantes falsos y CAI Virtual. | Analiza si el pasajero está asustado o siendo coaccionado en cabina. |
+| **Juan José (Rol 5)** | Construye la UI de análisis de texto/enlaces y casos de estafa. | Construye el simulador de viaje en Streamlit y casos de trayectos seguros/peligro. |
 
 ---
 
@@ -61,7 +61,7 @@ Las habilidades técnicas desarrolladas en las Semanas 1 y 2 se reutilizan direc
 
 ---
 
-### 👤 1. FABIÁN AGUILERA — Lead Architect & Core Orchestrator
+### 👤 1. FABIÁN AGUILERA — Rol 1: Lead Architect & Core Orchestrator
 - **Semana 1 (Hito S1 · Oct 5 - 11):**
   - [x] Repositorio configurado con arquitectura limpia y ramas (`main`, `dev`).
   - [x] Cliente `src/client.py` con OpenAI SDK apuntando a `api.reto.pltk.mx/v1` y fallback local resiliente.
@@ -69,10 +69,10 @@ Las habilidades técnicas desarrolladas en las Semanas 1 y 2 se reutilizan direc
   - [x] Subir link del repositorio al portal oficial `reto.pltk.mx`.
 - **Semana 2 (Hito S2 · Oct 12 - 18):**
   - [ ] Implementar el ciclo dinámico de Tool Calling en `src/agent/sentinel.py` para activar las tools del Escudo Digital.
-  - [ ] Revisar y aprobar los Pull Requests de Nicolle, Santiago y Miguel hacia `dev`.
+  - [ ] Revisar y aprobar los Pull Requests de Santiago, Nicolle y Miguel hacia `dev`.
 - **Semana 3 (Hito S3 · Oct 19 - 25):**
-  - [ ] Activar el bucle de temporizador en segundo plano para check-ins de taxi (`src/tools/route_companion.py`).
   - [ ] Crear el módulo de memoria conversacional multi-turno `src/agent/memory.py`.
+  - [ ] Integrar el temporizador del módulo de taxi desarrollado por Miguel.
 - **Semana 4 (Hito S4 · Oct 26 - Nov 1):**
   - [ ] Optimizar la concurrencia del bucle del agente para que procese las 1.000 peticiones mixtas en <1.5s por turno.
 - **Cierre Final (Noviembre):**
@@ -80,27 +80,7 @@ Las habilidades técnicas desarrolladas en las Semanas 1 y 2 se reutilizan direc
 
 ---
 
-### 👤 2. NICOLLE — Social Engineering & NLP Specialist
-- **Semana 1 (Hito S1 · Oct 5 - 11):**
-  - [x] Módulo base `src/tools/threat_inspector.py` con catálogo de bancos colombianos.
-  - [x] Pruebas unitarias en `tests/test_threat.py` pasando con `pytest`.
-- **Semana 2 (Hito S2 · Oct 12 - 18):**
-  - [ ] Ampliar reglas NLP de ingeniería social:
-    - Urgencia artificial (*"bloqueo inmediato en 1 hora"*).
-    - Falsa orden judicial (*"embargo de cuentas DIAN"*, *"orden de captura fiscalía"*).
-    - Extorsión carcelaria (*"frente urbano"*, *"le tenemos ubicada la casa"*).
-  - [ ] Generar un log con 10 ejecuciones reales documentadas.
-- **Semana 3 (Hito S3 · Oct 19 - 25):**
-  - [ ] Desarrollar detector de estrés/pánico para respuestas de audio/texto del pasajero en taxi.
-  - [ ] Calibrar score de riesgo (0-100) y aportar casos de estafas al dataset de Juan José.
-- **Semana 4 (Hito S4 · Oct 26 - Nov 1):**
-  - [ ] Pruebas de robustez contra textos con emojis masivos, caracteres nulos o entradas malformadas.
-- **Cierre Final (Noviembre):**
-  - [ ] Redactar las métricas de precisión y efectividad NLP para las diapositivas del pitch.
-
----
-
-### 👤 3. SANTIAGO — Network & Threat Sandbox Specialist
+### 👤 2. SANTIAGO — Rol 2: Network & Threat Sandbox Specialist
 - **Semana 1 (Hito S1 · Oct 5 - 11):**
   - [x] Módulo base `src/tools/url_sandbox.py` con detección de TLDs riesgosos (`.xyz`, `.top`, `.cc`).
   - [x] Pruebas unitarias en `tests/test_sandbox.py` pasando con `pytest`.
@@ -108,35 +88,53 @@ Las habilidades técnicas desarrolladas en las Semanas 1 y 2 se reutilizan direc
   - [ ] Desenrollado seguro de enlaces acortados (`bit.ly`, `tinyurl.com`, `t.co`) con peticiones HTTP `HEAD` seguras.
   - [ ] Detección de typosquatting contra entidades financieras (`banc0lombia`, `nequii-pagos`).
 - **Semana 3 (Hito S3 · Oct 19 - 25):**
-  - [ ] Módulo de telemetría de ruta: lógica para detectar paradas sospechosas prolongadas o desvíos del trayecto.
   - [ ] Blacklist local de URLs fraudulentas reportadas por la Policía Cibernética.
+  - [ ] Telemetría de red y optimización de latencias para el módulo de taxi.
 - **Semana 4 (Hito S4 · Oct 26 - Nov 1):**
   - [ ] Implementar caché en memoria (`@lru_cache`) para responder consultas repetidas en <1 ms en la prueba de carga.
 - **Cierre Final (Noviembre):**
-  - [ ] Elaborar los diagramas de arquitectura de red y geolocalización para la presentación.
+  - [ ] Elaborar los diagramas de arquitectura de red y ciberseguridad para la presentación.
 
 ---
 
-### 👤 4. MIGUEL — Multimodal Vision & Emergency Dispatch
+### 👤 3. MIGUEL — Rol 3: Seguridad Física, Rutas & Acompañamiento
 - **Semana 1 (Hito S1 · Oct 5 - 11):**
-  - [x] Módulos base `src/tools/police_reporter.py` y `src/tools/vision_parser.py`.
-  - [x] Pruebas unitarias en `tests/test_vision.py` pasando con `pytest`.
+  - [x] Módulos base `src/tools/route_companion.py` y `src/tools/emergency_escalator.py`.
+  - [x] Pruebas unitarias en `tests/test_route.py` pasando con `pytest`.
 - **Semana 2 (Hito S2 · Oct 12 - 18):**
+  - [ ] Apoyo en la integración de alertas de emergencia y validación de flujos de escalada del Escudo Digital.
+  - [ ] Preparación y diseño de la arquitectura de temporizadores para el módulo de taxis de Semana 3.
+- **Semana 3 (Hito S3 · Oct 19 - 25):**
+  - [ ] **Liderar el Módulo de Taxis**: registro de vehículo (placa, destino), intervalo de check-ins y evaluación acústica.
+  - [ ] Protocolo de escalada SOS física: compilación de placa, últimas coordenadas y libreto de audio disuasorio en altavoz.
+- **Semana 4 (Hito S4 · Oct 26 - Nov 1):**
+  - [ ] Pruebas de robustez y resiliencia en monitoreo de viajes prolongados sin pérdida de estado.
+- **Cierre Final (Noviembre):**
+  - [ ] Demostración del módulo de acompañamiento físico y presentación técnica ante los jueces.
+
+---
+
+### 👤 4. NICOLLE — Rol 4: Social Eng. NLP, Visión & CAI Virtual
+- **Semana 1 (Hito S1 · Oct 5 - 11):**
+  - [x] Módulos base `src/tools/threat_inspector.py`, `src/tools/vision_parser.py` y `src/tools/police_reporter.py`.
+  - [x] Pruebas unitarias en `tests/test_threat.py` y `tests/test_vision.py` pasando con `pytest`.
+- **Semana 2 (Hito S2 · Oct 12 - 18):**
+  - [ ] Ampliar reglas NLP de ingeniería social (urgencia artificial, falsa orden judicial, extorsión carcelaria).
   - [ ] Conectar `vision_parser.py` con Grok Vision (`grok-4.7`) para detectar comprobantes de pago falsificados.
   - [ ] **Liderar la grabación y edición del Video Demo de 2 minutos del Escudo Digital** (requisito formal de S2).
 - **Semana 3 (Hito S3 · Oct 19 - 25):**
-  - [ ] Implementar el protocolo de escalada SOS para viajes en taxi (`emergency_escalator.py`): compilación de placa, coordenadas y libreto de audio disuasorio en altavoz.
-  - [ ] Formatear expediente legal con radicado y hash probatorio para radicar en CAI Virtual.
+  - [ ] Desarrollar detector de estrés/pánico para respuestas de audio/texto del pasajero en taxi.
+  - [ ] Calibrar score de riesgo (0-100) y aportar casos de estafas al dataset de Juan José.
 - **Semana 4 (Hito S4 · Oct 26 - Nov 1):**
-  - [ ] Optimizar manejo de imágenes pesadas en Base64 para prevenir fugas de memoria en estrés.
+  - [ ] Pruebas de robustez contra textos con emojis masivos, caracteres nulos o entradas malformadas.
 - **Cierre Final (Noviembre):**
-  - [ ] Pulir el video final de impacto para los jurados mostrando la protección integral (digital + física).
+  - [ ] Redactar las métricas de precisión y efectividad NLP/Visión para las diapositivas del pitch.
 
 ---
 
-### 👤 5. JUAN JOSÉ — Dataset Engineering, Stress Testing & UI
+### 👤 5. JUAN JOSÉ — Rol 5: Dataset Engineering, Stress Testing & UI
 - **Semana 1 (Hito S1 · Oct 5 - 11):**
-  - [x] Clonar repo, configurar entorno virtual y ejecutar los 12 tests con `pytest`.
+  - [x] Clonar repo, configurar entorno virtual y ejecutar los 15 tests con `pytest`.
   - [x] Revisar la estructura base de datos en `data/scam_dataset_30.json`.
 - **Semana 2 (Hito S2 · Oct 12 - 18):**
   - [ ] Personalizar y pulir la interfaz web en **`app_streamlit.py`** con el modo Escudo Digital (caja de texto, selector de ejemplos, alertas visuales y radicado policial) para facilitar la grabación del video demo de 2 min.
@@ -160,10 +158,10 @@ Para que cada uno trabaje en su propio espacio sin colisiones:
 # 1. Crear tu rama según tu rol:
 git checkout -b feature/<tu-nombre>-<tu-modulo>
 # Ejemplos:
-# git checkout -b feature/nicolle-nlp
 # git checkout -b feature/santiago-url
-# git checkout -b feature/miguel-vision
-# git checkout -b feature/juanjo-ui
+# git checkout -b feature/miguel-route
+# git checkout -b feature/nicolle-nlp-vision
+# git checkout -b feature/juanjo-ui-data
 
 # 2. Hacer cambios y verificar que los tests pasen:
 pytest tests/ -v
