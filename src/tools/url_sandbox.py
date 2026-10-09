@@ -1,6 +1,6 @@
 """
 Módulo de Sandbox e Inspección de Enlaces (UrlSandbox)
-Liderado por: Santiago (Rol: Network & Threat Sandbox Specialist)
+Liderado por: Miguel (Rol 2: Network & Threat Sandbox Specialist)
 Reto Agente 2026 - SentinelGuard AI
 """
 

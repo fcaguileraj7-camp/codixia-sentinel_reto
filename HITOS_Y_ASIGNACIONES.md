@@ -36,8 +36,8 @@
 | Integrante | Rol Oficial en el Equipo | Archivos Principales | FASE 1: Semanas 1 y 2 (Oct 5 - 18)<br>🛡️ **Escudo Digital (Antifraude)** | FASE 2: Semana 3 (Oct 19 - 25)<br>🚖 **Acompañamiento Físico (Taxis)** | FASE 3: Semana 4 (Oct 26 - Nov 1)<br>⚡ **Carga Masiva (1.000 Reqs Duales)** |
 | :--- | :--- | :--- | :--- | :--- | :--- |
 | **Fabián Aguilera** | **Rol 1: Lead Architect & Core Orchestrator** | `src/agent/sentinel.py`<br>`src/client.py`<br>`main.py` | Orquestador dinámico de Tools Antifraude y cliente Grok. | Memoria multi-turno en `src/agent/memory.py` y gestión de tokens. | Optimización de concurrencia y latencia del bucle central. |
-| **Santiago** | **Rol 2: Network & Threat Sandbox Specialist** | `src/tools/url_sandbox.py`<br>`tests/test_sandbox.py` | Desenrollado de acortadores (`bit.ly`, `t.co`) y detector de *typosquatting* bancario. | Telemetría de red y optimización de latencia de conexiones. | Implementación de caché en memoria (`lru_cache`) para acelerar consultas. |
-| **Miguel** | **Rol 3: Seguridad Física, Rutas & Acompañamiento** | `src/tools/route_companion.py`<br>`src/tools/emergency_escalator.py`<br>`tests/test_route.py` | Apoyo en integración de herramientas y pruebas de escalada en Fase 1. | **Lidera el módulo de Taxis**: registro de placas, temporizador de check-in y alerta SOS física. | Pruebas de estrés y robustez de monitoreo desatendido en viajes continuos. |
+| **Miguel** | **Rol 2: Network & Threat Sandbox Specialist** | `src/tools/url_sandbox.py`<br>`tests/test_sandbox.py` | Desenrollado de acortadores (`bit.ly`, `t.co`) y detector de *typosquatting* bancario. | Telemetría de red y optimización de latencia de conexiones. | Implementación de caché en memoria (`lru_cache`) para acelerar consultas. |
+| **Santiago** | **Rol 3: Seguridad Física, Rutas & Acompañamiento** | `src/tools/route_companion.py`<br>`src/tools/emergency_escalator.py`<br>`tests/test_route.py` | Apoyo en integración de herramientas y pruebas de escalada en Fase 1. | **Lidera el módulo de Taxis**: registro de placas, temporizador de check-in y alerta SOS física. | Pruebas de estrés y robustez de monitoreo desatendido en viajes continuos. |
 | **Nicolle** | **Rol 4: Social Eng. NLP, Visión & CAI Virtual** | `src/tools/threat_inspector.py`<br>`src/tools/vision_parser.py`<br>`src/tools/police_reporter.py`<br>`tests/test_threat.py`<br>`tests/test_vision.py` | Detección de urgencia, extorsión carcelaria, análisis de comprobantes falsos con Grok Vision y expediente para CAI Virtual. | Detección acústica/NLP de estrés y palabras de auxilio del pasajero en taxi. | Pruebas de robustez contra entradas malformadas y textos con emojis masivos. |
 | **Juan José** | **Rol 5: Dataset Engineering, Stress & UI** | `data/scam_dataset_30.json`<br>`app_streamlit.py`<br>`scripts/load_test_1000.py`<br>`tests/test_performance.py` | Interfaz interactiva en Streamlit para el demo de 2 min y dataset preliminar. | Pestaña de monitoreo de viajes en Streamlit + Dataset dual de 30 casos reales. | Ejecución del arnés de **1.000 consultas desatendidas** en 12h y reporte de costos. |
 
@@ -50,8 +50,8 @@ Las habilidades técnicas desarrolladas en las Semanas 1 y 2 se reutilizan direc
 | Miembro | En el Módulo 1 (Escudo Digital · Semanas 1 y 2) | En el Módulo 2 (Acompañamiento Físico · Semana 3) |
 | :--- | :--- | :--- |
 | **Fabián (Rol 1)** | Orquesta el análisis de capturas, enlaces y chats fraudulentos. | Orquesta el temporizador autónomo de check-in preventivo en viajes. |
-| **Santiago (Rol 2)** | Inspecciona URLs, dominios maliciosos y acortadores engañosos. | Optimiza la conectividad y latencia de telemetría de ruta. |
-| **Miguel (Rol 3)** | Apoya la integración de alertas y escalada de incidentes. | Lidera el módulo de taxi: registro de placa, destino y protocolo SOS. |
+| **Miguel (Rol 2)** | Inspecciona URLs, dominios maliciosos y acortadores engañosos. | Optimiza la conectividad y latencia de telemetría de red. |
+| **Santiago (Rol 3)** | Apoya la integración de alertas y escalada de incidentes. | Lidera el módulo de taxi: registro de placa, destino y protocolo SOS. |
 | **Nicolle (Rol 4)** | Analiza manipulación psicológica, comprobantes falsos y CAI Virtual. | Analiza si el pasajero está asustado o siendo coaccionado en cabina. |
 | **Juan José (Rol 5)** | Construye la UI de análisis de texto/enlaces y casos de estafa. | Construye el simulador de viaje en Streamlit y casos de trayectos seguros/peligro. |
 
@@ -69,10 +69,10 @@ Las habilidades técnicas desarrolladas en las Semanas 1 y 2 se reutilizan direc
   - [x] Subir link del repositorio al portal oficial `reto.pltk.mx`.
 - **Semana 2 (Hito S2 · Oct 12 - 18):**
   - [ ] Implementar el ciclo dinámico de Tool Calling en `src/agent/sentinel.py` para activar las tools del Escudo Digital.
-  - [ ] Revisar y aprobar los Pull Requests de Santiago, Nicolle y Miguel hacia `dev`.
+  - [ ] Revisar y aprobar los Pull Requests de Miguel, Nicolle y Santiago hacia `dev`.
 - **Semana 3 (Hito S3 · Oct 19 - 25):**
   - [ ] Crear el módulo de memoria conversacional multi-turno `src/agent/memory.py`.
-  - [ ] Integrar el temporizador del módulo de taxi desarrollado por Miguel.
+  - [ ] Integrar el temporizador del módulo de taxi desarrollado por Santiago.
 - **Semana 4 (Hito S4 · Oct 26 - Nov 1):**
   - [ ] Optimizar la concurrencia del bucle del agente para que procese las 1.000 peticiones mixtas en <1.5s por turno.
 - **Cierre Final (Noviembre):**
@@ -80,7 +80,7 @@ Las habilidades técnicas desarrolladas en las Semanas 1 y 2 se reutilizan direc
 
 ---
 
-### 👤 2. SANTIAGO — Rol 2: Network & Threat Sandbox Specialist
+### 👤 2. MIGUEL — Rol 2: Network & Threat Sandbox Specialist
 - **Semana 1 (Hito S1 · Oct 5 - 11):**
   - [x] Módulo base `src/tools/url_sandbox.py` con detección de TLDs riesgosos (`.xyz`, `.top`, `.cc`).
   - [x] Pruebas unitarias en `tests/test_sandbox.py` pasando con `pytest`.
@@ -97,7 +97,7 @@ Las habilidades técnicas desarrolladas en las Semanas 1 y 2 se reutilizan direc
 
 ---
 
-### 👤 3. MIGUEL — Rol 3: Seguridad Física, Rutas & Acompañamiento
+### 👤 3. SANTIAGO — Rol 3: Seguridad Física, Rutas & Acompañamiento
 - **Semana 1 (Hito S1 · Oct 5 - 11):**
   - [x] Módulos base `src/tools/route_companion.py` y `src/tools/emergency_escalator.py`.
   - [x] Pruebas unitarias en `tests/test_route.py` pasando con `pytest`.
@@ -158,8 +158,8 @@ Para que cada uno trabaje en su propio espacio sin colisiones:
 # 1. Crear tu rama según tu rol:
 git checkout -b feature/<tu-nombre>-<tu-modulo>
 # Ejemplos:
-# git checkout -b feature/santiago-url
-# git checkout -b feature/miguel-route
+# git checkout -b feature/miguel-url
+# git checkout -b feature/santiago-route
 # git checkout -b feature/nicolle-nlp-vision
 # git checkout -b feature/juanjo-ui-data
 

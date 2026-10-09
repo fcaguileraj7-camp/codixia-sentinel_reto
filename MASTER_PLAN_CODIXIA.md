@@ -135,8 +135,8 @@ Para garantizar un trabajo equilibrado, claro y sin bloqueos, el equipo opera ba
 | Miembro | Rol de Ingeniería | Archivos que Lidera | Responsabilidad en Módulo 1 (Semanas 1-2) | Responsabilidad en Módulo 2 (Semana 3) |
 | :--- | :--- | :--- | :--- | :--- |
 | **Fabián Aguilera** | **Rol 1: Lead Architect & Orchestrator** | `src/agent/sentinel.py`<br>`src/client.py`<br>`src/config.py`<br>`main.py` | Orquestación del ciclo del agente, integración de tools y cliente Grok. | Temporizador autónomo de check-ins de taxi y memoria multi-turno. |
-| **Santiago** | **Rol 2: Network & Threat Sandbox Specialist** | `src/tools/url_sandbox.py`<br>`tests/test_sandbox.py` | Desenrollado de acortadores (`bit.ly`, `t.co`) y detección de *typosquatting* bancario. | Telemetría de ruta, detección de paradas anómalas y desvíos GPS. |
-| **Miguel** | **Rol 3: Seguridad Física & Acompañamiento en Rutas** | `src/tools/route_companion.py`<br>`src/tools/emergency_escalator.py`<br>`tests/test_route.py` | Integración de alertas preventivas y soporte en pruebas de escalada. | **Lidera el Módulo de Taxis**: registro de vehículos, check-in periódico y despacho SOS físico. |
+| **Miguel** | **Rol 2: Network & Threat Sandbox Specialist** | `src/tools/url_sandbox.py`<br>`tests/test_sandbox.py` | Desenrollado de acortadores (`bit.ly`, `t.co`) y detección de *typosquatting* bancario. | Telemetría de red y optimización de latencias de conexión. |
+| **Santiago** | **Rol 3: Seguridad Física & Acompañamiento en Rutas** | `src/tools/route_companion.py`<br>`src/tools/emergency_escalator.py`<br>`tests/test_route.py` | Integración de alertas preventivas y soporte en pruebas de escalada. | **Lidera el Módulo de Taxis**: registro de vehículos, check-in periódico y despacho SOS físico. |
 | **Nicolle** | **Rol 4: Social Eng. NLP, Visión & CAI Virtual** | `src/tools/threat_inspector.py`<br>`src/tools/vision_parser.py`<br>`src/tools/police_reporter.py`<br>`tests/test_threat.py`<br>`tests/test_vision.py` | Disparadores de urgencia, extorsión carcelaria, análisis de comprobantes falsos con Grok Vision y **Video Demo 2 min**. | Detección de estrés/pánico y coacción en respuestas del pasajero en taxi. |
 | **Juan José** | **Rol 5: Dataset, Stress Testing & Streamlit UI** | `data/scam_dataset_30.json`<br>`app_streamlit.py`<br>`scripts/load_test_1000.py`<br>`tests/test_performance.py` | Dashboard Streamlit (Antifraude), dataset de 30 casos y arnés de carga S4. | Pestaña de monitoreo de taxi en UI y casos de trayectos seguros/peligro. |
 
@@ -147,11 +147,11 @@ Para garantizar un trabajo equilibrado, claro y sin bloqueos, el equipo opera ba
 ### 5.1 Fabián Aguilera (Rol 1: Orquestación & Core)
 - **Objetivo:** Mantener el bucle principal robusto, desacoplado y tolerante a fallas.
 - **Entregables:**
-  - `src/agent/sentinel.py`: Orquestador que llama dinámicamente a las tools creadas por Santiago, Nicolle y Miguel.
+  - `src/agent/sentinel.py`: Orquestador que llama dinámicamente a las tools creadas por Miguel, Nicolle y Santiago.
   - `src/client.py`: Manejo de autenticación contra `https://api.reto.pltk.mx/v1`, límite de tokens (`max_tokens=500`), cálculo de costo y fallback local.
   - `src/agent/memory.py`: Almacenamiento de contexto para conversaciones de más de un turno (requerimiento de S3).
 
-### 5.2 Santiago (Rol 2: Sandbox de URLs & Ciberseguridad de Red)
+### 5.2 Miguel (Rol 2: Sandbox de URLs & Ciberseguridad de Red)
 - **Objetivo:** Aislar e inspeccionar de manera segura cualquier enlace contenido en un mensaje sospechoso.
 - **Entregables:**
   - `src/tools/url_sandbox.py`:
@@ -161,7 +161,7 @@ Para garantizar un trabajo equilibrado, claro y sin bloqueos, el equipo opera ba
     - Verificación de certificados y dominios de alto riesgo (`.xyz`, `.top`, `.ru`, `.cc`).
   - `tests/test_sandbox.py`: Pruebas de detección con enlaces maliciosos simulados.
 
-### 5.3 Miguel (Rol 3: Seguridad Física, Rutas & Acompañamiento en Taxis)
+### 5.3 Santiago (Rol 3: Seguridad Física, Rutas & Acompañamiento en Taxis)
 - **Objetivo:** Desarrollar el copiloto de seguridad física para trayectos nocturnos y transporte en taxi.
 - **Entregables:**
   - `src/tools/route_companion.py`:
@@ -213,7 +213,7 @@ def inspect_threat(text: str) -> dict:
     """
 ```
 
-### 6.2 Contrato de `UrlSandbox` (Santiago)
+### 6.2 Contrato de `UrlSandbox` (Miguel)
 ```python
 # src/tools/url_sandbox.py
 def analyze_url(raw_url: str) -> dict:
@@ -232,7 +232,7 @@ def analyze_url(raw_url: str) -> dict:
     """
 ```
 
-### 6.3 Contrato de `VisionParser` y `PoliceReporter` (Miguel)
+### 6.3 Contrato de `VisionParser` y `PoliceReporter` (Nicolle)
 ```python
 # src/tools/vision_parser.py
 def parse_receipt_image(image_path: str) -> dict:
@@ -264,7 +264,39 @@ def generate_police_report(evidence: dict) -> dict:
     """
 ```
 
-### 6.4 Contrato de Decisión de `SentinelAgent` (Fabián)
+### 6.4 Contrato de `RouteCompanion` y `EmergencyEscalator` (Santiago)
+```python
+# src/tools/route_companion.py
+def register_trip(plate: str, destination: str, origin: str | None = None, checkin_interval_minutes: int = 10) -> dict:
+    """
+    Retorna:
+    {
+        "status": "active",
+        "trip_id": str,
+        "vehicle_plate": str,
+        "destination": str,
+        "origin": str | None,
+        "checkin_interval_minutes": int,
+        "monitoring_active": bool
+    }
+    """
+
+# src/tools/emergency_escalator.py
+def escalate_emergency(incident_type: str, evidence_payload: dict, contacts: list[str] = None) -> dict:
+    """
+    Retorna:
+    {
+        "status": "escalated",
+        "alert_id": str,
+        "incident_type": str,
+        "severity": "CRITICAL",
+        "contacts_notified": list[str],
+        "deterrent_audio_script": str
+    }
+    """
+```
+
+### 6.5 Contrato de Decisión de `SentinelAgent` (Fabián)
 ```python
 # Respuesta final del orquestador:
 {
@@ -300,17 +332,17 @@ gitGraph
     checkout dev
     merge feature/nicolle-threat
     
-    branch feature/santiago-sandbox
-    checkout feature/santiago-sandbox
+    branch feature/miguel-sandbox
+    checkout feature/miguel-sandbox
     commit id: "feat: url expansion & typosquatting"
     checkout dev
-    merge feature/santiago-sandbox
+    merge feature/miguel-sandbox
     
-    branch feature/miguel-vision
-    checkout feature/miguel-vision
-    commit id: "feat: police report & vision"
+    branch feature/santiago-route
+    checkout feature/santiago-route
+    commit id: "feat: route companion & taxi monitoring"
     checkout dev
-    merge feature/miguel-vision
+    merge feature/santiago-route
     
     branch feature/juanjo-data-ui
     checkout feature/juanjo-data-ui
@@ -328,9 +360,9 @@ gitGraph
    - `dev`: Rama de integración donde se unen las características de cada uno.
 2. **Nombres de Ramas por Persona:**
    - `feature/fabian-core`
-   - `feature/nicolle-nlp`
-   - `feature/santiago-url`
-   - `feature/miguel-vision-cai`
+   - `feature/miguel-url`
+   - `feature/santiago-route`
+   - `feature/nicolle-nlp-vision`
    - `feature/juanjo-dataset-ui`
 3. **Formato de Commits (Conventional Commits):**
    - `feat(threat): añade deteccion de suplantacion de Nequi`
@@ -347,9 +379,9 @@ gitGraph
 | Hito | Nombre del Hito | Alcance Temporal | Objetivo Clave | Responsable Principal de Entrega |
 | :---: | :--- | :---: | :--- | :--- |
 | **S1** | **Semana 1 · Agente Corriendo** | **Semana 1 (Oct 5 - 11)** | Agente corriendo end-to-end con Grok, repositorio limpio, README con justificación del problema y simulación funcional. | **Fabián Aguilera** (Consolidación) + Todo el equipo |
-| **S2** | **Semana 2 · Herramientas Reales** | **Semana 2 (Oct 12 - 18)** | Conexión de 3+ herramientas reales, tolerancia a fallos, 10 ejecuciones documentadas y video demo de 2 minutos. | **Nicolle, Santiago & Miguel** (Tools) + **Juan José** (Video demo con Streamlit) |
+| **S2** | **Semana 2 · Herramientas Reales** | **Semana 2 (Oct 12 - 18)** | Conexión de 3+ herramientas reales, tolerancia a fallos, 10 ejecuciones documentadas y video demo de 2 minutos. | **Nicolle, Miguel & Santiago** (Tools) + **Nicolle & Juan José** (Video demo con Streamlit) |
 | **S3** | **Semana 3 · Datos Reales** | **Semana 3 (Oct 19 - 25)** | Memoria multi-turno + Dataset de evaluación con 30+ casos reales de estafas en Colombia, reporte de tokens y costos. | **Juan José** (Dataset) + **Fabián** (Memory) |
-| **S4** | **Semana 4 · Semana de Carga** | **Semana 4 (Oct 26 - Nov 1)** | Semana de carga: Arnés desatendido para procesar 1.000 solicitudes en 12h con reporte de fallos y latencias. | **Juan José** (Load test) + **Santiago** (Optimización) |
+| **S4** | **Semana 4 · Semana de Carga** | **Semana 4 (Oct 26 - Nov 1)** | Semana de carga: Arnés desatendido para procesar 1.000 solicitudes en 12h con reporte de fallos y latencias. | **Juan José** (Load test) + **Miguel & Santiago** (Optimización) |
 | **Final** | **Refinamiento & Pitch** | **Noviembre (Cierre del Reto)** | Sesiones de feedback 1 a 1 con mentores, entrega final, pitch de presentación, video de impacto y postulación para premiación. | **Todo el equipo Codixia** |
 
 > 📌 **Detalle granular por persona:** Para ver la lista de tareas específicas semana a semana asignadas a cada desarrollador (Nicolle, Santiago, Miguel, Juan José y Fabián), consulta el documento oficial:  
