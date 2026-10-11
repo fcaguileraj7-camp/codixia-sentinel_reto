@@ -1,7 +1,6 @@
 """
 Módulo de Acompañamiento Físico y Monitoreo de Rutas (RouteCompanion)
-Liderado por: Santiago (Rol 3: Especialista en Seguridad Física, Rutas & Acompañamiento en Taxis)
-Reto Agente 2026 - SentinelGuard AI
+Reto Agente 2026 - SentinelGuard AI · Equipo Codixia
 """
 
 import re

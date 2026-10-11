@@ -1,7 +1,6 @@
 """
 SentinelGuard AI - Interfaz Web de Demostración (Streamlit)
-Liderado por: Juan José (Rol: Dataset Engineering, Stress Testing & UI)
-Reto Agente 2026 - Platica.mx × Campuslands
+Reto Agente 2026 - Platica.mx × Campuslands · Equipo Codixia
 """
 
 import streamlit as st
@@ -25,7 +24,7 @@ st.set_page_config(
 
 st.title("🛡️ SentinelGuard AI")
 st.subheader("El Escudo Digital Ciudadano contra Estafas y Extorsiones (Reto Agente 2026)")
-st.caption("Desarrollado por el Equipo Codixia: Nicolle · Santiago · Miguel · Fabián · Juan José")
+st.caption("Desarrollado por el Equipo Codixia · Reto Agente 2026")
 
 tab1, tab2, tab3 = st.tabs(["💬 Analizador de Mensajes & Enlaces", "📊 Casos de Prueba (Dataset S3)", "📜 Expediente Policial"])
 

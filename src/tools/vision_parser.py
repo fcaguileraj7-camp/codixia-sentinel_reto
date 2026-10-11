@@ -1,7 +1,6 @@
 """
 Módulo de Visión Multimodal para Comprobantes y Capturas
-Liderado por: Nicolle (Rol 4: Detección de Engaño Psicológico, Visión & CAI Virtual)
-Reto Agente 2026 - SentinelGuard AI
+Reto Agente 2026 - SentinelGuard AI · Equipo Codixia
 """
 
 import os

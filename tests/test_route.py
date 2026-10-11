@@ -1,6 +1,6 @@
 """
 Pruebas Unitarias para RouteCompanion
-Rol 3: Santiago (Especialista en Seguridad Física, Rutas & Acompañamiento en Taxis)
+Reto Agente 2026 - SentinelGuard AI · Equipo Codixia
 """
 
 from src.tools.route_companion import register_trip, evaluate_trip_audio_response

@@ -11,13 +11,7 @@
 ---
 
 ## 👥 Equipo Codixia
-* **Nicolle**
-* **Santiago**
-* **Miguel**
-* **Fabián Aguilera**
-* **Juan José**
-
-*Ecosistema de Talento Campuslands · 2026*
+*Ecosistema de Talento Campuslands · Reto Agente 2026 (Platica.mx × Campuslands)*
 
 ---
 

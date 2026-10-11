@@ -1,7 +1,6 @@
 """
 Módulo de Reportes Oficiales para CAI Virtual de Policía
-Liderado por: Nicolle (Rol 4: Detección de Engaño Psicológico, Visión & CAI Virtual)
-Reto Agente 2026 - SentinelGuard AI
+Reto Agente 2026 - SentinelGuard AI · Equipo Codixia
 """
 
 import datetime
