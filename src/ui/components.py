@@ -5,7 +5,9 @@ Reto Agente 2026 - Platica.mx × Campuslands · Equipo Codixia
 """
 
 import streamlit as st
-from typing import Dict, Any, List, Optional
+import json
+import os
+from typing import Dict, Any, List, Optional, Tuple
 from .theme import THEME_COLORS, RISK_COLORS
 
 def render_html(html_str: str) -> None:
@@ -342,3 +344,171 @@ def render_footer():
     </a>
     """
     render_html(html)
+
+# =============================================================================
+# SUBPROCESO 2: INGRESO DE MENSAJES, SELECTOR DE EJEMPLOS Y VALIDACIÓN
+# =============================================================================
+
+NEUTRAL_SAMPLE_OPTION = "-- 🔍 Selecciona un ejemplo de demostración --"
+
+CATEGORY_METADATA: Dict[str, Dict[str, str]] = {
+    "PHISHING_BANCO": {"icon": "🏦", "category_label": "Phishing Bancario", "phone": "+57 312 987 6543"},
+    "EXTORSION_CARCELARIA": {"icon": "🚨", "category_label": "Extorsión Carcelaria", "phone": "+57 320 987 1122"},
+    "SUPLANTACION_FAMILIAR": {"icon": "👨‍👩‍👧", "category_label": "Suplantación Familiar", "phone": "+57 311 456 7890"},
+    "FALSA_OFERTA_LABORAL": {"icon": "💼", "category_label": "Falsa Oferta Laboral", "phone": "+57 301 234 5678"},
+    "PHISHING_NEQUI": {"icon": "📱", "category_label": "Phishing Nequi", "phone": "+57 300 123 4567"},
+    "SUPLANTACION_DIAN": {"icon": "⚖️", "category_label": "Suplantación DIAN", "phone": "+57 318 765 4321"},
+    "FALSO_PREMIO": {"icon": "🎁", "category_label": "Falso Premio", "phone": "+57 320 987 6543"},
+    "COMPRA_MARKETPLACE": {"icon": "🛒", "category_label": "Fraude Marketplace", "phone": "+57 314 222 3344"},
+    "SUPLANTACION_SIMIT": {"icon": "🚗", "category_label": "Fotomultas SIMIT", "phone": "+57 316 888 9900"},
+    "EXTORSION_SEXTORSION": {"icon": "⚠️", "category_label": "Sextorsión Digital", "phone": "+57 305 444 5566"},
+    "LEGITIMO_CONTROL": {"icon": "✅", "category_label": "Mensaje Legítimo", "phone": "+57 315 555 7890"},
+}
+
+FALLBACK_DEMO_SAMPLES: List[Dict[str, Any]] = [
+    {
+        "id": "CASE-001",
+        "category": "PHISHING_BANCO",
+        "expected_verdict": "CRÍTICO",
+        "text": "Bancolombia le informa: Su cuenta ha sido bloqueada temporalmente por intentos fallidos. Ingrese inmediatamente a https://banc0lombia-seguridad.cc/login para desbloquearla antes de 2 horas.",
+        "entity_target": "Bancolombia",
+        "has_malicious_url": True,
+    },
+    {
+        "id": "CASE-002",
+        "category": "EXTORSION_CARCELARIA",
+        "expected_verdict": "CRÍTICO",
+        "text": "Hablamos del Frente Urbano. Tenemos ubicado a usted y a su negocio en Bucaramanga. Si no nos colabora con 2 millones antes del mediodía por Nequi al 3124567890, aténgase a las consecuencias.",
+        "entity_target": "Comercio Local",
+        "has_malicious_url": False,
+    },
+    {
+        "id": "CASE-003",
+        "category": "SUPLANTACION_FAMILIAR",
+        "expected_verdict": "CRÍTICO",
+        "text": "Hola tío, cambié de número porque me robaron en el aeropuerto. Tengo las maletas retenidas en la aduana y necesito que me consigne 450 mil a este Daviplata para que no me las decomisen porfa.",
+        "entity_target": "Familiar",
+        "has_malicious_url": False,
+    },
+    {
+        "id": "CASE-004",
+        "category": "FALSA_OFERTA_LABORAL",
+        "expected_verdict": "ALTO",
+        "text": "Amazon Colombia está contratando personal para trabajar desde casa 2 horas al día ganando hasta $350.000 diarios. Para postularte y activar tu cuenta deposita $50.000 en https://trabajo-amazon-latam.top",
+        "entity_target": "Amazon",
+        "has_malicious_url": True,
+    },
+    {
+        "id": "CASE-005",
+        "category": "PHISHING_NEQUI",
+        "expected_verdict": "CRÍTICO",
+        "text": "Nequi Alerta: Su disponible fue suspendido por actividad inusual. Actualice sus datos de inmediato en https://nequii-seguridad.online o su saldo pasará a custodia de la DIAN.",
+        "entity_target": "Nequi",
+        "has_malicious_url": True,
+    },
+    {
+        "id": "CASE-011",
+        "category": "LEGITIMO_CONTROL",
+        "expected_verdict": "BAJO",
+        "text": "Hola mamá, ¿cómo estás? Ya llegué a la universidad, te llamo a la hora del almuerzo para cuadrar lo de la cena de esta noche.",
+        "entity_target": "Familiar",
+        "has_malicious_url": False,
+    },
+]
+
+def validate_input_text(text: Optional[str]) -> Tuple[bool, str]:
+    """
+    Valida si el texto de entrada contiene información utilizable para análisis.
+    Retorna una tupla (es_valido, mensaje_error).
+    Considera inválidas cadenas vacías, compuestas solo por espacios o saltos de línea.
+    """
+    if text is None:
+        return False, "Introduce un mensaje o selecciona un ejemplo antes de continuar."
+    cleaned = text.strip()
+    if not cleaned:
+        return False, "Introduce un mensaje o selecciona un ejemplo antes de continuar."
+    return True, ""
+
+def load_demo_samples(dataset_path: Optional[str] = None) -> List[Dict[str, Any]]:
+    """
+    Carga y enriquece los ejemplos representativos del dataset local (data/scam_dataset_30.json).
+    Si el archivo no está accesible, utiliza un conjunto de respaldo integrado.
+    Retorna una lista de diccionarios con metadatos estructurados para la interfaz.
+    """
+    candidates = []
+    if dataset_path:
+        candidates.append(dataset_path)
+    candidates.append("data/scam_dataset_30.json")
+    base_dir = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+    candidates.append(os.path.join(base_dir, "data", "scam_dataset_30.json"))
+
+    raw_data = None
+    for cp in candidates:
+        if os.path.exists(cp):
+            try:
+                with open(cp, "r", encoding="utf-8") as f:
+                    raw_data = json.load(f)
+                    break
+            except Exception:
+                continue
+
+    if not raw_data:
+        raw_data = FALLBACK_DEMO_SAMPLES
+
+    enriched_samples = []
+    for item in raw_data:
+        cat_key = item.get("category", "")
+        meta = CATEGORY_METADATA.get(cat_key, {"icon": "📩", "category_label": cat_key or "General", "phone": "+57 300 000 0000"})
+        icon = meta["icon"]
+        cat_label = meta["category_label"]
+        cid = item.get("id", "CASE")
+        target = item.get("entity_target", "General")
+
+        display_title = f"{icon} [{cat_label}] {cid}: {target}"
+        if cid == "CASE-001":
+            display_title = f"{icon} [{cat_label}] {cid}: Bloqueo urgente de cuenta ({target})"
+        elif cid == "CASE-002":
+            display_title = f"{icon} [{cat_label}] {cid}: Amenaza Frente Urbano ({target})"
+        elif cid == "CASE-003":
+            display_title = f"{icon} [{cat_label}] {cid}: Maletas retenidas en aduana ({target})"
+        elif cid == "CASE-004":
+            display_title = f"{icon} [{cat_label}] {cid}: Empleo Amazon $350k diarios ({target})"
+        elif cid == "CASE-005":
+            display_title = f"{icon} [{cat_label}] {cid}: Suspensión saldo Nequi por DIAN ({target})"
+        elif cid == "CASE-006":
+            display_title = f"{icon} [{cat_label}] {cid}: Orden judicial y embargo ({target})"
+        elif cid == "CASE-007":
+            display_title = f"{icon} [{cat_label}] {cid}: Sorteo Toyota Prado ({target})"
+        elif cid == "CASE-008":
+            display_title = f"{icon} [{cat_label}] {cid}: Comprobante falso de pago ({target})"
+        elif cid == "CASE-009":
+            display_title = f"{icon} [{cat_label}] {cid}: Comparendo fotomulta 50% desc. ({target})"
+        elif cid == "CASE-010":
+            display_title = f"{icon} [{cat_label}] {cid}: Sextorsión y rescate Bitcoin ({target})"
+        elif cid == "CASE-011":
+            display_title = f"{icon} [{cat_label}] {cid}: Saludo familiar cotidiano ({target})"
+        elif cid == "CASE-012":
+            display_title = f"{icon} [{cat_label}] {cid}: Notificación oficial de compra ({target})"
+        elif cid == "CASE-013":
+            display_title = f"{icon} [{cat_label}] {cid}: Código de verificación oficial ({target})"
+        elif cid == "CASE-014":
+            display_title = f"{icon} [{cat_label}] {cid}: Recordatorio reunión Campuslands ({target})"
+        elif cid == "CASE-015":
+            display_title = f"{icon} [{cat_label}] {cid}: Comprobante transferencia oficial ({target})"
+
+        enriched_samples.append({
+            "id": cid,
+            "category": cat_key,
+            "category_label": cat_label,
+            "icon": icon,
+            "title": target,
+            "display_title": display_title,
+            "expected_verdict": item.get("expected_verdict", "MEDIO"),
+            "text": item.get("text", ""),
+            "entity_target": target,
+            "has_malicious_url": item.get("has_malicious_url", False),
+            "phone": meta.get("phone", "+57 300 000 0000"),
+        })
+
+    return enriched_samples
+

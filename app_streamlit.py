@@ -2,7 +2,7 @@
 SentinelGuard AI - Interfaz Web de Demostración (Streamlit)
 Reto Agente 2026 - Platica.mx × Campuslands · Equipo Codixia
 Rol 5: Juan José (Dataset Engineering, Stress Testing & UI)
-Subproceso 1: Estructura visual inicial y evolución del diseño de la interfaz Streamlit
+Subproceso 2: Ingreso de mensajes y selector de ejemplos
 Identidad: Cyber Forest × Sage Sanctuary (Inspirado en Snyk & SecurityScorecard)
 """
 
@@ -32,6 +32,9 @@ from src.ui.components import (
     render_cai_protocol_card,
     render_footer,
     render_html,
+    validate_input_text,
+    load_demo_samples,
+    NEUTRAL_SAMPLE_OPTION,
 )
 
 # Configuración de página de Streamlit
@@ -57,15 +60,49 @@ render_marquee_ticker()
 # 4. Tarjetas métricas de capacidades del sistema (Efecto 11 Tilt + Efecto 26 Neumorphism)
 render_metric_cards()
 
-# Inicialización de estado de sesión para persistencia y auditoría
+# Carga modular de ejemplos del catálogo (Dataset S3)
+demo_samples = load_demo_samples()
+sample_options = [NEUTRAL_SAMPLE_OPTION] + [s["display_title"] for s in demo_samples]
+
+# Inicialización de estado de sesión para persistencia, auditoría y reactividad de widgets
 if "analysis_history" not in st.session_state:
     st.session_state["analysis_history"] = []
 if "last_result" not in st.session_state:
     st.session_state["last_result"] = None
+if "user_input_text" not in st.session_state:
+    st.session_state["user_input_text"] = ""
+if "sender_phone_text" not in st.session_state:
+    st.session_state["sender_phone_text"] = ""
 if "selected_sample" not in st.session_state:
-    st.session_state["selected_sample"] = "Bancolombia Alerta: Su cuenta 456-*** fue bloqueada por movimientos sospechosos. Ingrese urgente a https://banc0lombia-seguridad.cc para validar su identidad."
+    st.session_state["selected_sample"] = st.session_state["user_input_text"]
 if "selected_phone" not in st.session_state:
-    st.session_state["selected_phone"] = "+57 312 987 6543"
+    st.session_state["selected_phone"] = st.session_state["sender_phone_text"]
+if "example_dropdown_selector" not in st.session_state:
+    st.session_state["example_dropdown_selector"] = NEUTRAL_SAMPLE_OPTION
+
+# Callbacks para actualizar el área de texto sin ejecución automática de análisis
+def on_example_dropdown_change():
+    """Carga el texto del ejemplo seleccionado desde el desplegable sin disparar el análisis."""
+    chosen = st.session_state.get("example_dropdown_selector")
+    if chosen and chosen != NEUTRAL_SAMPLE_OPTION:
+        for s in demo_samples:
+            if s["display_title"] == chosen:
+                st.session_state["user_input_text"] = s["text"]
+                st.session_state["sender_phone_text"] = s.get("phone", "+57 300 000 0000")
+                st.session_state["selected_sample"] = s["text"]
+                st.session_state["selected_phone"] = s.get("phone", "+57 300 000 0000")
+                break
+
+def load_quick_sample(case_id: str):
+    """Callback de botón rápido para cargar vectores comunes antes de instanciar widgets."""
+    for s in demo_samples:
+        if s["id"] == case_id:
+            st.session_state["user_input_text"] = s["text"]
+            st.session_state["sender_phone_text"] = s.get("phone", "+57 300 000 0000")
+            st.session_state["selected_sample"] = s["text"]
+            st.session_state["selected_phone"] = s.get("phone", "+57 300 000 0000")
+            st.session_state["example_dropdown_selector"] = s["display_title"]
+            break
 
 # Instancia del orquestador del agente
 agent = SentinelAgent()
@@ -91,40 +128,47 @@ with tab1:
         </div>
         """
     )
-    st.write("### 💬 Pega un mensaje sospechoso recibido por WhatsApp o SMS:")
-    
-    # Selector rápido interactivo de casos de prueba preconfigurados
-    st.write("##### ⚡ Selector Rápido de Vectores Comunes:")
+    st.write("### 💬 Ingreso de Mensaje o Enlace Sospechoso:")
+    st.caption("Pega cualquier SMS, mensaje de WhatsApp, correo o enlace que desees auditar, o selecciona un caso preparado del catálogo:")
+
+    # 1. Selector Desplegable de Ejemplos Representativos (Opción neutral inicial)
+    st.selectbox(
+        "📂 Catálogo de Ejemplos Representativos:",
+        options=sample_options,
+        key="example_dropdown_selector",
+        on_change=on_example_dropdown_change,
+        help="Selecciona un caso preparado del dataset para cargarlo automáticamente en el área de análisis sin ejecutarlo."
+    )
+
+    # 2. Selector Rápido de Vectores Comunes (Efecto 10: Ripple y Efecto 6: Hover State)
+    st.write("##### ⚡ Acceso Rápido por Vector de Ataque:")
     col_ex1, col_ex2, col_ex3, col_ex4 = st.columns(4)
     with col_ex1:
-        if st.button("🏦 Phishing Bancolombia", use_container_width=True):
-            st.session_state["selected_sample"] = "Bancolombia Alerta: Su cuenta 456-*** fue bloqueada por movimientos sospechosos. Ingrese urgente a https://banc0lombia-seguridad.cc para validar su identidad."
-            st.session_state["selected_phone"] = "+57 312 987 6543"
-            st.rerun()
+        st.button("🏦 Phishing Bancolombia", key="btn_quick_banco", use_container_width=True, on_click=load_quick_sample, args=("CASE-001",))
     with col_ex2:
-        if st.button("📱 Suplantación Nequi", use_container_width=True):
-            st.session_state["selected_sample"] = "Nequi Alerta: Su disponible fue suspendido por actividad inusual. Actualice sus datos de inmediato en https://nequii-seguridad.online o su saldo pasará a custodia de la DIAN."
-            st.session_state["selected_phone"] = "+57 300 123 4567"
-            st.rerun()
+        st.button("📱 Suplantación Nequi", key="btn_quick_nequi", use_container_width=True, on_click=load_quick_sample, args=("CASE-005",))
     with col_ex3:
-        if st.button("🚨 Extorsión Carcelaria", use_container_width=True):
-            st.session_state["selected_sample"] = "Hablamos del Frente Urbano. Tenemos ubicado a usted y a su negocio en Bucaramanga. Si no nos colabora con 2 millones antes del mediodía por Nequi al 3124567890, aténgase a las consecuencias."
-            st.session_state["selected_phone"] = "+57 320 987 1122"
-            st.rerun()
+        st.button("🚨 Extorsión Carcelaria", key="btn_quick_extorsion", use_container_width=True, on_click=load_quick_sample, args=("CASE-002",))
     with col_ex4:
-        if st.button("✅ Mensaje Legítimo", use_container_width=True):
-            st.session_state["selected_sample"] = "Hola papá, ya llegué a la universidad. Te llamo al mediodía cuando salga de la clase de cálculo."
-            st.session_state["selected_phone"] = "+57 315 555 7890"
-            st.rerun()
+        st.button("✅ Mensaje Legítimo", key="btn_quick_legitimo", use_container_width=True, on_click=load_quick_sample, args=("CASE-011",))
 
-    # Campos de entrada funcionales preservados
-    sample_text = st.session_state.get("selected_sample", "Bancolombia Alerta: Su cuenta 456-*** fue bloqueada por movimientos sospechosos. Ingrese urgente a https://banc0lombia-seguridad.cc para validar su identidad.")
-    user_input = st.text_area("Mensaje recibido:", value=sample_text, height=120)
+    # 3. Área de Texto para el Mensaje (Multilínea, editable, persistente)
+    user_input = st.text_area(
+        "Mensaje recibido para inspección:",
+        key="user_input_text",
+        height=130,
+        placeholder="Pega aquí el texto sospechoso completo (SMS, WhatsApp, correo o enlace)...",
+        help="Introduce o edita libremente el texto antes de iniciar la inspección."
+    )
 
     col1, col2 = st.columns(2)
     with col1:
-        default_phone = st.session_state.get("selected_phone", "+57 312 987 6543")
-        sender_phone = st.text_input("Número del emisor (opcional):", value=default_phone)
+        sender_phone = st.text_input(
+            "Número o remitente del emisor (opcional):",
+            key="sender_phone_text",
+            placeholder="Ej: +57 312 987 6543 o remitente SMS",
+            help="Número telefónico o identificador del remitente sospechoso."
+        )
     with col2:
         render_html(
             """
@@ -134,36 +178,44 @@ with tab1:
             """
         )
 
-    # Botón principal de análisis (con Efecto 10: Ripple y Efecto 6: Hover State)
-    analyze_btn = st.button("🔍 Analizar con SentinelGuard AI", type="primary", use_container_width=True)
+    # 4. Botón Principal de Análisis (con Efecto 10: Ripple y Efecto 6: Hover State)
+    analyze_btn = st.button("🔍 Analizar con SentinelGuard AI", type="primary", use_container_width=True, key="btn_analyze_main")
 
-    # Ejecución y procesamiento
+    # 5. Validación de Entrada y Ejecución Segura
     if analyze_btn:
-        # Efecto 16: Skeleton Screen mientras se procesa la solicitud
-        skeleton_placeholder = st.empty()
-        skeleton_placeholder.markdown(
-            """
-            <div style="margin: 1.5rem 0;">
-                <div class="sg-skeleton-box"></div>
-                <div class="sg-skeleton-line" style="width: 80%;"></div>
-                <div class="sg-skeleton-line" style="width: 60%;"></div>
-            </div>
-            """,
-            unsafe_allow_html=True
-        )
-        
-        with st.spinner("SentinelGuard ejecutando ciclo autónomo con Grok 4.7..."):
-            result = agent.process_message(user_input, metadata={"sender": sender_phone})
-            st.session_state["last_result"] = result
+        is_valid, validation_err = validate_input_text(user_input)
+        if not is_valid:
+            st.warning(f"⚠️ {validation_err}")
+        else:
+            # Sincronización de estado para retrocompatibilidad
+            st.session_state["selected_sample"] = user_input
+            st.session_state["selected_phone"] = sender_phone
+
+            # Efecto 16: Skeleton Screen mientras se procesa la solicitud
+            skeleton_placeholder = st.empty()
+            skeleton_placeholder.markdown(
+                """
+                <div style="margin: 1.5rem 0;">
+                    <div class="sg-skeleton-box"></div>
+                    <div class="sg-skeleton-line" style="width: 80%;"></div>
+                    <div class="sg-skeleton-line" style="width: 60%;"></div>
+                </div>
+                """,
+                unsafe_allow_html=True
+            )
             
-            # Registrar en historial acumulativo para auditoría de sesión (Efecto 5 Infinite Scroll 2)
-            st.session_state["analysis_history"].append({
-                "timestamp": result.get("police_report", {}).get("timestamp", "Reciente"),
-                "risk": result.get("decision", {}).get("risk_level", "DESCONOCIDO"),
-                "input_snippet": user_input[:60] + "..." if len(user_input) > 60 else user_input
-            })
-            
-        skeleton_placeholder.empty()
+            with st.spinner("SentinelGuard ejecutando ciclo autónomo con Grok 4.7..."):
+                result = agent.process_message(user_input, metadata={"sender": sender_phone})
+                st.session_state["last_result"] = result
+                
+                # Registrar en historial acumulativo para auditoría de sesión (Efecto 5 Infinite Scroll 2)
+                st.session_state["analysis_history"].append({
+                    "timestamp": result.get("police_report", {}).get("timestamp", "Reciente"),
+                    "risk": result.get("decision", {}).get("risk_level", "DESCONOCIDO"),
+                    "input_snippet": user_input[:60] + "..." if len(user_input) > 60 else user_input
+                })
+                
+            skeleton_placeholder.empty()
 
     # Presentación de resultados si existe análisis activo
     active_result = st.session_state.get("last_result")

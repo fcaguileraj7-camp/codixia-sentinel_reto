@@ -121,3 +121,175 @@ def test_preserved_contracts():
     assert res["status"] == "success"
     assert "decision" in res
     assert "tool_results" in res
+
+
+# =============================================================================
+# PRUEBAS DEL SUBPROCESO 2: INGRESO DE MENSAJES, SELECTOR Y VALIDACIONES
+# =============================================================================
+
+from unittest.mock import patch
+from streamlit.testing.v1 import AppTest
+from src.ui.components import validate_input_text, load_demo_samples, NEUTRAL_SAMPLE_OPTION
+
+APP_PATH = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "app_streamlit.py"))
+
+def test_validate_input_text_empty_and_whitespace():
+    """Caso E y F: Validación estricta de entradas vacías y espacios en blanco."""
+    # Vacío absoluto y None
+    is_valid, msg = validate_input_text(None)
+    assert is_valid is False
+    assert "Introduce un mensaje o selecciona un ejemplo" in msg
+
+    is_valid, msg = validate_input_text("")
+    assert is_valid is False
+    assert "Introduce un mensaje o selecciona un ejemplo" in msg
+
+    # Espacios en blanco simples
+    is_valid, msg = validate_input_text("   ")
+    assert is_valid is False
+    assert "Introduce un mensaje o selecciona un ejemplo" in msg
+
+    # Saltos de línea y tabuladores
+    is_valid, msg = validate_input_text("\n\n\t  \r\n")
+    assert is_valid is False
+    assert "Introduce un mensaje o selecciona un ejemplo" in msg
+
+def test_validate_input_text_valid_content():
+    """Caso A: Validación exitosa de textos reales, enlaces y multilínea."""
+    # Mensaje normal
+    is_valid, msg = validate_input_text("Hola papá, ya llegué")
+    assert is_valid is True
+    assert msg == ""
+
+    # Enlace sospechoso
+    is_valid, msg = validate_input_text("https://banc0lombia-seguridad.cc")
+    assert is_valid is True
+    assert msg == ""
+
+    # Multilínea con saltos y espacios perimetrales
+    is_valid, msg = validate_input_text("  \nAlerta Bancaria:\nSu clave fue bloqueada.\n  ")
+    assert is_valid is True
+    assert msg == ""
+
+def test_load_demo_samples_coverage_and_metadata():
+    """Caso B: Cobertura representativa del catálogo de ejemplos con metadatos requeridos."""
+    samples = load_demo_samples()
+    assert len(samples) >= 6
+
+    # Verificar que existen las 5 categorías esenciales del Hito S2
+    categories = [s["category"] for s in samples]
+    assert "PHISHING_BANCO" in categories or "PHISHING_NEQUI" in categories
+    assert "EXTORSION_CARCELARIA" in categories or "EXTORSION_SEXTORSION" in categories
+    assert "SUPLANTACION_FAMILIAR" in categories or "FALSA_OFERTA_LABORAL" in categories
+    assert "LEGITIMO_CONTROL" in categories
+
+    # Verificar estructura completa de cada muestra
+    for s in samples:
+        assert "id" in s
+        assert "display_title" in s
+        assert "text" in s
+        assert len(s["text"]) > 10
+        assert "phone" in s
+        assert "icon" in s
+        assert "expected_verdict" in s
+
+def test_apptest_caso_a_user_typed_input():
+    """Caso A: Entrada escrita por el usuario, visible, editable y validada para análisis."""
+    at = AppTest.from_file(APP_PATH)
+    at.run()
+    assert len(at.exception) == 0
+
+    custom_text = "Alerta: Transacción rechazada en https://nequii-pagos.top"
+    at.text_area(key="user_input_text").input(custom_text).run()
+    assert at.text_area(key="user_input_text").value == custom_text
+
+    with patch("src.agent.sentinel.SentinelAgent.process_message") as mock_agent:
+        mock_agent.return_value = {
+            "status": "success",
+            "decision": {"risk_level": "ALTO", "action": "ANALYZE_ONLY", "response_to_user": "Sospechoso"},
+            "tool_results": {"threat": {"findings": ["Phishing"]}, "url": {}}
+        }
+        at.button(key="btn_analyze_main").click().run()
+        mock_agent.assert_called_once()
+        assert len(at.warning) == 0
+
+def test_apptest_caso_b_and_quick_buttons_example_selection():
+    """Caso B: Selección de ejemplos mediante catálogo y botones rápidos sin auto-análisis."""
+    at = AppTest.from_file(APP_PATH)
+    at.run()
+
+    # Selección mediante selectbox
+    options = at.selectbox(key="example_dropdown_selector").options
+    banco_opt = [o for o in options if "CASE-001" in o][0]
+
+    with patch("src.agent.sentinel.SentinelAgent.process_message") as mock_agent:
+        at.selectbox(key="example_dropdown_selector").select(banco_opt).run()
+        assert "Bancolombia" in at.text_area(key="user_input_text").value
+        assert at.text_input(key="sender_phone_text").value == "+57 312 987 6543"
+        # La selección no debe disparar el análisis
+        mock_agent.assert_not_called()
+
+    # Selección mediante botón rápido
+    with patch("src.agent.sentinel.SentinelAgent.process_message") as mock_agent:
+        at.button(key="btn_quick_extorsion").click().run()
+        assert "Frente Urbano" in at.text_area(key="user_input_text").value
+        assert at.text_input(key="sender_phone_text").value == "+57 320 987 1122"
+        mock_agent.assert_not_called()
+
+def test_apptest_caso_c_user_edits_example_preservation():
+    """Caso C: Edición del ejemplo seleccionado y persistencia durante reruns de Streamlit."""
+    at = AppTest.from_file(APP_PATH)
+    at.run()
+
+    # Cargar botón rápido Nequi
+    at.button(key="btn_quick_nequi").click().run()
+    initial_text = at.text_area(key="user_input_text").value
+    assert "Nequi" in initial_text
+
+    # Modificar contenido
+    edited_text = initial_text + "\n[Adjunto comprobante recibido a las 8am]"
+    at.text_area(key="user_input_text").input(edited_text).run()
+    assert at.text_area(key="user_input_text").value == edited_text
+
+    # Rerun normal sin interactuar con el selector
+    at.run()
+    assert at.text_area(key="user_input_text").value == edited_text
+
+def test_apptest_caso_d_switch_example_updates_predictably():
+    """Caso D: Cambio entre ejemplos actualiza el área de texto de forma predecible."""
+    at = AppTest.from_file(APP_PATH)
+    at.run()
+
+    options = at.selectbox(key="example_dropdown_selector").options
+    banco_opt = [o for o in options if "CASE-001" in o][0]
+    legitimo_opt = [o for o in options if "CASE-011" in o][0]
+
+    # Primer ejemplo
+    at.selectbox(key="example_dropdown_selector").select(banco_opt).run()
+    assert "Bancolombia" in at.text_area(key="user_input_text").value
+
+    # Segundo ejemplo
+    at.selectbox(key="example_dropdown_selector").select(legitimo_opt).run()
+    assert "Hola mamá" in at.text_area(key="user_input_text").value
+    assert at.text_input(key="sender_phone_text").value == "+57 315 555 7890"
+
+def test_apptest_caso_e_and_f_empty_and_whitespace_validation():
+    """Casos E y F: Entrada vacía y con espacios rechazada sin llamar al agente ni consumir tokens."""
+    at = AppTest.from_file(APP_PATH)
+    at.run()
+
+    # Estado inicial (vacío)
+    with patch("src.agent.sentinel.SentinelAgent.process_message") as mock_agent:
+        at.button(key="btn_analyze_main").click().run()
+        assert len(at.warning) >= 1
+        assert "Introduce un mensaje o selecciona un ejemplo" in at.warning[0].value
+        mock_agent.assert_not_called()
+
+    # Entrada compuesta solo por espacios y saltos de línea
+    with patch("src.agent.sentinel.SentinelAgent.process_message") as mock_agent:
+        at.text_area(key="user_input_text").input("   \n\t   \n  ").run()
+        at.button(key="btn_analyze_main").click().run()
+        assert len(at.warning) >= 1
+        assert "Introduce un mensaje o selecciona un ejemplo" in at.warning[0].value
+        mock_agent.assert_not_called()
+
