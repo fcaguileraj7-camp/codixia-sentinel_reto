@@ -35,6 +35,8 @@ from src.ui.components import (
     validate_input_text,
     load_demo_samples,
     NEUTRAL_SAMPLE_OPTION,
+    render_tool_results_human,
+    render_escalation_human,
 )
 
 # Configuración de página de Streamlit
@@ -210,8 +212,8 @@ with tab1:
                 
                 # Registrar en historial acumulativo para auditoría de sesión (Efecto 5 Infinite Scroll 2)
                 st.session_state["analysis_history"].append({
-                    "timestamp": result.get("police_report", {}).get("timestamp", "Reciente"),
-                    "risk": result.get("decision", {}).get("risk_level", "DESCONOCIDO"),
+                    "timestamp": (result.get("police_report") or {}).get("timestamp", "Reciente"),
+                    "risk": (result.get("decision") or {}).get("risk_level", "DESCONOCIDO"),
                     "input_snippet": user_input[:60] + "..." if len(user_input) > 60 else user_input
                 })
                 
@@ -251,15 +253,15 @@ with tab1:
             tool_results=tool_results
         )
 
-        # Pestañas de detalle técnico (Preservación estricta de st.json y expander)
-        with st.expander("🛠️ Ver Resultados Técnicos de Herramientas (Tools)"):
-            st.json(result.get("tool_results", {}))
+        # Detalle técnico legible (Reemplazo de st.json por tarjetas legibles)
+        with st.expander("🛠️ Ver Detalle Técnico del Análisis"):
+            render_tool_results_human(result.get("tool_results", {}))
 
         # Protocolo de denuncia CAI Virtual
         if result.get("escalation"):
             render_cai_protocol_card(result["escalation"], result.get("police_report"))
-            st.write("#### 🚨 Protocolo de Denuncia CAI Virtual:")
-            st.json(result["escalation"])
+            with st.expander("📋 Ver Expediente Completo del Incidente"):
+                render_escalation_human(result["escalation"])
 
 # =============================================================================
 # TAB 2: CASOS DE PRUEBA (DATASET S3)

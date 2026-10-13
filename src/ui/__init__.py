@@ -19,6 +19,8 @@ from .components import (
     validate_input_text,
     load_demo_samples,
     NEUTRAL_SAMPLE_OPTION,
+    render_tool_results_human,
+    render_escalation_human,
 )
 
 __all__ = [
@@ -38,5 +40,7 @@ __all__ = [
     "validate_input_text",
     "load_demo_samples",
     "NEUTRAL_SAMPLE_OPTION",
+    "render_tool_results_human",
+    "render_escalation_human",
 ]
 

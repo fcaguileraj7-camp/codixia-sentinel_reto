@@ -346,6 +346,205 @@ def render_footer():
     render_html(html)
 
 # =============================================================================
+# PRESENTACIÓN LEGIBLE DE RESULTADOS TÉCNICOS (Reemplazo de st.json)
+# =============================================================================
+
+_THREAT_LEVEL_LABELS: Dict[str, str] = {
+    "BAJO": "✅ Bajo — No se identificaron patrones peligrosos",
+    "MEDIO": "⚠️ Medio — Se encontraron indicios sospechosos",
+    "ALTO": "🚨 Alto — Se detectaron múltiples indicadores de fraude",
+    "CRÍTICO": "🔴 Crítico — Amenaza confirmada con alta certeza",
+}
+
+def render_tool_results_human(tool_results: Dict[str, Any]) -> None:
+    """
+    Renderiza los resultados de las herramientas del agente en formato legible
+    para el usuario, reemplazando la vista JSON cruda.
+    """
+    threat = tool_results.get("threat", {})
+    url_data = tool_results.get("url", {})
+
+    # — Sección ThreatInspector —
+    threat_level = threat.get("threat_level", threat.get("risk_level", "DESCONOCIDO"))
+    risk_score = threat.get("risk_score", "—")
+    recommendation = threat.get("recommendation", "Sin recomendación disponible.")
+    findings = threat.get("findings", [])
+    detected_urls = threat.get("detected_urls", [])
+    suspicious_urls = threat.get("suspicious_urls", [])
+    triggers = threat.get("matched_triggers", [])
+
+    level_label = _THREAT_LEVEL_LABELS.get(threat_level, f"ℹ️ {threat_level}")
+
+    findings_html = ""
+    if findings:
+        items = "".join(f"<li style='margin-bottom: 4px;'>⚠️ {f}</li>" for f in findings)
+        findings_html = f"""
+        <div style="margin-top: 8px;">
+            <strong>Hallazgos detectados:</strong>
+            <ul style="margin: 4px 0 0 18px; padding: 0; font-size: 0.85rem;">{items}</ul>
+        </div>"""
+
+    triggers_html = ""
+    if triggers:
+        items = "".join(f"<li style='margin-bottom: 4px;'>🎯 {t}</li>" for t in triggers)
+        triggers_html = f"""
+        <div style="margin-top: 8px;">
+            <strong>Patrones de ingeniería social detectados:</strong>
+            <ul style="margin: 4px 0 0 18px; padding: 0; font-size: 0.85rem;">{items}</ul>
+        </div>"""
+
+    urls_html = ""
+    all_urls = list(set(detected_urls + suspicious_urls))
+    if all_urls:
+        items = "".join(f"<li style='margin-bottom: 4px;'>🌐 <code>{u}</code></li>" for u in all_urls)
+        urls_html = f"""
+        <div style="margin-top: 8px;">
+            <strong>Enlaces analizados:</strong>
+            <ul style="margin: 4px 0 0 18px; padding: 0; font-size: 0.85rem;">{items}</ul>
+        </div>"""
+
+    # — Sección UrlSandbox (si tiene datos propios) —
+    url_section_html = ""
+    if url_data and url_data.get("status") == "success":
+        domain = url_data.get("domain", "—")
+        tld = url_data.get("tld", "—")
+        is_suspicious = url_data.get("is_suspicious_tld", False)
+        typo = url_data.get("typosquatting_matches", [])
+        tld_icon = "🔴" if is_suspicious else "🟢"
+        typo_html = ""
+        if typo:
+            items = "".join(f"<li>🏦 Se parece a: <strong>{t}</strong></li>" for t in typo)
+            typo_html = f"<ul style='margin: 4px 0 0 18px; padding: 0;'>{items}</ul>"
+
+        url_section_html = f"""
+        <div style="background: var(--sg-white); border: 1px solid var(--sg-soft-border); border-radius: 10px; padding: 14px; margin-top: 10px;">
+            <div style="font-weight: 700; color: var(--sg-title-dark); margin-bottom: 6px;">🔗 Inspección del Enlace (UrlSandbox)</div>
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px; font-size: 0.85rem;">
+                <div><strong>Dominio:</strong> <code>{domain}</code></div>
+                <div><strong>Extensión (TLD):</strong> {tld_icon} <code>.{tld}</code> {"— Extensión de alto riesgo" if is_suspicious else "— Extensión estándar"}</div>
+            </div>
+            {typo_html}
+        </div>"""
+
+    html = f"""
+    <div style="background: var(--sg-fog-green); border: 1px solid var(--sg-soft-border); border-radius: 12px; padding: 1.25rem; margin-top: 0.5rem;">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
+            <span style="font-weight: 700; color: var(--sg-title-dark); font-size: 0.95rem;">
+                🔬 Análisis de Amenazas (ThreatInspector)
+            </span>
+            <span style="background: rgba(66, 102, 83, 0.12); color: var(--sg-forest-green); padding: 3px 10px; border-radius: 6px; font-size: 0.78rem; font-weight: 600;">
+                Puntaje de riesgo: {risk_score}/100
+            </span>
+        </div>
+        <div style="background: var(--sg-white); border: 1px solid var(--sg-soft-border); border-radius: 10px; padding: 14px; font-size: 0.88rem; color: #23382D;">
+            <div style="margin-bottom: 8px;">
+                <strong>Nivel de amenaza:</strong> {level_label}
+            </div>
+            <div style="margin-bottom: 8px;">
+                <strong>Recomendación:</strong> {recommendation}
+            </div>
+            {findings_html}
+            {triggers_html}
+            {urls_html}
+        </div>
+        {url_section_html}
+    </div>
+    """
+    render_html(html)
+
+def render_escalation_human(escalation: Dict[str, Any]) -> None:
+    """
+    Renderiza la información de escalación y denuncia en formato legible
+    para el usuario, reemplazando la vista JSON cruda.
+    """
+    status = escalation.get("status", "—")
+    report = escalation.get("incident_report", {})
+    report_id = report.get("report_id", "—")
+    timestamp = report.get("timestamp", "—")
+    if "T" in str(timestamp):
+        timestamp = str(timestamp).replace("T", " a las ").split(".")[0]
+    inc_type = report.get("type", "DIGITAL_FRAUD")
+
+    evidence = report.get("evidence", {})
+    user_input = evidence.get("input", "—")
+
+    decision = report.get("decision", {})
+    mode = decision.get("mode", "—")
+    risk = decision.get("risk_level", "—")
+    reasoning = decision.get("reasoning", "—")
+    action = decision.get("action", "—")
+    response = decision.get("response_to_user", "—")
+
+    type_labels = {
+        "DIGITAL_FRAUD": "🛡️ Fraude Digital",
+        "EXTORTION": "🚨 Extorsión",
+        "PHISHING": "🏦 Phishing Bancario",
+        "IDENTITY_THEFT": "👤 Suplantación de Identidad",
+    }
+    type_label = type_labels.get(inc_type, f"📋 {inc_type}")
+
+    action_labels = {
+        "ESCALATE_AND_REPORT": "🚨 Escalar y reportar a las autoridades",
+        "ANALYZE_ONLY": "🔍 Solo análisis informativo",
+        "BLOCK_AND_REPORT": "🛑 Bloquear y reportar",
+    }
+    action_label = action_labels.get(action, action)
+
+    html = f"""
+    <div style="background: #FDF9F8; border: 1.5px solid #E8B2B1; border-radius: 12px; padding: 1.25rem; margin-top: 0.75rem;">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 14px; flex-wrap: wrap; gap: 8px;">
+            <span style="font-weight: 700; color: #8D3335; font-size: 1rem;">
+                📋 Expediente de Incidente
+            </span>
+            <span style="background: #F4D9D8; color: #8D3335; padding: 4px 12px; border-radius: 6px; font-size: 0.8rem; font-weight: 700; font-family: monospace;">
+                {report_id}
+            </span>
+        </div>
+        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 10px; margin-bottom: 14px; font-size: 0.85rem;">
+            <div style="background: white; border: 1px solid #E8B2B1; border-radius: 8px; padding: 10px;">
+                <strong>Estado:</strong><br/>
+                {"✅ Escalado a autoridades" if status == "escalated" else status}
+            </div>
+            <div style="background: white; border: 1px solid #E8B2B1; border-radius: 8px; padding: 10px;">
+                <strong>Tipo de incidente:</strong><br/>
+                {type_label}
+            </div>
+            <div style="background: white; border: 1px solid #E8B2B1; border-radius: 8px; padding: 10px;">
+                <strong>Fecha y hora:</strong><br/>
+                📅 {timestamp}
+            </div>
+            <div style="background: white; border: 1px solid #E8B2B1; border-radius: 8px; padding: 10px;">
+                <strong>Nivel de riesgo:</strong><br/>
+                {"🔴" if risk in ["ALTO", "CRÍTICO"] else "⚠️"} {risk}
+            </div>
+        </div>
+        <div style="background: white; border: 1px solid #E8B2B1; border-radius: 8px; padding: 12px; margin-bottom: 10px; font-size: 0.85rem;">
+            <strong>📝 Mensaje analizado:</strong>
+            <div style="margin-top: 6px; padding: 8px 12px; background: #FEF6F5; border-radius: 6px; font-style: italic; color: #3A2021; line-height: 1.5;">
+                {user_input}
+            </div>
+        </div>
+        <div style="background: white; border: 1px solid #E8B2B1; border-radius: 8px; padding: 12px; margin-bottom: 10px; font-size: 0.85rem;">
+            <strong>🤖 Razonamiento del agente:</strong>
+            <div style="margin-top: 6px; color: #3A2021; line-height: 1.5;">
+                {reasoning}
+            </div>
+        </div>
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px; font-size: 0.85rem;">
+            <div style="background: white; border: 1px solid #E8B2B1; border-radius: 8px; padding: 10px;">
+                <strong>⚙️ Acción ejecutada:</strong><br/>
+                {action_label}
+            </div>
+            <div style="background: white; border: 1px solid #E8B2B1; border-radius: 8px; padding: 10px;">
+                <strong>🔍 Método de análisis:</strong><br/>
+                {mode}
+            </div>
+        </div>
+    </div>
+    """
+    render_html(html)
+
+# =============================================================================
 # SUBPROCESO 2: INGRESO DE MENSAJES, SELECTOR DE EJEMPLOS Y VALIDACIÓN
 # =============================================================================
 
