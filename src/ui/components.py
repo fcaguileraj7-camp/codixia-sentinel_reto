@@ -19,41 +19,6 @@ def render_html(html_str: str) -> None:
     cleaned = "\n".join(line for line in html_str.strip().splitlines() if line.strip())
     st.markdown(cleaned, unsafe_allow_html=True)
 
-def render_navigation_status():
-    """
-    Renderiza la barra superior pegajosa con efecto Glassmorphism y estado en vivo.
-    (Efecto 3: Sticky Element + Efecto 19: Glassmorphism + Efecto 17: Particle Beacon + Efecto 24: Typing)
-    """
-    html = """
-    <div class="sg-scroll-progress-bar"></div>
-    <div class="sg-sticky-header">
-        <div style="display: flex; align-items: center; gap: 12px;">
-            <div class="sg-parallax-badge" style="font-size: 1.3rem;">🛡️</div>
-            <div>
-                <span style="font-weight: 800; color: var(--sg-natural-ivory); font-size: 1.05rem; letter-spacing: -0.01em;">
-                    SentinelGuard <span style="color: var(--sg-digital-sage);">AI</span>
-                </span>
-                <span style="display: block; font-size: 0.72rem; color: var(--sg-soft-sage);">
-                    Reto Agente 2026 · Platica.mx × Campuslands · Equipo Codixia
-                </span>
-            </div>
-        </div>
-        <div style="display: flex; align-items: center; gap: 14px;">
-            <div style="display: flex; align-items: center; gap: 8px; background: rgba(0,0,0,0.25); padding: 5px 12px; border-radius: 20px; border: 1px solid rgba(131, 198, 163, 0.2);">
-                <span class="sg-particle-beacon"></span>
-                <span style="font-size: 0.76rem; color: var(--sg-digital-sage); font-weight: 600;">
-                    NÚCLEO GROK 4.7 ACTIVO
-                </span>
-            </div>
-            <div class="sg-tooltip" data-tooltip="Modo Local Resiliente (Costo $0.00 USD)">
-                <span style="background: rgba(131, 198, 163, 0.15); color: var(--sg-soft-sage); font-size: 0.72rem; padding: 4px 10px; border-radius: 6px; font-weight: 600; border: 1px solid rgba(131, 198, 163, 0.3);">
-                    ⚡ T-Max: 500
-                </span>
-            </div>
-        </div>
-    </div>
-    """
-    render_html(html)
 
 def render_header():
     """
@@ -108,15 +73,12 @@ def render_marquee_ticker():
     (Efecto 21: Marquee - Manifestación 1)
     """
     html = """
-    <div class="sg-marquee-container">
-        <div class="sg-marquee-track">
-            <span>🛡️ ESTADO DE DEFENSA: VIGILANCIA ACTIVA</span> &nbsp;&nbsp;•&nbsp;&nbsp;
-            <span>🔍 MOTOR DE AMENAZAS: GROK 4.7 (xAI)</span> &nbsp;&nbsp;•&nbsp;&nbsp;
-            <span>📊 CASOS CERTIFICADOS: 30 CASOS REALES EVALUADOS</span> &nbsp;&nbsp;•&nbsp;&nbsp;
-            <span>🚨 PROTOCOLO CAI VIRTUAL: caivirtual.policia.gov.co INTEGRADO</span> &nbsp;&nbsp;•&nbsp;&nbsp;
-            <span>⏱️ TIEMPO DE RESPUESTA: &lt; 2.5 SEGUNDOS</span> &nbsp;&nbsp;•&nbsp;&nbsp;
-            <span>🛑 TYPOSQUATTING: FILTROS PARA BANCOLOMBIA, NEQUI, DAVIPLATA</span> &nbsp;&nbsp;•&nbsp;&nbsp;
-            <span>💰 MODO LOCAL RESILIENTE: CONSUMO CONTROLADO $0.00 USD</span>
+    <div class="sg-marquee-container" style="background: var(--sg-deep-forest);">
+        <div class="sg-marquee-footer-track">
+            <span>💡 CONSEJO CIUDADANO: Bancolombia, Nequi y Daviplata NUNCA solicitan claves dinámicas por SMS</span> &nbsp;&nbsp;•&nbsp;&nbsp;
+            <span>🔒 No abras enlaces con extensiones .cc, .top, .xyz o .online enviadas por WhatsApp</span> &nbsp;&nbsp;•&nbsp;&nbsp;
+            <span>🚨 Si recibes amenazas carcelarias, NO consignes dinero; denuncia inmediatamente en caivirtual.policia.gov.co</span> &nbsp;&nbsp;•&nbsp;&nbsp;
+            <span>🛡️ SentinelGuard AI · Desarrollado por el Equipo Codixia para el Reto Agente 2026</span>
         </div>
     </div>
     """
@@ -320,16 +282,8 @@ def render_footer():
     (Efecto 21: Marquee 2 + Efecto 3: Floating Status Pill 2)
     """
     html = """
-    <div style="margin-top: 3rem; border-top: 1px solid var(--sg-soft-border); padding-top: 1.5rem;">
-        <div class="sg-marquee-container" style="background: var(--sg-deep-forest);">
-            <div class="sg-marquee-footer-track">
-                <span>💡 CONSEJO CIUDADANO: Bancolombia, Nequi y Daviplata NUNCA solicitan claves dinámicas por SMS</span> &nbsp;&nbsp;•&nbsp;&nbsp;
-                <span>🔒 No abras enlaces con extensiones .cc, .top, .xyz o .online enviadas por WhatsApp</span> &nbsp;&nbsp;•&nbsp;&nbsp;
-                <span>🚨 Si recibes amenazas carcelarias, NO consignes dinero; denuncia inmediatamente en caivirtual.policia.gov.co</span> &nbsp;&nbsp;•&nbsp;&nbsp;
-                <span>🛡️ SentinelGuard AI · Desarrollado por el Equipo Codixia para el Reto Agente 2026</span>
-            </div>
-        </div>
-        <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px; font-size: 0.8rem; color: var(--sg-slate-green); margin-top: 10px;">
+    <div style="margin-top: 2rem; border-top: 1px solid var(--sg-soft-border); padding-top: 1.5rem;">
+        <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px; font-size: 0.8rem; color: var(--sg-slate-green);">
             <div>
                 <strong>SentinelGuard AI</strong> · Reto Agente 2026 (Platica.mx × Campuslands)
             </div>

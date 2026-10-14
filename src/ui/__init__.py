@@ -7,7 +7,6 @@ Rol 5: Juan José (Dataset Engineering, Stress Testing & UI)
 from .theme import THEME_COLORS, RISK_COLORS, get_theme_css
 from .components import (
     render_header,
-    render_navigation_status,
     render_metric_cards,
     render_risk_badge,
     render_verdict_card,
@@ -28,7 +27,6 @@ __all__ = [
     "RISK_COLORS",
     "get_theme_css",
     "render_header",
-    "render_navigation_status",
     "render_metric_cards",
     "render_risk_badge",
     "render_verdict_card",

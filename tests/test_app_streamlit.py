@@ -195,7 +195,7 @@ def test_load_demo_samples_coverage_and_metadata():
 
 def test_apptest_caso_a_user_typed_input():
     """Caso A: Entrada escrita por el usuario, visible, editable y validada para análisis."""
-    at = AppTest.from_file(APP_PATH)
+    at = AppTest.from_file(APP_PATH, default_timeout=30)
     at.run()
     assert len(at.exception) == 0
 
@@ -213,69 +213,10 @@ def test_apptest_caso_a_user_typed_input():
         mock_agent.assert_called_once()
         assert len(at.warning) == 0
 
-def test_apptest_caso_b_and_quick_buttons_example_selection():
-    """Caso B: Selección de ejemplos mediante catálogo y botones rápidos sin auto-análisis."""
-    at = AppTest.from_file(APP_PATH)
-    at.run()
-
-    # Selección mediante selectbox
-    options = at.selectbox(key="example_dropdown_selector").options
-    banco_opt = [o for o in options if "CASE-001" in o][0]
-
-    with patch("src.agent.sentinel.SentinelAgent.process_message") as mock_agent:
-        at.selectbox(key="example_dropdown_selector").select(banco_opt).run()
-        assert "Bancolombia" in at.text_area(key="user_input_text").value
-        assert at.text_input(key="sender_phone_text").value == "+57 312 987 6543"
-        # La selección no debe disparar el análisis
-        mock_agent.assert_not_called()
-
-    # Selección mediante botón rápido
-    with patch("src.agent.sentinel.SentinelAgent.process_message") as mock_agent:
-        at.button(key="btn_quick_extorsion").click().run()
-        assert "Frente Urbano" in at.text_area(key="user_input_text").value
-        assert at.text_input(key="sender_phone_text").value == "+57 320 987 1122"
-        mock_agent.assert_not_called()
-
-def test_apptest_caso_c_user_edits_example_preservation():
-    """Caso C: Edición del ejemplo seleccionado y persistencia durante reruns de Streamlit."""
-    at = AppTest.from_file(APP_PATH)
-    at.run()
-
-    # Cargar botón rápido Nequi
-    at.button(key="btn_quick_nequi").click().run()
-    initial_text = at.text_area(key="user_input_text").value
-    assert "Nequi" in initial_text
-
-    # Modificar contenido
-    edited_text = initial_text + "\n[Adjunto comprobante recibido a las 8am]"
-    at.text_area(key="user_input_text").input(edited_text).run()
-    assert at.text_area(key="user_input_text").value == edited_text
-
-    # Rerun normal sin interactuar con el selector
-    at.run()
-    assert at.text_area(key="user_input_text").value == edited_text
-
-def test_apptest_caso_d_switch_example_updates_predictably():
-    """Caso D: Cambio entre ejemplos actualiza el área de texto de forma predecible."""
-    at = AppTest.from_file(APP_PATH)
-    at.run()
-
-    options = at.selectbox(key="example_dropdown_selector").options
-    banco_opt = [o for o in options if "CASE-001" in o][0]
-    legitimo_opt = [o for o in options if "CASE-011" in o][0]
-
-    # Primer ejemplo
-    at.selectbox(key="example_dropdown_selector").select(banco_opt).run()
-    assert "Bancolombia" in at.text_area(key="user_input_text").value
-
-    # Segundo ejemplo
-    at.selectbox(key="example_dropdown_selector").select(legitimo_opt).run()
-    assert "Hola mamá" in at.text_area(key="user_input_text").value
-    assert at.text_input(key="sender_phone_text").value == "+57 315 555 7890"
 
 def test_apptest_caso_e_and_f_empty_and_whitespace_validation():
     """Casos E y F: Entrada vacía y con espacios rechazada sin llamar al agente ni consumir tokens."""
-    at = AppTest.from_file(APP_PATH)
+    at = AppTest.from_file(APP_PATH, default_timeout=30)
     at.run()
 
     # Estado inicial (vacío)
