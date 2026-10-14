@@ -1,0 +1,498 @@
+{
+  "generated_at": "2026-10-13T22:25:20.385436",
+  "model": "grok-4.7",
+  "gateway": "https://api.reto.pltk.mx/v1",
+  "total_cases": 10,
+  "total_tokens": 27401,
+  "total_cost_usd": 0.06289,
+  "average_cost_usd": 0.006289,
+  "executions": [
+    {
+      "id": "EXEC-01",
+      "title": "Phishing Bancolombia (SMS con URL clonada)",
+      "timestamp": "2026-10-13T22:23:10.860517",
+      "input": "BANCOLOMBIA ALERTA: Su cuenta 892-*** fue bloqueada por intentos de acceso no autorizados. Ingrese urgente a https://banc0lombia-seguridad.cc/login para desbloquearla antes de 2 horas.",
+      "metadata": {
+        "sender": "+57 312 987 6543"
+      },
+      "duration_seconds": 27.98,
+      "risk_level": "CRÍTICO",
+      "action": "BLOCK_AND_REPORT",
+      "reasoning": "El mensaje imita a Bancolombia y usa urgencia artificial ('bloqueada', 'urgente', plazo de 2 horas) para presionar a abrir un enlace. El dominio banc0lombia-seguridad.cc no es el sitio oficial del banco: usa un cero en lugar de la letra o y un TLD .cc de alto riesgo. El análisis de la URL lo marca como sospechoso. Es un patrón clásico de phishing bancario para robar credenciales o códigos.",
+      "response_to_user": "ALERTA ROJA: Esto es un fraude, no comparta datos ni dinero. No abra ese enlace, no ingrese claves, códigos ni datos de su tarjeta. Bancolombia no bloquea cuentas ni pide desbloquearlas por enlaces de WhatsApp o SMS. Elimine el mensaje y, si ya hizo clic o escribió algo, cambie su clave desde la app oficial o el sitio real del banco y avise a su entidad. Puede denunciarlo en el CAI Virtual de la Policía.",
+      "tools_invoked": [
+        "threat",
+        "url_sandbox",
+        "police_reporter",
+        "emergency_escalator"
+      ],
+      "tool_details": {
+        "threat": {
+          "status": "success",
+          "threat_level": "CRÍTICO",
+          "risk_score": 70,
+          "detected_urls": [
+            "https://banc0lombia-seguridad.cc/login"
+          ],
+          "suspicious_urls": [
+            "https://banc0lombia-seguridad.cc/login"
+          ],
+          "matched_triggers": [
+            "bloqueada",
+            "urgente"
+          ],
+          "findings": [
+            "Enlace no oficial sospechoso detectado: https://banc0lombia-seguridad.cc/login",
+            "Disparadores de urgencia o alarma detectados: bloqueada, urgente"
+          ],
+          "recommendation": "No interactúe, no abra enlaces ni entregue códigos. Denuncie ante el CAI Virtual."
+        },
+        "url_sandbox": [
+          {
+            "status": "success",
+            "original_url": "https://banc0lombia-seguridad.cc/login",
+            "expanded_url": "https://banc0lombia-seguridad.cc/login",
+            "domain": "banc0lombia-seguridad.cc",
+            "is_suspicious_tld": true,
+            "is_shortener": false,
+            "is_typosquatting": false,
+            "impersonated_brand": null,
+            "risk_score": 40,
+            "verdict": "SOSPECHOSO",
+            "findings": [
+              "Dominio utiliza extensión de alto riesgo TLD (banc0lombia-seguridad.cc)"
+            ]
+          }
+        ]
+      },
+      "police_report_id": "CAI-COL-1791948190",
+      "telemetry": {
+        "prompt_tokens": 2026,
+        "completion_tokens": 255,
+        "total_tokens": 2602,
+        "estimated_cost_usd": 0.006602
+      }
+    },
+    {
+      "id": "EXEC-02",
+      "title": "Extorsión Carcelaria (Frente Urbano)",
+      "timestamp": "2026-10-13T22:23:38.428510",
+      "input": "Hablamos del Frente Urbano. Tenemos ubicado su negocio y a su familia. Si no nos colabora con 2 millones antes del mediodía por Nequi al 3124567890, aténgase a las consecuencias.",
+      "metadata": {
+        "sender": "+57 320 111 2233"
+      },
+      "duration_seconds": 27.57,
+      "risk_level": "CRÍTICO",
+      "action": "BLOCK_AND_REPORT",
+      "reasoning": "El escaneo automático no marcó patrones, pero el texto es suficiente: se presenta como grupo armado ('Frente Urbano'), afirma tener ubicados el negocio y la familia, exige 2 millones antes del mediodía por Nequi al 3124567890 y amenaza con consecuencias. Es extorsión típica por WhatsApp (muchas son masivas y falsas, pero el mensaje es delictivo). No se debe pagar, responder ni entregar datos.",
+      "response_to_user": "ALERTA ROJA: Esto es un fraude, no comparta datos ni dinero. No pague, no responda y no confirme que leyó el mensaje. Bloquee el número, guarde la captura y denuncie de inmediato a la Policía Nacional o al GAULA (línea 165 o 123). Estas amenazas de 'grupos' que piden plata por Nequi suelen ser masivas; pagar no lo protege y puede atraer más extorsiones. Si cree que su familia o su negocio están en peligro real ahora, llame al 123 y no se quede solo.",
+      "tools_invoked": [
+        "threat",
+        "police_reporter",
+        "emergency_escalator"
+      ],
+      "tool_details": {
+        "threat": {
+          "status": "success",
+          "threat_level": "BAJO",
+          "risk_score": 0,
+          "detected_urls": [],
+          "suspicious_urls": [],
+          "matched_triggers": [],
+          "findings": [],
+          "recommendation": "No se identificaron patrones inmediatos de fraude conocido."
+        }
+      },
+      "police_report_id": "CAI-COL-1791948218",
+      "telemetry": {
+        "prompt_tokens": 1755,
+        "completion_tokens": 275,
+        "total_tokens": 3583,
+        "estimated_cost_usd": 0.00626
+      }
+    },
+    {
+      "id": "EXEC-03",
+      "title": "Suplantación Familiar (Tío en Aduana)",
+      "timestamp": "2026-10-13T22:23:49.851333",
+      "input": "Hola tío, cambié de número porque me robaron en el aeropuerto. Tengo las maletas retenidas en la aduana y necesito que me consigne 450 mil a este Daviplata para que no me las decomisen porfa.",
+      "metadata": {
+        "sender": "+57 315 444 5566"
+      },
+      "duration_seconds": 11.42,
+      "risk_level": "CRÍTICO",
+      "action": "BLOCK_AND_REPORT",
+      "reasoning": "El mensaje presenta el patrón clásico de estafa por suplantación de familiar: contacto desde un número nuevo, historia de robo en el aeropuerto, urgencia artificial (maletas a punto de ser decomisadas) y solicitud inmediata de dinero a un Daviplata. Aunque las herramientas automáticas no marcaron URLs ni firmas conocidas, el contenido es suficiente para identificar ingeniería social. No hay forma segura de verificar la identidad solo por este chat, y transferir dinero en estas condiciones es el objetivo típico del fraude.",
+      "response_to_user": "ALERTA ROJA: Esto es un fraude, no comparta datos ni dinero. No consigne nada a ese Daviplata. Llame o escriba a su familiar por el número que usted ya conoce, no por este chat. Si ya envió dinero, contacte de inmediato a su banco o a Daviplata y reporte el caso.",
+      "tools_invoked": [
+        "threat",
+        "police_reporter",
+        "emergency_escalator"
+      ],
+      "tool_details": {
+        "threat": {
+          "status": "success",
+          "threat_level": "BAJO",
+          "risk_score": 0,
+          "detected_urls": [],
+          "suspicious_urls": [],
+          "matched_triggers": [],
+          "findings": [],
+          "recommendation": "No se identificaron patrones inmediatos de fraude conocido."
+        }
+      },
+      "police_report_id": "CAI-COL-1791948229",
+      "telemetry": {
+        "prompt_tokens": 1760,
+        "completion_tokens": 233,
+        "total_tokens": 2451,
+        "estimated_cost_usd": 0.00585
+      }
+    },
+    {
+      "id": "EXEC-04",
+      "title": "Falsa Oferta Laboral Amazon (Depósito previo)",
+      "timestamp": "2026-10-13T22:23:58.863937",
+      "input": "Amazon Colombia busca personas para trabajar desde casa 2 horas al día ganando $350.000 diarios. Para activar tu cuenta deposita $50.000 en https://trabajo-amazon-latam.top/registro",
+      "metadata": {
+        "sender": "+57 300 777 8899"
+      },
+      "duration_seconds": 9.01,
+      "risk_level": "ALTO",
+      "action": "BLOCK_AND_REPORT",
+      "reasoning": "El mensaje combina varias señales clásicas de estafa de empleo: suplantación de Amazon, promesa irreal de $350.000 diarios por solo 2 horas, y exigencia de un depósito previo de $50.000 para 'activar la cuenta'. Las empresas legítimas no cobran para contratar. El enlace https://trabajo-amazon-latam.top/registro no es un dominio oficial de Amazon; usa el TLD .top, de alto riesgo, y el sandbox lo marca como SOSPECHOSO. El objetivo es robar dinero y, posiblemente, datos personales o bancarios.",
+      "response_to_user": "ALERTA ROJA: Esto es un fraude, no comparta datos ni dinero. Amazon no pide depósitos para 'activar' un empleo ni ofrece $350.000 diarios por 2 horas. El enlace trabajo-amazon-latam.top no es oficial. No abra el link, no pague y no envíe documentos. Bloquee el contacto y, si ya depositó o compartió datos, contacte de inmediato a su banco y reporte el caso.",
+      "tools_invoked": [
+        "threat",
+        "url_sandbox",
+        "police_reporter",
+        "emergency_escalator"
+      ],
+      "tool_details": {
+        "threat": {
+          "status": "success",
+          "threat_level": "MEDIO",
+          "risk_score": 40,
+          "detected_urls": [
+            "https://trabajo-amazon-latam.top/registro"
+          ],
+          "suspicious_urls": [
+            "https://trabajo-amazon-latam.top/registro"
+          ],
+          "matched_triggers": [],
+          "findings": [
+            "Enlace no oficial sospechoso detectado: https://trabajo-amazon-latam.top/registro"
+          ],
+          "recommendation": "Precaución: verifique directamente en la aplicación oficial del banco."
+        },
+        "url_sandbox": [
+          {
+            "status": "success",
+            "original_url": "https://trabajo-amazon-latam.top/registro",
+            "expanded_url": "https://trabajo-amazon-latam.top/registro",
+            "domain": "trabajo-amazon-latam.top",
+            "is_suspicious_tld": true,
+            "is_shortener": false,
+            "is_typosquatting": false,
+            "impersonated_brand": null,
+            "risk_score": 40,
+            "verdict": "SOSPECHOSO",
+            "findings": [
+              "Dominio utiliza extensión de alto riesgo TLD (trabajo-amazon-latam.top)"
+            ]
+          }
+        ]
+      },
+      "police_report_id": "CAI-COL-1791948238",
+      "telemetry": {
+        "prompt_tokens": 1985,
+        "completion_tokens": 273,
+        "total_tokens": 2605,
+        "estimated_cost_usd": 0.0067
+      }
+    },
+    {
+      "id": "EXEC-05",
+      "title": "Phishing Nequi (Embargo DIAN)",
+      "timestamp": "2026-10-13T22:24:05.827504",
+      "input": "Nequi Alerta: Su disponible fue suspendido por actividad inusual. Actualice sus datos de inmediato en https://nequii-seguridad.online o su saldo pasará a custodia de la DIAN.",
+      "metadata": {
+        "sender": "+57 318 222 3344"
+      },
+      "duration_seconds": 6.96,
+      "risk_level": "CRÍTICO",
+      "action": "BLOCK_AND_REPORT",
+      "reasoning": "El mensaje imita a Nequi con un dominio falso (nequii-seguridad.online), confirmado como typosquatting. Usa urgencia artificial ('inmediato', 'actualice sus datos') y una amenaza de custodia de la DIAN para empujar a entregar datos. Nequi no pide actualizar datos por enlaces de este tipo ni suspende el disponible así. No abra el enlace ni comparta códigos, claves ni documentos.",
+      "response_to_user": "ALERTA ROJA: Esto es un fraude, no comparta datos ni dinero. El enlace no es de Nequi: es una página falsa para robar su cuenta. No lo abra, no ingrese claves ni códigos, y borre el mensaje. Si ya entró o escribió algo, cambie su clave desde la app oficial de Nequi y avise a su banco. Denuncie en el CAI Virtual de la Policía.",
+      "tools_invoked": [
+        "threat",
+        "url_sandbox",
+        "police_reporter",
+        "emergency_escalator"
+      ],
+      "tool_details": {
+        "threat": {
+          "status": "success",
+          "threat_level": "CRÍTICO",
+          "risk_score": 70,
+          "detected_urls": [
+            "https://nequii-seguridad.online"
+          ],
+          "suspicious_urls": [
+            "https://nequii-seguridad.online"
+          ],
+          "matched_triggers": [
+            "inmediato",
+            "actualice sus datos"
+          ],
+          "findings": [
+            "Enlace no oficial sospechoso detectado: https://nequii-seguridad.online",
+            "Disparadores de urgencia o alarma detectados: inmediato, actualice sus datos"
+          ],
+          "recommendation": "No interactúe, no abra enlaces ni entregue códigos. Denuncie ante el CAI Virtual."
+        },
+        "url_sandbox": [
+          {
+            "status": "success",
+            "original_url": "https://nequii-seguridad.online",
+            "expanded_url": "https://nequii-seguridad.online",
+            "domain": "nequii-seguridad.online",
+            "is_suspicious_tld": false,
+            "is_shortener": false,
+            "is_typosquatting": true,
+            "impersonated_brand": "nequi",
+            "risk_score": 60,
+            "verdict": "MALICIOSO",
+            "findings": [
+              "Alerta de Typosquatting: El dominio 'nequii-seguridad.online' imita ilícitamente a 'nequi'"
+            ]
+          }
+        ]
+      },
+      "police_report_id": "CAI-COL-1791948245",
+      "telemetry": {
+        "prompt_tokens": 2026,
+        "completion_tokens": 239,
+        "total_tokens": 2450,
+        "estimated_cost_usd": 0.006442
+      }
+    },
+    {
+      "id": "EXEC-06",
+      "title": "Falso Comparendo SIMIT (Fotomulta urgente)",
+      "timestamp": "2026-10-13T22:24:20.777739",
+      "input": "SIMIT FOTOMULTAS: Su vehículo tiene un comparendo vigente por exceso de velocidad con 50% de descuento hoy. Pague en línea antes de que pase a cobro coactivo: https://simit-multas-colombia.site/pagos",
+      "metadata": {
+        "sender": "+57 310 999 0011"
+      },
+      "duration_seconds": 14.95,
+      "risk_level": "ALTO",
+      "action": "BLOCK_AND_REPORT",
+      "reasoning": "El mensaje usa urgencia artificial (descuento solo hoy y amenaza de cobro coactivo) y un enlace de pago que no corresponde al canal oficial del SIMIT. El dominio simit-multas-colombia.site imita el nombre del servicio, pero no es un dominio gubernamental ni el portal oficial. Aunque una herramienta de sandbox marcó la URL como segura, eso no valida el sitio: no hay hallazgos de marca oficial y el patrón (multa + descuento + pago inmediato) es típico de phishing para robar datos o dinero. No se debe abrir el enlace ni ingresar datos de pago.",
+      "response_to_user": "ALERTA ROJA: Esto es un fraude, no comparta datos ni dinero. El SIMIT no cobra comparendos por WhatsApp ni por enlaces como simit-multas-colombia.site. No abra ese link, no pague y no entregue datos bancarios ni de su cédula. Si quiere verificar, entre usted mismo al portal oficial del SIMIT (simit.org.co) o a la app/banco oficial, nunca desde este mensaje. Puede bloquear el número y reportar el mensaje como estafa.",
+      "tools_invoked": [
+        "threat",
+        "url_sandbox",
+        "police_reporter",
+        "emergency_escalator"
+      ],
+      "tool_details": {
+        "threat": {
+          "status": "success",
+          "threat_level": "MEDIO",
+          "risk_score": 40,
+          "detected_urls": [
+            "https://simit-multas-colombia.site/pagos"
+          ],
+          "suspicious_urls": [
+            "https://simit-multas-colombia.site/pagos"
+          ],
+          "matched_triggers": [],
+          "findings": [
+            "Enlace no oficial sospechoso detectado: https://simit-multas-colombia.site/pagos"
+          ],
+          "recommendation": "Precaución: verifique directamente en la aplicación oficial del banco."
+        },
+        "url_sandbox": [
+          {
+            "status": "success",
+            "original_url": "https://simit-multas-colombia.site/pagos",
+            "expanded_url": "https://simit-multas-colombia.site/pagos",
+            "domain": "simit-multas-colombia.site",
+            "is_suspicious_tld": false,
+            "is_shortener": false,
+            "is_typosquatting": false,
+            "impersonated_brand": null,
+            "risk_score": 0,
+            "verdict": "SEGURO",
+            "findings": []
+          }
+        ]
+      },
+      "police_report_id": "CAI-COL-1791948260",
+      "telemetry": {
+        "prompt_tokens": 1981,
+        "completion_tokens": 288,
+        "total_tokens": 3004,
+        "estimated_cost_usd": 0.006842
+      }
+    },
+    {
+      "id": "EXEC-07",
+      "title": "Falso Premio Toyota / Claro",
+      "timestamp": "2026-10-13T22:24:36.225512",
+      "input": "¡Felicidades! Su número de celular ganó una camioneta Toyota Prado 2026 y 50 millones en el sorteo Claro. Llame ya al 3209876543 con el Dr. Mario para coordinar la entrega.",
+      "metadata": {
+        "sender": "+57 320 987 6543"
+      },
+      "duration_seconds": 15.45,
+      "risk_level": "ALTO",
+      "action": "BLOCK_AND_REPORT",
+      "reasoning": "Mensaje no solicitado de premio: camioneta Toyota Prado 2026 y 50 millones en un supuesto sorteo de Claro, con urgencia ('llame ya') y un contacto personal ('Dr. Mario', 3209876543). No hay enlace, pero el patrón es fraude clásico de sorteo: marca conocida, premio desproporcionado, presión para llamar y un intermediario no oficial. Quien llama suele pedir datos, códigos o un 'impuesto/trámite' para liberar el premio. Los metadatos marcan solo MEDIO por las palabras 'sorteo' y 'felicidades'; el riesgo real para el usuario es alto. No es un aviso bancario: verificar en la app del banco no aplica. Claro no entrega premios así por WhatsApp ni por un número personal.",
+      "response_to_user": "ALERTA ROJA: Esto es un fraude, no comparta datos ni dinero. No llame al 3209876543 ni hable con el 'Dr. Mario'. Claro no avisa premios de camionetas ni millones por WhatsApp ni pide que coordine la entrega con un particular. Bloquee el número, no envíe fotos, códigos ni pagos de 'impuestos' o 'trámites', y reporte el mensaje en WhatsApp. Si ya llamó o dio datos, no pague nada y revise sus cuentas y líneas.",
+      "tools_invoked": [
+        "threat",
+        "police_reporter",
+        "emergency_escalator"
+      ],
+      "tool_details": {
+        "threat": {
+          "status": "success",
+          "threat_level": "MEDIO",
+          "risk_score": 30,
+          "detected_urls": [],
+          "suspicious_urls": [],
+          "matched_triggers": [
+            "sorteo",
+            "felicidades"
+          ],
+          "findings": [
+            "Disparadores de urgencia o alarma detectados: sorteo, felicidades"
+          ],
+          "recommendation": "Precaución: verifique directamente en la aplicación oficial del banco."
+        }
+      },
+      "police_report_id": "CAI-COL-1791948276",
+      "telemetry": {
+        "prompt_tokens": 1793,
+        "completion_tokens": 334,
+        "total_tokens": 2637,
+        "estimated_cost_usd": 0.006926
+      }
+    },
+    {
+      "id": "EXEC-08",
+      "title": "Acompañamiento Físico en Taxi (Inicio seguro)",
+      "timestamp": "2026-10-13T22:24:47.907293",
+      "input": "Voy saliendo de la oficina en un taxi placa WDY-452 hacia mi casa en el norte.",
+      "metadata": {
+        "plate": "WDY452",
+        "destination": "Calle 142 con 19"
+      },
+      "duration_seconds": 11.68,
+      "risk_level": "MEDIO",
+      "action": "SCHEDULE_CHECKIN",
+      "reasoning": "Viaje nocturno en taxi ya registrado y con monitoreo activo. Placa WDY-452 coincide con el viaje TRIP-WDY452-1791948276, destino Calle 142 con 19 (norte) y origen compartido. No hay señales de coacción, desvío ni pánico en el mensaje. El siguiente chequeo ya está programado en 10 minutos.",
+      "response_to_user": "Te acompaño en este viaje. Quedó activo el monitoreo del taxi placa WDY-452 hacia Calle 142 con 19. Te escribo en unos 10 minutos para confirmar que vas bien. Si algo no se siente seguro, responde PANICO o llama al 123. No compartas códigos, fotos de documentos ni datos bancarios con el conductor.",
+      "tools_invoked": [
+        "route"
+      ],
+      "tool_details": {
+        "route": {
+          "status": "active",
+          "trip_id": "TRIP-WDY452-1791948276",
+          "vehicle_plate": "WDY452",
+          "destination": "Calle 142 con 19",
+          "origin": "Ubicación inicial compartida",
+          "started_at": "2026-10-13T22:24:36.228052",
+          "next_checkin_scheduled": "2026-10-13T22:34:36.228052",
+          "interval_minutes": 10,
+          "monitoring_active": true
+        }
+      },
+      "police_report_id": null,
+      "telemetry": {
+        "prompt_tokens": 1782,
+        "completion_tokens": 204,
+        "total_tokens": 2289,
+        "estimated_cost_usd": 0.005604
+      }
+    },
+    {
+      "id": "EXEC-09",
+      "title": "Acompañamiento en Taxi (Alerta de Desvío / Pánico)",
+      "timestamp": "2026-10-13T22:25:15.561891",
+      "input": "El taxi placa TRL-981 tomó un desvío extraño por una trocha oscura y el conductor no me responde. Tengo miedo, auxilio.",
+      "metadata": {
+        "plate": "TRL981",
+        "destination": "Suba Rincón"
+      },
+      "duration_seconds": 27.65,
+      "risk_level": "CRÍTICO",
+      "action": "TRIGGER_ALARM",
+      "reasoning": "Hay un viaje activo de noche (inicio 22:24) con placa TRL-981, coincidente con la que reportas. El desvío a una trocha oscura, fuera de lo esperable hacia Suba Rincón, más conductor que no responde y tu pedido explícito de auxilio, son señales de coacción o secuestro en curso. No es una desviación menor: el riesgo es inmediato. Debes contactar emergencias tú mismo ahora; yo no puedo despachar policía ni rastrear el vehículo en tiempo real.",
+      "response_to_user": "ALERTA: esto es una emergencia. Si puedes hacerlo sin que el conductor lo note, llama YA al 123 y no cuelgues. Di que vas en un taxi placa TRL-981, que se desvió por una trocha oscura, que el conductor no responde y que tienes miedo. Comparte tu ubicación en vivo con un contacto de confianza y pídele que también llame al 123. No confrontes al conductor ni le entregues el teléfono. Si el carro se detiene en un lugar oscuro y solo, no bajes salvo que veas gente, luz o una vía principal cerca. Quédate en línea con emergencias o con alguien de confianza.",
+      "tools_invoked": [
+        "route",
+        "police_reporter",
+        "emergency_escalator"
+      ],
+      "tool_details": {
+        "route": {
+          "status": "active",
+          "trip_id": "TRIP-TRL981-1791948287",
+          "vehicle_plate": "TRL981",
+          "destination": "Suba Rincón",
+          "origin": "Ubicación inicial compartida",
+          "started_at": "2026-10-13T22:24:47.910035",
+          "next_checkin_scheduled": "2026-10-13T22:34:47.910035",
+          "interval_minutes": 10,
+          "monitoring_active": true
+        }
+      },
+      "police_report_id": "CAI-COL-1791948315",
+      "telemetry": {
+        "prompt_tokens": 1792,
+        "completion_tokens": 302,
+        "total_tokens": 3729,
+        "estimated_cost_usd": 0.006604
+      }
+    },
+    {
+      "id": "EXEC-10",
+      "title": "Mensaje Legítimo de Control Cotidiano",
+      "timestamp": "2026-10-13T22:25:20.361283",
+      "input": "Hola mamá, ¿cómo estás? Ya salí de la universidad, voy para la casa a almorzar.",
+      "metadata": {
+        "sender": "+57 311 555 6677"
+      },
+      "duration_seconds": 4.8,
+      "risk_level": "BAJO",
+      "action": "ANALYZE_ONLY",
+      "reasoning": "El mensaje es un saludo familiar cotidiano: informa que salió de la universidad y va a casa a almorzar. No hay enlaces, urgencia artificial, solicitudes de dinero, datos bancarios, amenazas ni patrones de ingeniería social. Las herramientas confirman riesgo 0 y ningún indicador de fraude.",
+      "response_to_user": "Todo en orden. Este mensaje parece un aviso normal de un familiar. No hay señales de estafa ni de peligro. Si en algún momento te piden dinero, códigos o datos personales con urgencia, no respondas y avísame.",
+      "tools_invoked": [
+        "threat"
+      ],
+      "tool_details": {
+        "threat": {
+          "status": "success",
+          "threat_level": "BAJO",
+          "risk_score": 0,
+          "detected_urls": [],
+          "suspicious_urls": [],
+          "matched_triggers": [],
+          "findings": [],
+          "recommendation": "No se identificaron patrones inmediatos de fraude conocido."
+        }
+      },
+      "police_report_id": null,
+      "telemetry": {
+        "prompt_tokens": 1730,
+        "completion_tokens": 160,
+        "total_tokens": 2051,
+        "estimated_cost_usd": 0.00506
+      }
+    }
+  ]
+}

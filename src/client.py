@@ -46,16 +46,25 @@ class GrokClient:
                     t_tokens = response.usage.total_tokens or (p_tokens + c_tokens)
                     # Costos base aproximados xAI (~$2/M input, ~$10/M output)
                     estimated_cost = (p_tokens * 0.000002) + (c_tokens * 0.000010)
+                    self.last_usage = {
+                        "prompt_tokens": p_tokens,
+                        "completion_tokens": c_tokens,
+                        "total_tokens": t_tokens,
+                        "estimated_cost_usd": round(estimated_cost, 6)
+                    }
                     logger.info(
                         f"[dim cyan]📊 Consumo de Tokens: {t_tokens} (Prompt: {p_tokens}, Completions: {c_tokens}) | "
                         f"Costo estimado: ${estimated_cost:.5f} USD[/dim cyan]"
                     )
+                else:
+                    self.last_usage = {"prompt_tokens": 0, "completion_tokens": 0, "total_tokens": 0, "estimated_cost_usd": 0.0}
                 
                 return response.choices[0].message.content or ""
             except Exception as e:
                 logger.warning(f"[yellow]⚠ Falla o créditos pendientes en API de Grok ({e}). Activando fallback local resiliente.[/yellow]")
 
         # Fallback de simulación determinista para pruebas locales (Gasto $0.00 USD)
+        self.last_usage = {"prompt_tokens": 0, "completion_tokens": 0, "total_tokens": 0, "estimated_cost_usd": 0.0, "mode": "local_fallback"}
         last_message = messages[-1].get("content", "")
         if "taxi" in last_message.lower() or "trayecto" in last_message.lower():
             return json.dumps({

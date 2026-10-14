@@ -25,23 +25,38 @@ class SentinelAgent:
 
         tool_results = {}
 
-        # 1. Ejecución de herramientas según el contexto
+        # 1. Ejecución resiliente de herramientas según el contexto (Tolerancia a fallos S2)
         if any(term in user_input.lower() for term in ["taxi", "placa", "voy en", "trayecto"]):
-            # Modo acompañamiento físico
+            # Modo acompañamiento físico: RouteCompanion
             plate = metadata.get("plate", "ABC123")
             dest = metadata.get("destination", "Destino particular")
-            tool_results["route"] = register_trip(plate=plate, destination=dest)
-            logger.info(f"[blue]⚡ Tool ejecutada: register_trip -> {tool_results['route']['trip_id']}[/blue]")
+            try:
+                tool_results["route"] = register_trip(plate=plate, destination=dest)
+                logger.info(f"[blue]⚡ Tool ejecutada: register_trip -> {tool_results['route'].get('trip_id')}[/blue]")
+            except Exception as e:
+                logger.warning(f"[yellow]⚠ Falla en tool register_trip ({e}). Continuando con fallback.[/yellow]")
+                tool_results["route"] = {"status": "error", "error": str(e), "monitoring_active": False}
         else:
-            # Modo escudo digital: ThreatInspector (Nicolle)
-            threat_data = inspect_threat(user_input)
-            tool_results["threat"] = threat_data
-            logger.info(f"[blue]⚡ Tool ejecutada: inspect_threat -> Nivel {threat_data['threat_level']}[/blue]")
+            # Modo escudo digital: ThreatInspector
+            try:
+                threat_data = inspect_threat(user_input)
+                tool_results["threat"] = threat_data
+                logger.info(f"[blue]⚡ Tool ejecutada: inspect_threat -> Nivel {threat_data.get('threat_level')}[/blue]")
+            except Exception as e:
+                logger.warning(f"[yellow]⚠ Falla en tool inspect_threat ({e}). Continuando con fallback.[/yellow]")
+                threat_data = {"status": "error", "threat_level": "MEDIO", "detected_urls": [], "error": str(e)}
+                tool_results["threat"] = threat_data
 
-            # Inspección profunda de URLs si fueron detectadas: UrlSandbox (Santiago)
+            # Inspección profunda de URLs si fueron detectadas: UrlSandbox
             urls = threat_data.get("detected_urls", [])
             if urls:
-                sandbox_results = [analyze_url(u) for u in urls]
+                sandbox_results = []
+                for u in urls:
+                    try:
+                        sandbox_results.append(analyze_url(u))
+                    except Exception as e:
+                        logger.warning(f"[yellow]⚠ Falla en sandbox para URL {u}: {e}[/yellow]")
+                        sandbox_results.append({"status": "error", "original_url": u, "verdict": "SOSPECHOSO", "error": str(e)})
                 tool_results["url_sandbox"] = sandbox_results
                 logger.info(f"[blue]⚡ Tool ejecutada: url_sandbox -> {len(sandbox_results)} enlaces analizados[/blue]")
 
@@ -87,27 +102,36 @@ class SentinelAgent:
             incident_type = "PHYSICAL_RISK" if decision.get("mode") == "route_companion" else "DIGITAL_FRAUD"
             
             # Escalada SOS general
-            escalation_result = escalate_emergency(
-                incident_type=incident_type,
-                evidence_payload={"input": user_input, "decision": decision, "tools": tool_results}
-            )
+            try:
+                escalation_result = escalate_emergency(
+                    incident_type=incident_type,
+                    evidence_payload={"input": user_input, "decision": decision, "tools": tool_results}
+                )
+            except Exception as e:
+                logger.warning(f"[yellow]⚠ Falla en escalate_emergency ({e})[/yellow]")
+                escalation_result = {"status": "error", "error": str(e)}
 
-            # Generación de expediente para CAI Virtual (Miguel)
+            # Generación de expediente para CAI Virtual
             if incident_type == "DIGITAL_FRAUD":
-                police_report = generate_police_report({
-                    "sender_phone": metadata.get("sender", "Desconocido"),
-                    "incident_type": "Tentativa de Estafa / Phishing",
-                    "user_input": user_input,
-                    "risk_level": decision.get("risk_level", "ALTO"),
-                    "findings": tool_results.get("threat", {}).get("findings", []),
-                    "detected_urls": tool_results.get("threat", {}).get("detected_urls", [])
-                })
-                logger.info(f"[green]📜 Expediente generado para CAI Virtual: {police_report['report_id']}[/green]")
+                try:
+                    police_report = generate_police_report({
+                        "sender_phone": metadata.get("sender", "Desconocido"),
+                        "incident_type": "Tentativa de Estafa / Phishing",
+                        "user_input": user_input,
+                        "risk_level": decision.get("risk_level", "ALTO"),
+                        "findings": tool_results.get("threat", {}).get("findings", []),
+                        "detected_urls": tool_results.get("threat", {}).get("detected_urls", [])
+                    })
+                    logger.info(f"[green]📜 Expediente generado para CAI Virtual: {police_report.get('report_id')}[/green]")
+                except Exception as e:
+                    logger.warning(f"[yellow]⚠ Falla en generate_police_report ({e})[/yellow]")
+                    police_report = {"status": "error", "error": str(e)}
 
         return {
             "status": "success",
             "decision": decision,
             "tool_results": tool_results,
             "escalation": escalation_result,
-            "police_report": police_report
+            "police_report": police_report,
+            "telemetry": getattr(self.client, "last_usage", {})
         }
