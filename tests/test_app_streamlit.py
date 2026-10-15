@@ -129,7 +129,14 @@ def test_preserved_contracts():
 
 from unittest.mock import patch
 from streamlit.testing.v1 import AppTest
-from src.ui.components import validate_input_text, load_demo_samples, NEUTRAL_SAMPLE_OPTION
+from src.ui.components import (
+    validate_input_text,
+    load_demo_samples,
+    NEUTRAL_SAMPLE_OPTION,
+    get_analysis_metadata,
+    render_source_badge,
+    render_analysis_unavailable,
+)
 
 APP_PATH = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "app_streamlit.py"))
 
@@ -233,4 +240,162 @@ def test_apptest_caso_e_and_f_empty_and_whitespace_validation():
         assert len(at.warning) >= 1
         assert "Introduce un mensaje o selecciona un ejemplo" in at.warning[0].value
         mock_agent.assert_not_called()
+
+
+# =============================================================================
+# PRUEBAS DEL HITO 2: SIMULACIÓN, GROK REAL Y MANEJO DE FALLOS (NICOLLE REVIEW)
+# =============================================================================
+
+def test_metadata_extractor_simulated_and_real():
+    """Valida la extracción precisa de metadatos de origen (simulado vs real)."""
+    # 1. Metadatos directos de simulación
+    is_sim, src = get_analysis_metadata({"simulated": True})
+    assert is_sim is True
+    assert src == "simulated"
+
+    is_sim, src = get_analysis_metadata({"analysis_source": "simulated"})
+    assert is_sim is True
+    assert src == "simulated"
+
+    is_sim, src = get_analysis_metadata({"analysis_source": "local_mock"})
+    assert is_sim is True
+    assert src == "local_mock"
+
+    # 2. Metadatos directos de modelo real
+    is_sim, src = get_analysis_metadata({"simulated": False})
+    assert is_sim is False
+    assert src == "grok_4.7"
+
+    is_sim, src = get_analysis_metadata({"analysis_source": "grok_4.7"})
+    assert is_sim is False
+    assert src == "grok_4.7"
+
+    is_sim, src = get_analysis_metadata({"analysis_source": "grok"})
+    assert is_sim is False
+
+    # 3. Metadatos dentro del diccionario de decisión
+    is_sim, src = get_analysis_metadata({"decision": {"simulated": True}})
+    assert is_sim is True
+
+    is_sim, src = get_analysis_metadata({"decision": {"simulated": False}})
+    assert is_sim is False
+
+    # 4. Fallback por patrones conocidos de texto
+    is_sim, src = get_analysis_metadata({"decision": {"reasoning": "Conversación cotidiana sin patrones"}})
+    assert is_sim is True
+
+
+def test_apptest_simulated_result_identifies_as_simulated():
+    """Criterio de aceptación 1: Al probar un resultado simulado, la interfaz lo identifica como tal."""
+    at = AppTest.from_file(APP_PATH, default_timeout=30)
+    at.run()
+
+    at.text_area(key="user_input_text").input("Mensaje de prueba para simulación").run()
+
+    with patch("src.agent.sentinel.SentinelAgent.process_message") as mock_agent:
+        mock_agent.return_value = {
+            "status": "success",
+            "simulated": True,
+            "analysis_source": "simulated",
+            "decision": {
+                "risk_level": "MEDIO",
+                "action": "ANALYZE_ONLY",
+                "response_to_user": "Respuesta simulada",
+                "reasoning": "Motivo de prueba"
+            },
+            "tool_results": {}
+        }
+        at.button(key="btn_analyze_main").click().run()
+
+    # Verificar que el badge visible de 'Resultado simulado' está presente
+    markdown_texts = [m.value for m in at.markdown]
+    has_simulated_badge = any("Resultado simulado" in txt for txt in markdown_texts)
+    assert has_simulated_badge, "La interfaz debe mostrar el indicador 'Resultado simulado'"
+
+    # Verificar que NO afirme que se usó Grok 4.7
+    has_grok_heading = any("Veredicto del Agente (Grok 4.7)" in txt for txt in markdown_texts)
+    assert not has_grok_heading, "No debe afirmar que se utilizó Grok 4.7 si el resultado es simulado"
+
+    # Debe indicar 'Modo Simulado' en el veredicto
+    has_sim_verdict = any("Veredicto del Agente (Modo Simulado)" in txt for txt in markdown_texts)
+    assert has_sim_verdict, "Debe indicar 'Veredicto del Agente (Modo Simulado)'"
+
+
+def test_apptest_real_result_does_not_label_as_simulated():
+    """Criterio de aceptación 2: Al recibir un resultado real, no lo etiqueta como simulado."""
+    at = AppTest.from_file(APP_PATH, default_timeout=30)
+    at.run()
+
+    at.text_area(key="user_input_text").input("Mensaje de prueba con Grok real").run()
+
+    with patch("src.agent.sentinel.SentinelAgent.process_message") as mock_agent:
+        mock_agent.return_value = {
+            "status": "success",
+            "simulated": False,
+            "analysis_source": "grok_4.7",
+            "decision": {
+                "risk_level": "ALTO",
+                "action": "BLOCK_AND_REPORT",
+                "response_to_user": "Respuesta de Grok real",
+                "reasoning": "Inferencia xAI activa"
+            },
+            "tool_results": {}
+        }
+        at.button(key="btn_analyze_main").click().run()
+
+    markdown_texts = [m.value for m in at.markdown]
+
+    # Verificar que NO se etiquete como simulado
+    has_simulated_badge = any("Resultado simulado" in txt for txt in markdown_texts)
+    assert not has_simulated_badge, "Un resultado real no debe ser etiquetado como simulado"
+
+    # Verificar que muestre el indicador de Grok 4.7
+    has_grok_source = any("Grok 4.7" in txt for txt in markdown_texts)
+    assert has_grok_source, "Debe mantener el indicador normal de Grok 4.7 para respuestas reales"
+
+
+def test_apptest_failed_analysis_shows_not_completed_and_not_safe():
+    """Criterio de aceptación 3: Ante un fallo, muestra que el análisis no se completó sin presentarlo como seguro."""
+    at = AppTest.from_file(APP_PATH, default_timeout=30)
+    at.run()
+
+    at.text_area(key="user_input_text").input("Mensaje que genera fallo en el proveedor").run()
+
+    with patch("src.agent.sentinel.SentinelAgent.process_message") as mock_agent:
+        mock_agent.side_effect = Exception("Conexión perdida con el servicio de inferencia")
+        at.button(key="btn_analyze_main").click().run()
+
+    # Verificar que se informe el estado no completado
+    error_values = [e.value for e in at.error]
+    assert any("Análisis no completado" in err for err in error_values), "Debe mostrar que el análisis no se completó"
+
+    markdown_texts = [m.value for m in at.markdown]
+    has_failed_card = any("Análisis no disponible — Inspección no completada" in txt for txt in markdown_texts)
+    assert has_failed_card, "Debe mostrar la tarjeta de estado de análisis no disponible"
+
+    has_safety_notice = any("garantiza que el mensaje sea seguro" in txt for txt in markdown_texts)
+    assert has_safety_notice, "Debe advertir al usuario que la ausencia de análisis no es garantía de seguridad"
+
+    # Verificar que NO lo presente como mensaje seguro
+    success_values = [s.value for s in at.success]
+    assert not any("MENSAJE APARENTEMENTE LEGÍTIMO" in s for s in success_values), "Un análisis fallido NO debe presentarse como seguro"
+
+
+def test_apptest_error_status_in_result_handled():
+    """Valida el manejo cuando el agente devuelve status != 'success'."""
+    at = AppTest.from_file(APP_PATH, default_timeout=30)
+    at.run()
+
+    at.text_area(key="user_input_text").input("Mensaje con respuesta errónea").run()
+
+    with patch("src.agent.sentinel.SentinelAgent.process_message") as mock_agent:
+        mock_agent.return_value = {
+            "status": "error",
+            "error": "Saldo insuficiente en API xAI"
+        }
+        at.button(key="btn_analyze_main").click().run()
+
+    error_values = [e.value for e in at.error]
+    assert any("Saldo insuficiente en API xAI" in err or "Análisis no completado" in err for err in error_values)
+
 

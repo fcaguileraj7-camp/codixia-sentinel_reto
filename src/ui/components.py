@@ -152,9 +152,135 @@ def render_risk_badge(risk_level: str) -> None:
     """
     render_html(html)
 
-def render_verdict_card(decision: Dict[str, Any]) -> None:
+def get_analysis_metadata(result: Optional[Dict[str, Any]], agent: Optional[Any] = None) -> Tuple[bool, str]:
     """
-    Renderiza la tarjeta del veredicto del agente Grok 4.7.
+    Determina si un resultado proviene de un modo simulado/local o de Grok real.
+    Retorna una tupla (is_simulated: bool, source_label: str).
+    Prioriza metadatos acordados por el equipo ('simulated', 'analysis_source').
+    """
+    if not result or not isinstance(result, dict):
+        return True, "simulated"
+
+    # 1. Metadatos directos a nivel raíz
+    if "simulated" in result and isinstance(result["simulated"], bool):
+        if result["simulated"]:
+            return True, str(result.get("analysis_source", "simulated"))
+        return False, str(result.get("analysis_source", "grok_4.7"))
+
+    if "analysis_source" in result:
+        src = str(result["analysis_source"]).lower()
+        if src in ["simulated", "mock", "local", "local_mock", "fallback"]:
+            return True, result["analysis_source"]
+        elif src in ["grok", "grok_4.7", "grok-4.7", "real", "api"]:
+            return False, result["analysis_source"]
+
+    # 2. Metadatos dentro del diccionario de decisión
+    decision = result.get("decision")
+    if isinstance(decision, dict):
+        if "simulated" in decision and isinstance(decision["simulated"], bool):
+            if decision["simulated"]:
+                return True, str(decision.get("analysis_source", "simulated"))
+            return False, str(decision.get("analysis_source", "grok_4.7"))
+
+        if "analysis_source" in decision:
+            src = str(decision["analysis_source"]).lower()
+            if src in ["simulated", "mock", "local", "local_mock", "fallback"]:
+                return True, decision["analysis_source"]
+            elif src in ["grok", "grok_4.7", "grok-4.7", "real", "api"]:
+                return False, decision["analysis_source"]
+
+    # 3. Inspección del agente si está disponible
+    if agent is not None:
+        client = getattr(agent, "client", None)
+        if client is not None:
+            if hasattr(client, "last_simulated") and client.last_simulated is not None:
+                is_sim = bool(client.last_simulated)
+                src = getattr(client, "last_source", "simulated" if is_sim else "grok_4.7")
+                return is_sim, src
+            if hasattr(client, "configured") and not client.configured:
+                return True, "simulated"
+            if hasattr(client, "client") and client.client is None:
+                return True, "simulated"
+
+    # 4. Fallback: Detección por patrones de texto deterministas del fallback
+    if isinstance(decision, dict):
+        reasoning = str(decision.get("reasoning", "")).lower()
+        if (
+            "conversación cotidiana sin patrones" in reasoning
+            or "mensaje típico de ingeniería social que simula" in reasoning
+            or "el usuario inicia trayecto en taxi" in reasoning
+        ):
+            return True, "simulated"
+
+    return False, "grok_4.7"
+
+
+def render_source_badge(is_simulated: bool, source: Optional[str] = None) -> None:
+    """
+    Renderiza un indicador visual claro sobre si el análisis proviene
+    del modelo real de Grok o de un adaptador simulado/modo local.
+    """
+    if is_simulated:
+        html = """
+        <div class="sg-source-badge-container" style="margin: 0.75rem 0 0.5rem 0;">
+            <div style="display: inline-flex; align-items: center; gap: 8px; background: #FFF8E1; border: 1.5px solid #F6D884; color: #8D6E10; border-radius: 20px; padding: 6px 14px; font-size: 0.82rem; font-weight: 700; box-shadow: 0 2px 6px rgba(141, 110, 16, 0.08);">
+                <span>🧪</span>
+                <span>Resultado simulado</span>
+                <span style="font-weight: 400; color: #795B22; font-size: 0.78rem;">· Adaptador local de contingencia (Sin inferencia Grok · $0.00 USD)</span>
+            </div>
+        </div>
+        """
+    else:
+        html = """
+        <div class="sg-source-badge-container" style="margin: 0.75rem 0 0.5rem 0;">
+            <div style="display: inline-flex; align-items: center; gap: 8px; background: rgba(131, 198, 163, 0.15); border: 1.5px solid rgba(66, 102, 83, 0.4); color: #1B3830; border-radius: 20px; padding: 6px 14px; font-size: 0.82rem; font-weight: 700; box-shadow: 0 2px 6px rgba(27, 56, 48, 0.08);">
+                <span>⚡</span>
+                <span>Análisis con Grok 4.7</span>
+                <span style="font-weight: 400; color: #315D45; font-size: 0.78rem;">· Inferencia activa con modelo real xAI</span>
+            </div>
+        </div>
+        """
+    render_html(html)
+
+
+def render_analysis_unavailable(error_message: str = "") -> None:
+    """
+    Renderiza un estado claro cuando el análisis no está disponible o falló,
+    advirtiendo explícitamente al usuario que la ausencia de análisis NO
+    constituye una confirmación de que el mensaje sea seguro.
+    """
+    detail = error_message if error_message else "No se obtuvo respuesta válida del motor de análisis."
+    html = f"""
+    <div class="sg-analysis-failed-card" style="background: #FDF2F2; border: 1.5px solid #F8B4B4; border-radius: 12px; padding: 1.5rem; margin: 1.25rem 0;">
+        <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 8px;">
+            <span style="font-size: 1.5rem;">⚠️</span>
+            <div>
+                <span style="font-weight: 700; color: #9B1C1C; font-size: 1.05rem;">
+                    Análisis no disponible — Inspección no completada
+                </span>
+                <div style="font-size: 0.78rem; color: #771D1D;">
+                    El sistema no pudo procesar la solicitud con el motor de inferencia.
+                </div>
+            </div>
+        </div>
+        <p style="font-size: 0.88rem; color: #3A2021; margin: 10px 0; line-height: 1.5;">
+            No fue posible completar la evaluación del mensaje debido a un fallo técnico en el procesamiento.
+        </p>
+        <div style="background: #FFFFFF; border: 1px solid #FBD5D5; border-radius: 8px; padding: 10px 14px; font-size: 0.82rem; color: #9B1C1C; margin-bottom: 12px; font-family: monospace;">
+            Detalle técnico: {detail}
+        </div>
+        <div style="background: #FFFBEB; border: 1px solid #FDE68A; border-radius: 8px; padding: 10px 14px; font-size: 0.82rem; color: #92400E; line-height: 1.45;">
+            🛡️ <strong>Aviso de seguridad ciudadana:</strong> La falta de análisis <u>no</u> garantiza que el mensaje sea seguro. Por precaución, no abra enlaces, no comparta información confidencial ni transfiera dinero hasta verificar con la entidad o persona emisora.
+        </div>
+    </div>
+    """
+    render_html(html)
+
+
+def render_verdict_card(decision: Dict[str, Any], is_simulated: bool = False, analysis_source: str = "") -> None:
+    """
+    Renderiza la tarjeta del veredicto del agente SentinelGuard.
+    Distingue explícitamente entre el modelo real Grok y el adaptador simulado.
     (Efecto 12: Fade In + Efecto 13: Slide In Right + Efecto 18: Animated Gradient Border)
     """
     response_text = decision.get("response_to_user", decision.get("reasoning", "Sin respuesta"))
@@ -162,13 +288,26 @@ def render_verdict_card(decision: Dict[str, Any]) -> None:
     action = decision.get("action", "ANALYZE_ONLY")
     border_class = "sg-animated-gradient-border" if risk_level in ["CRÍTICO", "CRITICO", "ALTO"] else ""
     
+    title_icon = "🧪" if is_simulated else "🤖"
+    title_text = "Veredicto del Agente (Modo Simulado / Adaptador Local)" if is_simulated else "Veredicto Autónomo del Agente SentinelGuard"
+    source_badge = (
+        '<span style="background: #FFF3CD; color: #856404; font-size: 0.72rem; padding: 2px 8px; border-radius: 10px; font-weight: 700; border: 1px solid #FFEEBA;">'
+        '🧪 Simulado'
+        '</span>'
+        if is_simulated else
+        '<span style="background: rgba(131, 198, 163, 0.2); color: var(--sg-forest-green); font-size: 0.72rem; padding: 2px 8px; border-radius: 10px; font-weight: 700; border: 1px solid rgba(131, 198, 163, 0.4);">'
+        '⚡ Grok 4.7'
+        '</span>'
+    )
+    
     html = f"""
     <div class="sg-fade-in sg-slide-in-right {border_class}" style="margin: 1.25rem 0;">
         <div class="sg-verdict-box" style="background: var(--sg-white); border-radius: 12px; padding: 1.5rem; border: 1px solid var(--sg-soft-border); border-left: 6px solid var(--sg-forest-green);">
-            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
-                <div class="sg-verdict-title">
-                    <span>🤖</span>
-                    <span>Veredicto Autónomo del Agente SentinelGuard</span>
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; flex-wrap: wrap; gap: 8px;">
+                <div class="sg-verdict-title" style="display: flex; align-items: center; gap: 8px;">
+                    <span>{title_icon}</span>
+                    <span>{title_text}</span>
+                    {source_badge}
                 </div>
                 <span style="background: var(--sg-fog-green); color: var(--sg-title-dark); font-size: 0.74rem; padding: 3px 10px; border-radius: 12px; font-weight: 600;">
                     Acción: {action}

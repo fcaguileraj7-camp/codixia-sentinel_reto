@@ -8,6 +8,8 @@ class GrokClient:
 
     def __init__(self):
         self.configured = is_configured()
+        self.last_source = "simulated" if not self.configured else "grok_4.7"
+        self.last_simulated = not self.configured
         if self.configured:
             self.client = OpenAI(
                 base_url=RETO_BASE_URL,
@@ -51,11 +53,15 @@ class GrokClient:
                         f"Costo estimado: ${estimated_cost:.5f} USD[/dim cyan]"
                     )
                 
+                self.last_source = "grok_4.7"
+                self.last_simulated = False
                 return response.choices[0].message.content or ""
             except Exception as e:
                 logger.warning(f"[yellow]⚠ Falla o créditos pendientes en API de Grok ({e}). Activando fallback local resiliente.[/yellow]")
 
         # Fallback de simulación determinista para pruebas locales (Gasto $0.00 USD)
+        self.last_source = "simulated"
+        self.last_simulated = True
         last_message = messages[-1].get("content", "")
         if "taxi" in last_message.lower() or "trayecto" in last_message.lower():
             return json.dumps({

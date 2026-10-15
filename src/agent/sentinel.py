@@ -109,5 +109,7 @@ class SentinelAgent:
             "decision": decision,
             "tool_results": tool_results,
             "escalation": escalation_result,
-            "police_report": police_report
+            "police_report": police_report,
+            "simulated": getattr(self.client, "last_simulated", not getattr(self.client, "configured", False)),
+            "analysis_source": getattr(self.client, "last_source", "simulated" if not getattr(self.client, "configured", False) else "grok_4.7")
         }

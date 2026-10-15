@@ -34,6 +34,9 @@ from src.ui.components import (
     validate_input_text,
     render_tool_results_human,
     render_escalation_human,
+    render_source_badge,
+    render_analysis_unavailable,
+    get_analysis_metadata,
 )
 
 # Configuración de página de Streamlit
@@ -72,16 +75,15 @@ agent = SentinelAgent()
 
 # Pestañas principales de navegación
 tab1, tab2 = st.tabs([
-    "💬 Analizador de Mensajes & Enlaces",
-    "📜 Expediente Policial"
+    "Analizador de Mensajes & Enlaces",
+    "Denuncias para CAI Virtual"
 ])
 
 # =============================================================================
 # TAB 1: ANALIZADOR DE MENSAJES & ENLACES
 # =============================================================================
 with tab1:
-    st.write("### 💬 Ingreso de Mensaje o Enlace Sospechoso:")
-    st.caption("Pega cualquier SMS, mensaje de WhatsApp, correo o enlace que desees auditar:")
+    st.write("## Ingrese el Mensaje o Enlace Sospechoso:")
 
     # Área de Texto para el Mensaje (Multilínea, editable, persistente)
     user_input = st.text_area(
@@ -135,68 +137,96 @@ with tab1:
                 unsafe_allow_html=True
             )
             
-            with st.spinner("SentinelGuard ejecutando ciclo autónomo con Grok 4.7..."):
-                result = agent.process_message(user_input, metadata={"sender": sender_phone})
-                st.session_state["last_result"] = result
-                
-                # Registrar en historial acumulativo para auditoría de sesión (Efecto 5 Infinite Scroll 2)
-                st.session_state["analysis_history"].append({
-                    "timestamp": (result.get("police_report") or {}).get("timestamp", "Reciente"),
-                    "risk": (result.get("decision") or {}).get("risk_level", "DESCONOCIDO"),
-                    "input_snippet": user_input[:60] + "..." if len(user_input) > 60 else user_input
-                })
+            try:
+                with st.spinner("SentinelGuard ejecutando ciclo autónomo de inspección..."):
+                    result = agent.process_message(user_input, metadata={"sender": sender_phone})
+                    if not isinstance(result, dict) or result.get("status") != "success":
+                        err_text = result.get("error") if isinstance(result, dict) else "Respuesta no válida del motor de análisis"
+                        st.session_state["last_result"] = {
+                            "status": "error",
+                            "error_message": err_text or "No se pudo completar el análisis del mensaje.",
+                            "simulated": False
+                        }
+                    else:
+                        st.session_state["last_result"] = result
+                        # Registrar en historial acumulativo para auditoría de sesión (Efecto 5 Infinite Scroll 2)
+                        st.session_state["analysis_history"].append({
+                            "timestamp": (result.get("police_report") or {}).get("timestamp", "Reciente"),
+                            "risk": (result.get("decision") or {}).get("risk_level", "DESCONOCIDO"),
+                            "input_snippet": user_input[:60] + "..." if len(user_input) > 60 else user_input
+                        })
+            except Exception as e:
+                st.session_state["last_result"] = {
+                    "status": "error",
+                    "error_message": f"Excepción durante la ejecución del análisis: {str(e)}",
+                    "simulated": False
+                }
                 
             skeleton_placeholder.empty()
 
     # Presentación de resultados si existe análisis activo
     active_result = st.session_state.get("last_result")
     if active_result:
-        result = active_result
-        decision = result.get("decision", {})
-        risk_level = decision.get("risk_level", "MEDIO")
-        tool_results = result.get("tool_results", {})
-        threat_data = tool_results.get("threat", {})
-        
-        st.divider()
-
-        # Badge de Nivel de Riesgo (Semántica oficial + preservación de alertas nativas)
-        render_risk_badge(risk_level)
-        
-        if risk_level in ["CRÍTICO", "ALTO"]:
-            st.error(f"🚨 NIVEL DE AMENAZA: {risk_level} — INTENTO DE ESTAFA DETECTADO")
-        elif risk_level == "MEDIO":
-            st.warning(f"⚠️ NIVEL DE AMENAZA: {risk_level} — PRECAUCIÓN REQUERIDA")
+        # 1. Validación de estado: Si falló o el análisis no está disponible, mostrar alerta clara sin presentarlo como seguro
+        if active_result.get("status") != "success" or not active_result.get("decision"):
+            err_msg = active_result.get("error_message") or active_result.get("error") or "Fallo en la comunicación con el motor de análisis."
+            st.divider()
+            render_analysis_unavailable(err_msg)
+            st.error(f"❌ Análisis no completado: {err_msg}")
         else:
-            st.success(f"✅ NIVEL DE AMENAZA: {risk_level} — MENSAJE APARENTEMENTE LEGÍTIMO")
+            result = active_result
+            decision = result.get("decision", {})
+            risk_level = decision.get("risk_level", "MEDIO")
+            tool_results = result.get("tool_results", {})
+            threat_data = tool_results.get("threat", {})
+            
+            # Determinación de metadatos de origen (simulado vs real)
+            is_simulated, source_label = get_analysis_metadata(result, agent)
+            
+            st.divider()
 
-        # Veredicto del Agente (Visualización moderna con Efecto 13 Slide-in y preservación de st.info)
-        render_verdict_card(decision)
-        
-        st.write("#### 🤖 Veredicto del Agente:")
-        st.info(decision.get("response_to_user", decision.get("reasoning", "Sin respuesta")))
+            # Indicador visible de origen (Resultado simulado vs Grok real)
+            render_source_badge(is_simulated=is_simulated, source=source_label)
 
-        # Resumen contextual de hallazgos (Efecto 7 Reveal)
-        render_threat_findings(
-            findings=threat_data.get("findings", []),
-            detected_urls=threat_data.get("detected_urls", []),
-            tool_results=tool_results
-        )
+            # Badge de Nivel de Riesgo (Semántica oficial + preservación de alertas nativas)
+            render_risk_badge(risk_level)
+            
+            if risk_level in ["CRÍTICO", "ALTO"]:
+                st.error(f"🚨 NIVEL DE AMENAZA: {risk_level} — INTENTO DE ESTAFA DETECTADO")
+            elif risk_level == "MEDIO":
+                st.warning(f"⚠️ NIVEL DE AMENAZA: {risk_level} — PRECAUCIÓN REQUERIDA")
+            else:
+                st.success(f"✅ NIVEL DE AMENAZA: {risk_level} — MENSAJE APARENTEMENTE LEGÍTIMO")
 
-        # Detalle técnico legible (Reemplazo de st.json por tarjetas legibles)
-        with st.expander("🛠️ Ver Detalle Técnico del Análisis"):
-            render_tool_results_human(result.get("tool_results", {}))
+            # Veredicto del Agente (Visualización moderna sin afirmar falsamente Grok si es simulado)
+            render_verdict_card(decision, is_simulated=is_simulated, analysis_source=source_label)
+            
+            verdict_header = "🤖 Veredicto del Agente (Modo Simulado):" if is_simulated else "🤖 Veredicto del Agente (Grok 4.7):"
+            st.write(f"#### {verdict_header}")
+            st.info(decision.get("response_to_user", decision.get("reasoning", "Sin respuesta")))
 
-        # Protocolo de denuncia CAI Virtual
-        if result.get("escalation"):
-            render_cai_protocol_card(result["escalation"], result.get("police_report"))
-            with st.expander("📋 Ver Expediente Completo del Incidente"):
-                render_escalation_human(result["escalation"])
+            # Resumen contextual de hallazgos (Efecto 7 Reveal)
+            render_threat_findings(
+                findings=threat_data.get("findings", []),
+                detected_urls=threat_data.get("detected_urls", []),
+                tool_results=tool_results
+            )
+
+            # Detalle técnico legible (Reemplazo de st.json por tarjetas legibles)
+            with st.expander("🛠️ Ver Detalle Técnico del Análisis"):
+                render_tool_results_human(result.get("tool_results", {}))
+
+            # Protocolo de denuncia CAI Virtual
+            if result.get("escalation"):
+                render_cai_protocol_card(result["escalation"], result.get("police_report"))
+                with st.expander("📋 Ver Expediente Completo del Incidente"):
+                    render_escalation_human(result["escalation"])
 
 # =============================================================================
 # TAB 2: EXPEDIENTE POLICIAL (CAI VIRTUAL)
 # =============================================================================
 with tab2:
-    st.write("### 📜 Generador de Denuncias para CAI Virtual de Policía:")
+    st.write("## Generador de Denuncias para CAI Virtual de Policía:")
     st.write("Compila formalmente la evidencia técnica lista para radicación judicial ante la Policía Nacional de Colombia.")
     
     # Si existe un análisis previo en la sesión con expediente generado, ofrecer su visualización directa

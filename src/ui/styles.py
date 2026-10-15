@@ -157,13 +157,93 @@ def get_complete_css() -> str:
         box-shadow: 0 4px 14px rgba(0,0,0,0.25);
     }}
 
-    /* EFECTO 4: SCROLL SNAP - Manifestación 1: Carrusel de características */
+    /* EFECTO 4: SCROLL SNAP Y CARRUSEL DE TELEMETRÍA - Manifestación 1: Carrusel continuo e interactivo */
+    .sg-carousel-wrapper {{
+        background: var(--sg-fog-green);
+        border: 1.5px solid var(--sg-soft-border);
+        border-radius: 16px;
+        padding: 18px 20px 20px 20px;
+        margin: 2rem 0 1.5rem 0;
+        box-shadow: 0 4px 18px rgba(16, 40, 32, 0.05);
+        position: relative;
+        overflow: hidden;
+    }}
+    .sg-carousel-header {{
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 16px;
+        flex-wrap: wrap;
+        gap: 12px;
+    }}
+    .sg-carousel-badge {{
+        background: var(--sg-cyber-forest);
+        color: var(--sg-digital-sage);
+        font-size: 0.76rem;
+        font-weight: 800;
+        letter-spacing: 0.06em;
+        text-transform: uppercase;
+        padding: 5px 12px;
+        border-radius: 9999px;
+        border: 1px solid rgba(131, 198, 163, 0.3);
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        box-shadow: 0 2px 6px rgba(16, 40, 32, 0.2);
+    }}
+    .sg-carousel-title {{
+        font-size: 1.05rem;
+        font-weight: 700;
+        color: var(--sg-cyber-forest);
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+    }}
+    .sg-carousel-hint {{
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        font-size: 0.82rem;
+        color: var(--sg-forest-green);
+        font-weight: 600;
+        background: rgba(255, 255, 255, 0.85);
+        padding: 4px 12px;
+        border-radius: 20px;
+        border: 1px solid var(--sg-soft-border);
+    }}
+    .sg-carousel-beacon {{
+        width: 8px;
+        height: 8px;
+        background: #2E7D32;
+        border-radius: 50%;
+        display: inline-block;
+        box-shadow: 0 0 0 rgba(46, 125, 50, 0.4);
+        animation: sgBeaconPulse 2s infinite;
+    }}
+    .sg-carousel-viewport {{
+        overflow: hidden;
+        position: relative;
+        width: 100%;
+        padding: 6px 0;
+        mask-image: linear-gradient(to right, transparent 0%, black 3%, black 97%, transparent 100%);
+        -webkit-mask-image: linear-gradient(to right, transparent 0%, black 3%, black 97%, transparent 100%);
+    }}
+    .sg-carousel-track {{
+        display: flex;
+        gap: 20px;
+        width: max-content;
+        animation: sgCarouselScroll 32s linear infinite;
+        scroll-snap-type: x mandatory;
+    }}
+    .sg-carousel-wrapper:hover .sg-carousel-track {{
+        animation-play-state: paused;
+    }}
     .sg-snap-carousel {{
         display: flex;
-        gap: 16px;
+        gap: 20px;
         overflow-x: auto;
         scroll-snap-type: x mandatory;
-        padding: 8px 4px 16px 4px;
+        padding: 6px 0;
         scrollbar-width: thin;
         scrollbar-color: var(--sg-forest-green) var(--sg-fog-green);
     }}
@@ -174,9 +254,52 @@ def get_complete_css() -> str:
         background: var(--sg-soft-sage);
         border-radius: 6px;
     }}
-    .sg-snap-item {{
-        flex: 0 0 280px;
+    .sg-snap-item, .sg-carousel-card {{
+        flex: 0 0 290px;
+        width: 290px;
         scroll-snap-align: start;
+        transition: transform 0.25s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.25s ease, border-color 0.25s ease;
+        margin-bottom: 0 !important;
+    }}
+    .sg-snap-item:hover, .sg-carousel-card:hover {{
+        transform: translateY(-5px) scale(1.02);
+        box-shadow: 8px 12px 24px rgba(16, 40, 32, 0.12), -4px -4px 14px #ffffff !important;
+        border-color: var(--sg-digital-sage) !important;
+    }}
+    @keyframes sgCarouselScroll {{
+        0% {{
+            transform: translateX(0);
+        }}
+        100% {{
+            transform: translateX(-1240px);
+        }}
+    }}
+    .sg-carousel-indicators {{
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        gap: 14px;
+        margin-top: 14px;
+        flex-wrap: wrap;
+    }}
+    .sg-carousel-indicator-pill {{
+        background: rgba(255, 255, 255, 0.9);
+        border: 1px solid var(--sg-soft-border);
+        border-radius: 20px;
+        padding: 4px 10px;
+        font-size: 0.75rem;
+        font-weight: 700;
+        color: var(--sg-title-dark);
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        box-shadow: 0 1px 4px rgba(16, 40, 32, 0.04);
+    }}
+    .sg-carousel-dot {{
+        width: 6px;
+        height: 6px;
+        border-radius: 50%;
+        background: var(--sg-forest-green);
     }}
     
     /* EFECTO 4: SCROLL SNAP - Manifestación 2: Fila de selección rápida de ejemplos */
@@ -645,7 +768,7 @@ def get_complete_css() -> str:
     .sg-marquee-footer-track {{
         display: inline-block;
         padding-left: 100%;
-        animation: sgMarquee 34s linear infinite;
+        animation: sgMarquee 100s linear infinite;
     }}
 
     /* =========================================================================
@@ -855,7 +978,8 @@ def get_complete_css() -> str:
         .sg-liquid-morph,
         .sg-kenburns-shield,
         .sg-tilt-card:hover,
-        .sg-typing-container {{
+        .sg-typing-container,
+        .sg-carousel-track {{
             animation: none !important;
             transform: none !important;
             width: auto !important;
