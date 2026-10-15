@@ -71,13 +71,13 @@ class GrokClient:
                 "action": "SCHEDULE_CHECKIN",
                 "response_to_user": "Acompañamiento iniciado para el vehículo. Tu ruta y placa quedan registradas. Te escribiré en 10 minutos para confirmar que todo va bien."
             }, ensure_ascii=False)
-        elif any(w in last_message.lower() for w in ["bloqueada", "bancolombia", "nequi", "urgente", "alerta", "pague", "frente urbano"]):
+        elif any(w in last_message.lower() for w in ["bloqueada", "bancolombia", "nequi", "urgente", "alerta", "pague", "frente urbano", "herido", "accidente", "hospital", "secuestr"]):
             return json.dumps({
                 "mode": "threat_inspection",
                 "risk_level": "CRÍTICO",
-                "reasoning": "Mensaje típico de ingeniería social que simula bloqueo de cuenta o extorsión con urgencia artificial y/o enlace malicioso.",
+                "reasoning": "Mensaje típico de ingeniería social que simula bloqueo de cuenta, extorsión o falsa emergencia médica/familiar con urgencia artificial.",
                 "action": "BLOCK_AND_REPORT",
-                "response_to_user": "🚨 ALERTA ROJA: Este mensaje es un intento evidente de Fraude/Extorsión. No abras enlaces ni consignes dinero. Hemos generado un radicado preventivo para el CAI Virtual."
+                "response_to_user": "🚨 ALERTA ROJA: El mensaje que recibiste es un intento de fraude / manipulación de ingeniería social. No respondas, no abras enlaces ni consignes dinero. Hemos generado un radicado preventivo para el CAI Virtual."
             }, ensure_ascii=False)
         else:
             return json.dumps({
@@ -85,5 +85,5 @@ class GrokClient:
                 "risk_level": "BAJO",
                 "reasoning": "Conversación cotidiana sin patrones identificables de fraude financiero o manipulación.",
                 "action": "INFORMATIVE_ONLY",
-                "response_to_user": "No se detectaron indicios de amenaza o estafa en este mensaje. Si recibes solicitudes de dinero o códigos inesperados, reenvíamelos."
+                "response_to_user": "Dictamen: No se detectaron indicios de amenaza o estafa en el mensaje recibido. Recuerda no compartir claves ni códigos si te los solicitan más adelante."
             }, ensure_ascii=False)
