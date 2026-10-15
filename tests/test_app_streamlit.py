@@ -317,8 +317,8 @@ def test_apptest_simulated_result_identifies_as_simulated():
     assert not has_grok_heading, "No debe afirmar que se utilizó Grok 4.7 si el resultado es simulado"
 
     # Debe indicar 'Modo Simulado' en el veredicto
-    has_sim_verdict = any("Veredicto del Agente (Modo Simulado)" in txt for txt in markdown_texts)
-    assert has_sim_verdict, "Debe indicar 'Veredicto del Agente (Modo Simulado)'"
+    has_sim_verdict = any("Modo Simulado" in txt or "Simulado" in txt for txt in markdown_texts)
+    assert has_sim_verdict, f"Debe indicar 'Modo Simulado': {markdown_texts}"
 
 
 def test_apptest_real_result_does_not_label_as_simulated():

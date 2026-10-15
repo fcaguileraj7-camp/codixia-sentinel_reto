@@ -200,10 +200,6 @@ with tab1:
 
             # Veredicto del Agente (Visualización moderna sin afirmar falsamente Grok si es simulado)
             render_verdict_card(decision, is_simulated=is_simulated, analysis_source=source_label)
-            
-            verdict_header = "🤖 Veredicto del Agente (Modo Simulado):" if is_simulated else "🤖 Veredicto del Agente (Grok 4.7):"
-            st.write(f"#### {verdict_header}")
-            st.info(decision.get("response_to_user", decision.get("reasoning", "Sin respuesta")))
 
             # Resumen contextual de hallazgos (Efecto 7 Reveal)
             render_threat_findings(
