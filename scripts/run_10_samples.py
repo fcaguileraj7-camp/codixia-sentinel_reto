@@ -105,17 +105,18 @@ SAMPLES_S2 = [
 ]
 
 def run_all():
+    is_live = is_configured() and os.getenv("GROK_MODE", "mock").lower() in ["live", "real", "production"]
     console.print(Panel.fit(
         "[bold cyan]🛡️ ARNÉS DE EJECUCIÓN DOCUMENTADA — HITO S2[/bold cyan]\n"
         "[italic]10 Casos Reales con Herramientas, Tolerancia a Fallos y Telemetría[/italic]\n\n"
         f"• Gateway: [yellow]{RETO_BASE_URL}[/yellow]\n"
         f"• Modelo: [magenta]{GROK_MODEL}[/magenta]\n"
-        f"• Estado: {'[bold green]CONECTADO A GROK 4.7 (Platica)[/bold green]' if is_configured() else '[bold yellow]MODO SIMULACIÓN LOCAL[/bold yellow]'}",
+        f"• Estado: {'[bold green]MODO REAL CONECTADO A GROK 4.7 (Platica)[/bold green]' if is_live else '[bold yellow]MODO SIMULACIÓN LOCAL BLINDADO ($0.00 USD)[/bold yellow]'}",
         border_style="green"
     ))
 
     os.makedirs("logs", exist_ok=True)
-    agent = SentinelAgent()
+    agent = SentinelAgent(use_real_api=is_live)
 
     results = []
     total_tokens = 0

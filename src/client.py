@@ -1,22 +1,43 @@
 import json
 from openai import OpenAI
-from src.config import RETO_API_KEY, RETO_BASE_URL, GROK_MODEL, is_configured
+from src.config import RETO_API_KEY, RETO_BASE_URL, GROK_MODEL, is_configured, is_live_mode_enabled
 from src.utils.logger import logger
 
 class GrokClient:
-    """Cliente para la API de Grok con monitoreo de tokens, cálculo de costos y fallback local."""
+    """
+    Cliente para la API de Grok con monitoreo de tokens, cálculo de costos y fallback local.
+    
+    Blindaje de Presupuesto (Requisito Hito 2):
+    Por defecto opera en modo de simulación local ($0.00 USD), impidiendo cualquier
+    solicitud HTTP externa involuntaria aunque exista una llave válida en .env.
+    Para activar llamadas reales a la API de Grok, se debe solicitar explícitamente con:
+    - use_real_api=True en la instanciación, o
+    - GROK_MODE='live' en variables de entorno (fuera de pytest).
+    """
 
-    def __init__(self):
+    def __init__(self, use_real_api: bool = False, simulated_response: str = None):
+        self.simulated_response = simulated_response
         self.configured = is_configured()
-        if self.configured:
+        
+        # Determinar si se debe activar el cliente HTTP real
+        self.live_mode = False
+        if use_real_api:
+            if self.configured:
+                self.live_mode = True
+            else:
+                logger.warning("[yellow]⚠ Se solicitó use_real_api=True pero RETO_API_KEY no está configurada. Fallback a modo simulado.[/yellow]")
+        elif is_live_mode_enabled():
+            self.live_mode = True
+
+        if self.live_mode:
             self.client = OpenAI(
                 base_url=RETO_BASE_URL,
                 api_key=RETO_API_KEY,
             )
-            logger.info(f"[green]✓ Cliente de Grok conectado a:[/green] {RETO_BASE_URL}")
+            logger.info(f"[green]✓ Cliente de Grok en MODO REAL conectado a:[/green] {RETO_BASE_URL}")
         else:
             self.client = None
-            logger.warning("[yellow]⚠ RETO_API_KEY no configurada en .env. Operando en MODO SIMULACIÓN LOCAL.[/yellow]")
+            logger.info("[cyan]🛡️ Modo de Simulación Local ACTIVO ($0.00 USD). Llamadas externas deshabilitadas.[/cyan]")
 
     def chat_completion(
         self,
@@ -27,10 +48,22 @@ class GrokClient:
     ) -> str:
         """
         Ejecuta solicitud a Grok controlando el consumo de tokens.
-        - max_tokens: 500 por defecto para evitar respuestas verbosas y proteger el saldo.
-        - Calcula y registra el consumo de tokens y el costo en USD (Hito S3).
+        - En modo simulado (por defecto): no realiza llamadas HTTP y devuelve respuestas locales deterministas.
+        - En modo real: ejecuta la llamada con control de max_tokens y telemetría de costos.
         """
-        if self.configured and self.client:
+        # Si se inyectó una respuesta simulada para pruebas
+        if self.simulated_response is not None:
+            self.last_usage = {
+                "prompt_tokens": 0,
+                "completion_tokens": 0,
+                "total_tokens": 0,
+                "estimated_cost_usd": 0.0,
+                "mode": "simulated_injection"
+            }
+            return self.simulated_response
+
+        # Modo Real (solo si fue activado explícitamente)
+        if self.live_mode and self.client:
             try:
                 response = self.client.chat.completions.create(
                     model=model,
@@ -44,27 +77,39 @@ class GrokClient:
                     p_tokens = response.usage.prompt_tokens or 0
                     c_tokens = response.usage.completion_tokens or 0
                     t_tokens = response.usage.total_tokens or (p_tokens + c_tokens)
-                    # Costos base aproximados xAI (~$2/M input, ~$10/M output)
                     estimated_cost = (p_tokens * 0.000002) + (c_tokens * 0.000010)
                     self.last_usage = {
                         "prompt_tokens": p_tokens,
                         "completion_tokens": c_tokens,
                         "total_tokens": t_tokens,
-                        "estimated_cost_usd": round(estimated_cost, 6)
+                        "estimated_cost_usd": round(estimated_cost, 6),
+                        "mode": "live_api"
                     }
                     logger.info(
                         f"[dim cyan]📊 Consumo de Tokens: {t_tokens} (Prompt: {p_tokens}, Completions: {c_tokens}) | "
                         f"Costo estimado: ${estimated_cost:.5f} USD[/dim cyan]"
                     )
                 else:
-                    self.last_usage = {"prompt_tokens": 0, "completion_tokens": 0, "total_tokens": 0, "estimated_cost_usd": 0.0}
+                    self.last_usage = {
+                        "prompt_tokens": 0,
+                        "completion_tokens": 0,
+                        "total_tokens": 0,
+                        "estimated_cost_usd": 0.0,
+                        "mode": "live_api"
+                    }
                 
                 return response.choices[0].message.content or ""
             except Exception as e:
-                logger.warning(f"[yellow]⚠ Falla o créditos pendientes en API de Grok ({e}). Activando fallback local resiliente.[/yellow]")
+                logger.warning(f"[yellow]⚠ Falla en API de Grok ({e}). Activando fallback local resiliente.[/yellow]")
 
         # Fallback de simulación determinista para pruebas locales (Gasto $0.00 USD)
-        self.last_usage = {"prompt_tokens": 0, "completion_tokens": 0, "total_tokens": 0, "estimated_cost_usd": 0.0, "mode": "local_fallback"}
+        self.last_usage = {
+            "prompt_tokens": 0,
+            "completion_tokens": 0,
+            "total_tokens": 0,
+            "estimated_cost_usd": 0.0,
+            "mode": "simulated_local"
+        }
         last_message = messages[-1].get("content", "")
         if "taxi" in last_message.lower() or "trayecto" in last_message.lower():
             return json.dumps({

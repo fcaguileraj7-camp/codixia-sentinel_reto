@@ -7,13 +7,17 @@ from src.tools.url_sandbox import analyze_url
 from src.tools.police_reporter import generate_police_report
 from src.tools.route_companion import register_trip, evaluate_trip_audio_response
 from src.tools.emergency_escalator import escalate_emergency
+from src.tools.vision_parser import parse_receipt_image
 from src.utils.logger import logger
 
 class SentinelAgent:
     """Orquestador del agente autónomo SentinelGuard AI."""
 
-    def __init__(self):
-        self.client = GrokClient()
+    def __init__(self, client: GrokClient = None, use_real_api: bool = False):
+        if client is not None:
+            self.client = client
+        else:
+            self.client = GrokClient(use_real_api=use_real_api)
 
     def process_message(self, user_input: str, metadata: Dict[str, Any] = None) -> Dict[str, Any]:
         """
@@ -24,6 +28,23 @@ class SentinelAgent:
         logger.info(f"[cyan]→ Recibiendo entrada de usuario:[/cyan] {user_input[:80]}...")
 
         tool_results = {}
+
+        # 0. Inspección multimodal de comprobantes/imágenes (VisionParser - Requisito Hito 2)
+        image_path = metadata.get("image_path")
+        if image_path:
+            try:
+                logger.info(f"[blue]🖼️ Procesando imagen adjunta en metadatos:[/blue] {image_path}")
+                vision_result = parse_receipt_image(image_path)
+                tool_results["vision"] = vision_result
+                logger.info(f"[blue]⚡ Tool ejecutada: parse_receipt_image -> {vision_result.get('status')}[/blue]")
+            except Exception as e:
+                logger.warning(f"[yellow]⚠ Falla en tool parse_receipt_image ({e}). Continuando con fallback.[/yellow]")
+                tool_results["vision"] = {
+                    "status": "error",
+                    "error": str(e),
+                    "is_receipt": False,
+                    "confidence_score": 0.0
+                }
 
         # 1. Ejecución resiliente de herramientas según el contexto (Tolerancia a fallos S2)
         if any(term in user_input.lower() for term in ["taxi", "placa", "voy en", "trayecto"]):
@@ -72,32 +93,48 @@ class SentinelAgent:
             {"role": "user", "content": context_prompt}
         ]
 
-        # 3. Razonamiento en Grok
+        # 3. Razonamiento en Grok con tolerancia a fallos y sin falsos veredictos (Requisito Hito 2)
         logger.info("[magenta]🧠 Consultando núcleo de razonamiento Grok 4.7...[/magenta]")
-        raw_response = self.client.chat_completion(messages)
-
-        # 4. Parseo y Validación de la decisión
+        status = "success"
         try:
+            raw_response = self.client.chat_completion(messages)
+
+            # 4. Parseo y Validación de la decisión JSON
             json_start = raw_response.find("{")
             json_end = raw_response.rfind("}") + 1
             if json_start != -1 and json_end != -1:
                 decision = json.loads(raw_response[json_start:json_end])
             else:
                 decision = json.loads(raw_response)
+
+            if not isinstance(decision, dict):
+                raise ValueError("La respuesta del modelo no contiene un objeto JSON válido.")
+
+            decision["analysis_available"] = True
+
         except Exception as e:
-            logger.warning(f"[yellow]Advertencia al parsear JSON de Grok: {e}. Usando fallback.[/yellow]")
+            logger.error(f"[red]❌ Error en la inferencia o parseo del modelo ({e}). Reportando falla técnica explícita.[/red]")
+            status = "error"
             decision = {
                 "mode": "threat_inspection",
-                "risk_level": "MEDIO",
-                "reasoning": raw_response,
-                "action": "ANALYZE_ONLY",
-                "response_to_user": raw_response
+                "analysis_available": False,
+                "risk_level": "NO_ANALIZADO",
+                "reasoning": f"Análisis técnico no disponible debido a una falla del servicio de IA: {str(e)}",
+                "action": "MANUAL_REVIEW_REQUIRED",
+                "response_to_user": (
+                    "⚠️ En este momento el sistema no pudo completar el análisis automático de seguridad debido a una falla técnica. "
+                    "Por precaución, no abras enlaces, no compartas datos sensibles y verifica manualmente la fuente."
+                )
             }
 
         # 5. Ejecución autónoma de escalada si el riesgo es CRÍTICO o ALTO
         escalation_result = None
         police_report = None
-        if decision.get("risk_level") in ["ALTO", "CRÍTICO"] or decision.get("action") == "TRIGGER_ALARM":
+        
+        # Blindaje contra falsos positivos: Solo escalar si el análisis fue exitoso y disponible
+        if decision.get("analysis_available", True) and (
+            decision.get("risk_level") in ["ALTO", "CRÍTICO"] or decision.get("action") == "TRIGGER_ALARM"
+        ):
             logger.warning(f"[red]🚨 Activando protocolo de escalada: Riesgo {decision.get('risk_level')}[/red]")
             incident_type = "PHYSICAL_RISK" if decision.get("mode") == "route_companion" else "DIGITAL_FRAUD"
             
@@ -128,7 +165,7 @@ class SentinelAgent:
                     police_report = {"status": "error", "error": str(e)}
 
         return {
-            "status": "success",
+            "status": status,
             "decision": decision,
             "tool_results": tool_results,
             "escalation": escalation_result,
