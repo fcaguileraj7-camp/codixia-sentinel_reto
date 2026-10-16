@@ -18,6 +18,27 @@ from src.agent.sentinel import SentinelAgent
 from src.tools.threat_inspector import inspect_threat
 from src.tools.url_sandbox import analyze_url
 from src.tools.police_reporter import generate_police_report
+from src.utils.logger import logger
+
+def sanitize_error_message(raw_error: any) -> str:
+    """
+    Sanitiza mensajes de error técnicos para evitar exponer credenciales,
+    rutas del sistema operativo o trazas internas al usuario final.
+    """
+    if not raw_error:
+        return "No fue posible completar la evaluación del mensaje."
+    err_str = str(raw_error).strip()
+    if not err_str:
+        return "No fue posible completar la evaluación del mensaje."
+    
+    sensitive_markers = ["traceback", "file \"", "line ", "api_key", "sk-", "token", "password", "secret", "bearer"]
+    lower_err = err_str.lower()
+    if any(m in lower_err for m in sensitive_markers):
+        return "Error interno en el servicio de análisis. El incidente técnico fue registrado para auditoría."
+    
+    if len(err_str) > 180:
+        return err_str[:180] + "..."
+    return err_str
 
 # Importaciones del Subsistema UI (Identidad Cyber Forest × Sage Sanctuary)
 from src.ui.styles import get_complete_css
@@ -140,12 +161,18 @@ with tab1:
             try:
                 with st.spinner("SentinelGuard ejecutando ciclo autónomo de inspección..."):
                     result = agent.process_message(user_input, metadata={"sender": sender_phone})
-                    if not isinstance(result, dict) or result.get("status") != "success":
-                        err_text = result.get("error") if isinstance(result, dict) else "Respuesta no válida del motor de análisis"
+                    if not isinstance(result, dict):
                         st.session_state["last_result"] = {
                             "status": "error",
-                            "error_message": err_text or "No se pudo completar el análisis del mensaje.",
+                            "error_message": "Respuesta no válida del motor de análisis.",
                             "simulated": False
+                        }
+                    elif result.get("status") == "error" and not (isinstance(result.get("decision"), dict) and result.get("decision", {}).get("risk_level")):
+                        err_text = result.get("error_message") or result.get("error") or "No se pudo completar el análisis del mensaje."
+                        st.session_state["last_result"] = {
+                            "status": "error",
+                            "error_message": sanitize_error_message(err_text),
+                            "simulated": result.get("simulated", False)
                         }
                     else:
                         st.session_state["last_result"] = result
@@ -156,9 +183,11 @@ with tab1:
                             "input_snippet": user_input[:60] + "..." if len(user_input) > 60 else user_input
                         })
             except Exception as e:
+                logger.error(f"Excepción durante la ejecución del análisis: {e}", exc_info=True)
+                clean_err = sanitize_error_message(str(e))
                 st.session_state["last_result"] = {
                     "status": "error",
-                    "error_message": f"Excepción durante la ejecución del análisis: {str(e)}",
+                    "error_message": clean_err,
                     "simulated": False
                 }
                 
@@ -167,23 +196,75 @@ with tab1:
     # Presentación de resultados si existe análisis activo
     active_result = st.session_state.get("last_result")
     if active_result:
-        # 1. Validación de estado: Si falló o el análisis no está disponible, mostrar alerta clara sin presentarlo como seguro
-        if active_result.get("status") != "success" or not active_result.get("decision"):
+        decision = active_result.get("decision") if isinstance(active_result, dict) else None
+        has_valid_decision = isinstance(decision, dict) and bool(decision.get("risk_level"))
+        is_error_status = active_result.get("status") == "error"
+
+        # 1. Validación de estado: Si falló completamente o no se determinó el nivel de riesgo
+        if is_error_status or not has_valid_decision:
             err_msg = active_result.get("error_message") or active_result.get("error") or "Fallo en la comunicación con el motor de análisis."
             st.divider()
             render_analysis_unavailable(err_msg)
             st.error(f"❌ Análisis no completado: {err_msg}")
         else:
             result = active_result
-            decision = result.get("decision", {})
             risk_level = decision.get("risk_level", "MEDIO")
             tool_results = result.get("tool_results", {})
             threat_data = tool_results.get("threat", {})
             
+            # Normalización segura de url_sandbox para visualización detallada
+            if "url" not in tool_results and "url_sandbox" in tool_results:
+                sb = tool_results["url_sandbox"]
+                if isinstance(sb, list) and len(sb) > 0 and isinstance(sb[0], dict):
+                    tool_results["url"] = sb[0]
+                elif isinstance(sb, dict):
+                    tool_results["url"] = sb
+
+            # Detección de análisis parcial vs completo (Punto 4)
+            partial_reasons = []
+            if result.get("status") == "partial":
+                p_reason = result.get("partial_reason") or result.get("error_message")
+                if p_reason:
+                    partial_reasons.append(str(p_reason))
+                else:
+                    partial_reasons.append("Una o más herramientas secundarias retornaron respuestas parciales.")
+
+            if isinstance(threat_data, dict) and threat_data.get("status") == "error":
+                t_err = threat_data.get("error", "Error en ThreatInspector")
+                partial_reasons.append(f"ThreatInspector reportó un error: {t_err}")
+
+            url_data = tool_results.get("url_sandbox") or tool_results.get("url")
+            if isinstance(url_data, list):
+                for u in url_data:
+                    if isinstance(u, dict) and u.get("status") == "error":
+                        u_err = u.get("error", "Error al analizar enlace")
+                        partial_reasons.append(f"UrlSandbox reportó un error: {u_err}")
+                        break
+            elif isinstance(url_data, dict) and url_data.get("status") == "error":
+                u_err = url_data.get("error", "Error al analizar enlace")
+                partial_reasons.append(f"UrlSandbox reportó un error: {u_err}")
+
+            police_report = result.get("police_report")
+            if isinstance(police_report, dict) and police_report.get("status") == "error":
+                p_err = police_report.get("error_message") or police_report.get("error") or "Fallo al generar expediente policial"
+                partial_reasons.append(f"Reporte policial: {p_err}")
+
+            is_partial = len(partial_reasons) > 0
+
             # Determinación de metadatos de origen (simulado vs real)
             is_simulated, source_label = get_analysis_metadata(result, agent)
             
             st.divider()
+
+            # Notificación explícita de análisis parcial (Punto 4)
+            if is_partial:
+                st.warning(
+                    "⚠️ **Análisis Parcial:** La evaluación de riesgo se completó con datos parciales. "
+                    "Una o más herramientas secundarias no estuvieron disponibles o retornaron errores. "
+                    "Los resultados válidos obtenidos se presentan a continuación."
+                )
+                for pr in partial_reasons:
+                    st.caption(f"• {pr}")
 
             # Indicador visible de origen (Resultado simulado vs Grok real)
             render_source_badge(is_simulated=is_simulated, source=source_label)
@@ -203,20 +284,47 @@ with tab1:
 
             # Resumen contextual de hallazgos (Efecto 7 Reveal)
             render_threat_findings(
-                findings=threat_data.get("findings", []),
-                detected_urls=threat_data.get("detected_urls", []),
+                findings=threat_data.get("findings", []) if isinstance(threat_data, dict) else [],
+                detected_urls=threat_data.get("detected_urls", []) if isinstance(threat_data, dict) else [],
                 tool_results=tool_results
             )
 
             # Detalle técnico legible (Reemplazo de st.json por tarjetas legibles)
             with st.expander("🛠️ Ver Detalle Técnico del Análisis"):
-                render_tool_results_human(result.get("tool_results", {}))
+                render_tool_results_human(tool_results)
 
             # Protocolo de denuncia CAI Virtual
             if result.get("escalation"):
                 render_cai_protocol_card(result["escalation"], result.get("police_report"))
                 with st.expander("📋 Ver Expediente Completo del Incidente"):
                     render_escalation_human(result["escalation"])
+
+            # Punto 3: Mostrar el reporte o radicado policial cuando corresponda
+            if police_report and isinstance(police_report, dict):
+                if police_report.get("status") == "success" and police_report.get("report_id"):
+                    report_id = str(police_report["report_id"]).strip()
+                    is_official = bool(
+                        police_report.get("official_filing_confirmed")
+                        or police_report.get("submission_status") == "CONFIRMED"
+                    )
+                    
+                    if is_official:
+                        st.success(f"✅ **Radicación Oficial Confirmada ante Autoridades** — Radicado: `{report_id}`")
+                    else:
+                        st.info(
+                            f"📋 **Radicado Técnico:** `{report_id}`\n\n"
+                            "⚠️ **Estado:** Expediente técnico preparado y listo para radicación. "
+                            "**No ha sido presentado ante una autoridad judicial.** "
+                            "Para formalizar la denuncia, radique con este código en [caivirtual.policia.gov.co](https://caivirtual.policia.gov.co/)."
+                        )
+                    
+                    with st.expander("📄 Ver Denuncia Formal para CAI Virtual (Policía Nacional)"):
+                        st.markdown(police_report.get("formatted_markdown", ""))
+                elif police_report.get("status") == "error":
+                    p_err = police_report.get("error_message") or police_report.get("error") or "Fallo en el módulo de generación de reportes"
+                    st.info(f"ℹ️ **Reporte policial no disponible:** No se pudo compilar el expediente para CAI Virtual ({p_err}). Los resultados del análisis de amenazas se conservan.")
+            elif result.get("escalation") and not police_report:
+                st.info("ℹ️ **Reporte policial no disponible:** No se generó expediente para el CAI Virtual en este ciclo. La evaluación de amenazas previa se conserva.")
 
 # =============================================================================
 # TAB 2: EXPEDIENTE POLICIAL (CAI VIRTUAL)
@@ -244,8 +352,10 @@ with tab2:
             "detected_urls": ["https://banc0lombia-seguridad.cc"]
         }
         report = generate_police_report(sample_evidence)
+        st.info("ℹ️ **Estado:** Expediente de ejemplo preparado. Pendiente de radicación formal por el ciudadano en caivirtual.policia.gov.co.")
         st.markdown(report["formatted_markdown"])
     elif gen_current and active_report:
+        st.info("ℹ️ **Estado:** Expediente técnico preparado. Pendiente de radicación formal por el ciudadano en caivirtual.policia.gov.co.")
         st.markdown(active_report["formatted_markdown"])
     elif active_report and not gen_sample:
         st.info("ℹ️ Tienes un expediente generado del último análisis. Haz clic en **'Radicar Análisis Actual'** para visualizarlo.")

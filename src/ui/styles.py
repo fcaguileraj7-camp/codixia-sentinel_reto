@@ -241,30 +241,54 @@ def get_complete_css() -> str:
     .sg-snap-carousel {{
         display: flex;
         gap: 20px;
-        overflow-x: auto;
+        overflow-x: hidden;
         scroll-snap-type: x mandatory;
-        padding: 6px 0;
-        scrollbar-width: thin;
-        scrollbar-color: var(--sg-forest-green) var(--sg-fog-green);
+        padding: 10px 4px 18px 4px;
+        scrollbar-width: none !important;
+        -ms-overflow-style: none !important;
+        -webkit-overflow-scrolling: touch;
+        position: relative;
+        width: 100%;
+        box-sizing: border-box;
     }}
     .sg-snap-carousel::-webkit-scrollbar {{
-        height: 6px;
+        display: none !important;
+        height: 0px !important;
+        width: 0px !important;
     }}
-    .sg-snap-carousel::-webkit-scrollbar-thumb {{
-        background: var(--sg-soft-sage);
-        border-radius: 6px;
+    .sg-carousel-group {{
+        display: flex;
+        gap: 20px;
+        flex-shrink: 0;
+        animation: sgContinuousCarousel 26s linear infinite;
+    }}
+    .sg-snap-carousel:hover .sg-carousel-group,
+    .sg-snap-carousel:active .sg-carousel-group {{
+        animation-play-state: paused !important;
     }}
     .sg-snap-item, .sg-carousel-card {{
         flex: 0 0 290px;
         width: 290px;
-        scroll-snap-align: start;
+        scroll-snap-align: center;
         transition: transform 0.25s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.25s ease, border-color 0.25s ease;
         margin-bottom: 0 !important;
+        box-sizing: border-box;
     }}
-    .sg-snap-item:hover, .sg-carousel-card:hover {{
-        transform: translateY(-5px) scale(1.02);
-        box-shadow: 8px 12px 24px rgba(16, 40, 32, 0.12), -4px -4px 14px #ffffff !important;
-        border-color: var(--sg-digital-sage) !important;
+    @keyframes sgContinuousCarousel {{
+        0% {{
+            transform: translateX(0);
+        }}
+        100% {{
+            transform: translateX(calc(-100% - 20px));
+        }}
+    }}
+    @keyframes sgMetricCardCarousel {{
+        0% {{
+            transform: translateX(0);
+        }}
+        100% {{
+            transform: translateX(calc(-100% - 20px));
+        }}
     }}
     @keyframes sgCarouselScroll {{
         0% {{
@@ -979,7 +1003,9 @@ def get_complete_css() -> str:
         .sg-kenburns-shield,
         .sg-tilt-card:hover,
         .sg-typing-container,
-        .sg-carousel-track {{
+        .sg-carousel-track,
+        .sg-carousel-group,
+        .sg-snap-item {{
             animation: none !important;
             transform: none !important;
             width: auto !important;
@@ -988,9 +1014,45 @@ def get_complete_css() -> str:
     }}
     
     /* =========================================================================
-       11. RESPONSIVE DESIGN (MÓVIL Y TABLET)
+       11. RESPONSIVE DESIGN (IPHONE, IPAD, LAPTOP & ESCRITORIO)
        ========================================================================= */
+    /* Prevenir scroll horizontal accidental a nivel raíz */
+    html, body, .stApp {{
+        overflow-x: hidden !important;
+        max-width: 100vw !important;
+    }}
+
+    /* Reglas generales de contención para el Hero Banner */
+    .sg-hero-container {{
+        width: 100% !important;
+        box-sizing: border-box !important;
+    }}
+    .sg-hero-row {{
+        width: 100% !important;
+        box-sizing: border-box !important;
+    }}
+    .sg-hero-text {{
+        width: 100% !important;
+        box-sizing: border-box !important;
+    }}
+    .sg-hero-badge {{
+        max-width: 100% !important;
+        box-sizing: border-box !important;
+    }}
+    .sg-hero-desc {{
+        max-width: 100% !important;
+        box-sizing: border-box !important;
+        overflow-wrap: break-word !important;
+        word-wrap: break-word !important;
+    }}
+
+    /* Breakpoint para Móviles (iPhone portrait y landscape: <= 768px) */
     @media (max-width: 768px) {{
+        .block-container {{
+            padding-left: 0.85rem !important;
+            padding-right: 0.85rem !important;
+            padding-top: 0.75rem !important;
+        }}
         .sg-sticky-header {{
             flex-direction: column;
             gap: 10px;
@@ -998,16 +1060,158 @@ def get_complete_css() -> str:
             padding: 0.75rem 1rem;
         }}
         .sg-hero-container {{
-            padding: 1.5rem 1.25rem;
+            padding: 1.4rem 1.1rem !important;
+            margin-bottom: 1.25rem !important;
+        }}
+        .sg-hero-row {{
+            flex-direction: column !important;
+            align-items: stretch !important;
+            gap: 14px !important;
+        }}
+        .sg-hero-text {{
+            max-width: 100% !important;
+            text-align: left;
+        }}
+        .sg-hero-badge {{
+            max-width: 100% !important;
+            padding: 4px 10px !important;
+            font-size: 0.72rem !important;
+            white-space: normal !important;
+            display: inline-flex !important;
+        }}
+        .sg-hero-badge-text {{
+            font-size: clamp(0.68rem, 2.7vw, 0.78rem) !important;
+            letter-spacing: 0.02em !important;
+            line-height: 1.25 !important;
         }}
         .sg-text-masked-title {{
-            font-size: 1.7rem !important;
+            font-size: clamp(1.65rem, 6.5vw, 2.1rem) !important;
+            line-height: 1.2 !important;
+            word-break: break-word !important;
+            margin: 0 0 8px 0 !important;
+        }}
+        .sg-typing-wrapper {{
+            height: auto !important;
+            min-height: auto !important;
+            margin-bottom: 10px !important;
+        }}
+        .sg-typing-container {{
+            white-space: normal !important;
+            border-right: none !important;
+            animation: none !important;
+            font-size: clamp(0.92rem, 3.8vw, 1.05rem) !important;
+            line-height: 1.35 !important;
+            display: block !important;
+            width: 100% !important;
+            overflow: visible !important;
+        }}
+        .sg-hero-desc {{
+            font-size: 0.84rem !important;
+            line-height: 1.45 !important;
+            max-width: 100% !important;
+            overflow-wrap: break-word !important;
+            word-wrap: break-word !important;
+        }}
+        /* CENTRADO PERFECTO DEL ESCUDO EN MÓVIL */
+        .sg-hero-shield-wrapper {{
+            width: 100% !important;
+            display: flex !important;
+            flex-direction: column !important;
+            align-items: center !important;
+            justify-content: center !important;
+            text-align: center !important;
+            margin: 1.2rem auto 0 auto !important;
+        }}
+        .sg-kenburns-shield {{
+            width: 100px !important;
+            height: 100px !important;
+            margin: 0 auto !important;
         }}
         .sg-floating-status-pill {{
-            bottom: 12px;
-            right: 12px;
-            padding: 0.5rem 1rem;
-            font-size: 0.78rem;
+            bottom: calc(12px + env(safe-area-inset-bottom, 0px)) !important;
+            right: 12px !important;
+            padding: 0.45rem 0.85rem !important;
+            font-size: 0.74rem !important;
+            z-index: 999 !important;
+            opacity: 0.92;
+        }}
+        /* Pestañas con deslizamiento horizontal táctil suave */
+        div[data-baseweb="tab-list"] {{
+            overflow-x: auto !important;
+            flex-wrap: nowrap !important;
+            -webkit-overflow-scrolling: touch !important;
+            scrollbar-width: none !important;
+            gap: 6px !important;
+        }}
+        div[data-baseweb="tab-list"]::-webkit-scrollbar {{
+            display: none !important;
+        }}
+        div[data-baseweb="tab"] {{
+            padding: 0.5rem 0.85rem !important;
+            font-size: 0.82rem !important;
+            white-space: nowrap !important;
+            flex: 0 0 auto !important;
+        }}
+        /* Apilado fluido de columnas en móvil */
+        div[data-testid="column"] {{
+            min-width: 100% !important;
+            width: 100% !important;
+        }}
+        div[data-testid="column"] div[style*="margin-top: 26px"] {{
+            margin-top: 8px !important;
+        }}
+        /* Botones táctiles accesibles con altura mínima de 44px */
+        div.stButton > button {{
+            min-height: 44px !important;
+            width: 100% !important;
+        }}
+        /* Tarjetas del carrusel en pantalla pequeña */
+        .sg-snap-item, .sg-carousel-card {{
+            flex: 0 0 min(280px, 82vw) !important;
+            width: min(280px, 82vw) !important;
+        }}
+    }}
+
+    /* Pantallas extra pequeñas (iPhone SE: <= 380px) */
+    @media (max-width: 380px) {{
+        .sg-hero-container {{
+            padding: 1.15rem 0.8rem !important;
+        }}
+        .sg-text-masked-title {{
+            font-size: 1.5rem !important;
+        }}
+        .sg-kenburns-shield {{
+            width: 85px !important;
+            height: 85px !important;
+        }}
+        .sg-hero-badge-text {{
+            font-size: 0.66rem !important;
+        }}
+    }}
+
+    /* Tabletas / iPad (769px a 1024px) */
+    @media (min-width: 769px) and (max-width: 1024px) {{
+        .sg-hero-container {{
+            padding: 1.8rem 1.6rem !important;
+        }}
+        .sg-hero-row {{
+            flex-direction: row !important;
+            justify-content: space-between !important;
+            align-items: center !important;
+        }}
+        .sg-hero-text {{
+            max-width: 65% !important;
+        }}
+        .sg-hero-shield-wrapper {{
+            width: 30% !important;
+            display: flex !important;
+            flex-direction: column !important;
+            align-items: center !important;
+            justify-content: center !important;
+        }}
+        .sg-snap-item, .sg-carousel-card {{
+            flex: 0 0 280px !important;
+            width: 280px !important;
         }}
     }}
     </style>

@@ -30,27 +30,27 @@ def render_header():
     <div class="sg-hero-container sg-gradient-animated">
         <div class="sg-particle-grid"></div>
         <div class="sg-parallax-layer-bg"></div>
-        <div style="position: relative; z-index: 2; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 20px;">
-            <div style="max-width: 780px;">
-                <div style="display: inline-flex; align-items: center; gap: 8px; background: rgba(131, 198, 163, 0.15); border: 1px solid rgba(131, 198, 163, 0.3); border-radius: 20px; padding: 4px 14px; margin-bottom: 12px;">
+        <div class="sg-hero-row" style="position: relative; z-index: 2; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 20px;">
+            <div class="sg-hero-text" style="max-width: 780px;">
+                <div class="sg-hero-badge" style="display: inline-flex; align-items: center; gap: 8px; background: rgba(131, 198, 163, 0.15); border: 1px solid rgba(131, 198, 163, 0.3); border-radius: 20px; padding: 4px 14px; margin-bottom: 12px;">
                     <span style="font-size: 0.8rem;">🇨🇴</span>
-                    <span style="color: var(--sg-digital-sage); font-size: 0.78rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em;">
+                    <span class="sg-hero-badge-text" style="color: var(--sg-digital-sage); font-size: 0.78rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em;">
                         Defensa Digital Ciudadana contra Ciberdelitos
                     </span>
                 </div>
                 <h1 class="sg-text-masked-title" style="margin: 0 0 10px 0; font-size: 2.35rem; line-height: 1.15;">
                     SENTINELGUARD AI
                 </h1>
-                <div style="margin-bottom: 14px; height: 26px;">
+                <div class="sg-typing-wrapper" style="margin-bottom: 14px; height: 26px;">
                     <p class="sg-typing-container" style="color: var(--sg-natural-ivory); font-size: 1.05rem; font-weight: 500; margin: 0;">
                         El Escudo Digital Ciudadano contra Estafas y Extorsiones
                     </p>
                 </div>
-                <p style="color: #C8DCD0; font-size: 0.88rem; line-height: 1.5; margin: 0; max-width: 660px;">
+                <p class="sg-hero-desc" style="color: #C8DCD0; font-size: 0.88rem; line-height: 1.5; margin: 0; max-width: 660px;">
                     Inspección autónoma multi-herramienta con Grok 4.7. Neutraliza phishing bancario, manipulación de ingeniería social y extorsión por WhatsApp con radicación formal ante el <strong>CAI Virtual de la Policía Nacional</strong>.
                 </p>
             </div>
-            <div style="text-align: center; position: relative;">
+            <div class="sg-hero-shield-wrapper" style="text-align: center; position: relative;">
                 <div class="sg-tilt-card" style="display: inline-block;">
                     <div class="sg-liquid-morph sg-kenburns-shield" style="width: 120px; height: 120px; background: linear-gradient(135deg, var(--sg-digital-sage), var(--sg-forest-green)); display: flex; align-items: center; justify-content: center; box-shadow: 0 10px 30px rgba(0,0,0,0.35);">
                         <span style="font-size: 3.2rem; filter: drop-shadow(0 4px 8px rgba(0,0,0,0.3));">🛡️</span>
@@ -89,8 +89,7 @@ def render_metric_cards():
     Renderiza tarjetas métricas de seguridad al estilo SecurityScorecard / Snyk.
     (Efecto 11: Tilt Effect 2, Efecto 25: Text Masked Metric 2, Efecto 26: Neumorphism 1, Efecto 4: Scroll Snap 1)
     """
-    html = """
-    <div class="sg-snap-carousel">
+    card_group_html = """
         <div class="sg-snap-item sg-neumorphic-card sg-metric-tilt">
             <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 8px;">
                 <span style="font-size: 0.75rem; text-transform: uppercase; font-weight: 700; color: var(--sg-slate-green); letter-spacing: 0.05em;">Defensa Multicapa</span>
@@ -117,11 +116,23 @@ def render_metric_cards():
         </div>
         <div class="sg-snap-item sg-neumorphic-card sg-metric-tilt">
             <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 8px;">
-                <span style="font-size: 0.75rem; text-transform: uppercase; font-weight: 700; color: var(--sg-slate-green); letter-spacing: 0.05em;">Eficiencia Tokens</span>
-                <span style="font-size: 1.1rem;">🎯</span>
+                <span style="font-size: 0.75rem; text-transform: uppercase; font-weight: 700; color: var(--sg-slate-green); letter-spacing: 0.05em;">Acompañamiento en Viajes</span>
+                <span style="font-size: 1.1rem;">🧭</span>
             </div>
-            <div class="sg-text-masked-metric">&le; 500</div>
-            <div style="font-size: 0.8rem; color: #52685B; margin-top: 4px;">Tope estricto de tokens y fallback local a $0.00 USD.</div>
+            <div class="sg-text-masked-metric">Ruta 24/7</div>
+            <div style="font-size: 0.78rem; line-height: 1.35; color: #52685B; margin-top: 4px;">Seguimiento de trayectos, confirmaciones periódicas de bienestar y alertas de emergencia.</div>
+        </div>
+    """
+    html = f"""
+    <div class="sg-snap-carousel">
+        <div class="sg-carousel-group">
+            {card_group_html}
+        </div>
+        <div class="sg-carousel-group" aria-hidden="true">
+            {card_group_html}
+        </div>
+        <div class="sg-carousel-group" aria-hidden="true">
+            {card_group_html}
         </div>
     </div>
     """

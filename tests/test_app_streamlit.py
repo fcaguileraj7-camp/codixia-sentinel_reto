@@ -399,3 +399,264 @@ def test_apptest_error_status_in_result_handled():
     assert any("Saldo insuficiente en API xAI" in err or "Análisis no completado" in err for err in error_values)
 
 
+# =============================================================================
+# PRUEBAS DEL SUBPROCESO 3: PUNTOS 3, 4 Y 5 (REPORTE POLICIAL, ERRORES Y FLUJO)
+# =============================================================================
+
+def test_apptest_police_report_displayed_when_valid():
+    """Punto 3: Muestra radicado técnico y estado 'preparado (no radicado ante autoridad)' cuando existe reporte válido."""
+    at = AppTest.from_file(APP_PATH, default_timeout=30)
+    at.run()
+
+    at.text_area(key="user_input_text").input("Mensaje crítico con enlace malicioso https://banc0lombia-seguridad.cc").run()
+
+    with patch("src.agent.sentinel.SentinelAgent.process_message") as mock_agent:
+        mock_agent.return_value = {
+            "status": "success",
+            "decision": {
+                "risk_level": "CRÍTICO",
+                "action": "BLOCK_AND_REPORT",
+                "response_to_user": "Dictamen: Intento crítico de estafa detectado.",
+                "reasoning": "Dominio clonado y urgencia artificial"
+            },
+            "tool_results": {
+                "threat": {"findings": ["Dominio clonado"], "detected_urls": ["https://banc0lombia-seguridad.cc"]},
+                "url": {"status": "success", "domain": "banc0lombia-seguridad.cc", "is_suspicious_tld": True}
+            },
+            "escalation": {
+                "alert_id": "SOS-991122",
+                "incident_type": "DIGITAL_FRAUD",
+                "severity": "CRITICAL"
+            },
+            "police_report": {
+                "status": "success",
+                "report_id": "CAI-COL-777888",
+                "timestamp": "2026-10-15 20:30:00",
+                "formatted_markdown": "# EXPEDIENTE DE DENUNCIA DIGITAL\n**Radicado Técnico:** CAI-COL-777888"
+            }
+        }
+        at.button(key="btn_analyze_main").click().run()
+
+    # Verificar que el radicado técnico real es visible
+    info_texts = [i.value for i in at.info]
+    markdown_texts = [m.value for m in at.markdown]
+    all_texts = info_texts + markdown_texts
+
+    assert any("CAI-COL-777888" in txt for txt in all_texts), "Debe mostrar el radicado técnico 'CAI-COL-777888'"
+    
+    # Verificar que indica claramente que está preparado y no presentado ante una autoridad judicial
+    assert any("preparado y listo para radicación" in txt or "No ha sido presentado ante una autoridad judicial" in txt for txt in info_texts), \
+        "Debe indicar explícitamente que el reporte está preparado pero no presentado formalmente"
+
+
+def test_apptest_police_report_confirmed_status():
+    """Punto 3: Si el sistema confirma radicación oficial ante autoridades, muestra estado confirmado."""
+    at = AppTest.from_file(APP_PATH, default_timeout=30)
+    at.run()
+
+    at.text_area(key="user_input_text").input("Mensaje con radicación confirmada").run()
+
+    with patch("src.agent.sentinel.SentinelAgent.process_message") as mock_agent:
+        mock_agent.return_value = {
+            "status": "success",
+            "decision": {
+                "risk_level": "CRÍTICO",
+                "action": "BLOCK_AND_REPORT",
+                "response_to_user": "Dictamen crítico",
+                "reasoning": "Extorsión comprobada"
+            },
+            "tool_results": {},
+            "escalation": {"alert_id": "SOS-5544"},
+            "police_report": {
+                "status": "success",
+                "report_id": "CAI-COL-CONFIRMED-123",
+                "official_filing_confirmed": True,
+                "timestamp": "2026-10-15 20:35:00",
+                "formatted_markdown": "# EXPEDIENTE CONFIRMADO"
+            }
+        }
+        at.button(key="btn_analyze_main").click().run()
+
+    success_texts = [s.value for s in at.success]
+    assert any("Radicación Oficial Confirmada ante Autoridades" in txt and "CAI-COL-CONFIRMED-123" in txt for txt in success_texts), \
+        "Debe mostrar el estado confirmado cuando existe evidencia de radicación oficial"
+
+
+def test_apptest_police_report_not_invented_on_low_risk():
+    """Punto 3: En riesgo bajo sin reporte, no inventa radicados ni muestra expedientes falsos."""
+    at = AppTest.from_file(APP_PATH, default_timeout=30)
+    at.run()
+
+    at.text_area(key="user_input_text").input("Hola mamá, ya llegué a la casa").run()
+
+    with patch("src.agent.sentinel.SentinelAgent.process_message") as mock_agent:
+        mock_agent.return_value = {
+            "status": "success",
+            "decision": {
+                "risk_level": "BAJO",
+                "action": "INFORMATIVE_ONLY",
+                "response_to_user": "Mensaje seguro y legítimo",
+                "reasoning": "Sin patrones de fraude"
+            },
+            "tool_results": {"threat": {"threat_level": "BAJO", "findings": []}},
+            "escalation": None,
+            "police_report": None
+        }
+        at.button(key="btn_analyze_main").click().run()
+
+    info_texts = [i.value for i in at.info]
+    markdown_texts = [m.value for m in at.markdown]
+    all_texts = info_texts + markdown_texts
+
+    # No debe inventar ningún radicado CAI-COL
+    assert not any("CAI-COL" in txt for txt in all_texts), "No debe inventar ningún radicado policial en riesgo bajo"
+    
+    # Debe mantener la alerta positiva
+    success_texts = [s.value for s in at.success]
+    assert any("MENSAJE APARENTEMENTE LEGÍTIMO" in s for s in success_texts)
+
+
+def test_apptest_police_report_failure_informs_without_inventing():
+    """Puntos 3 y 4: Si el módulo de reportes falla, informa la condición sin inventar radicado y preserva el análisis de amenazas."""
+    at = AppTest.from_file(APP_PATH, default_timeout=30)
+    at.run()
+
+    at.text_area(key="user_input_text").input("Mensaje de estafa donde falla la generación del reporte").run()
+
+    with patch("src.agent.sentinel.SentinelAgent.process_message") as mock_agent:
+        mock_agent.return_value = {
+            "status": "success",
+            "decision": {
+                "risk_level": "ALTO",
+                "action": "BLOCK_AND_REPORT",
+                "response_to_user": "Alerta: Intento de suplantación bancaria.",
+                "reasoning": "Suplantación de entidad bancaria"
+            },
+            "tool_results": {
+                "threat": {"findings": ["Presión psicológica por bloqueo"]},
+                "url": {}
+            },
+            "escalation": {"alert_id": "SOS-FAIL-01"},
+            "police_report": {
+                "status": "error",
+                "error_message": "Servicio de compilación de expedientes no disponible"
+            }
+        }
+        at.button(key="btn_analyze_main").click().run()
+
+    # Verificar que informa el fallo del reporte
+    info_texts = [i.value for i in at.info]
+    assert any("Reporte policial no disponible" in txt and "Servicio de compilación" in txt for txt in info_texts), \
+        "Debe informar que el reporte policial no está disponible con el detalle técnico"
+
+    # Verificar que NO inventa un radicado
+    assert not any("CAI-COL" in txt for txt in info_texts)
+
+    # Verificar que PRESERVA los resultados válidos del análisis de fraude (Puntos 1 y 2)
+    error_texts = [e.value for e in at.error]
+    assert any("NIVEL DE AMENAZA: ALTO" in err for err in error_texts), "Debe conservar la alerta de amenaza ALTA"
+    
+    markdown_texts = [m.value for m in at.markdown]
+    assert any("Intento de suplantación bancaria" in m for m in markdown_texts), "Debe conservar el veredicto del agente"
+
+
+def test_apptest_partial_analysis_distinguished_and_preserves_valid_results():
+    """Punto 4: Distingue un análisis parcial de uno completo y preserva los resultados válidos."""
+    at = AppTest.from_file(APP_PATH, default_timeout=30)
+    at.run()
+
+    at.text_area(key="user_input_text").input("Mensaje con fallo en una herramienta secundaria").run()
+
+    with patch("src.agent.sentinel.SentinelAgent.process_message") as mock_agent:
+        mock_agent.return_value = {
+            "status": "partial",
+            "partial_reason": "La herramienta UrlSandbox no pudo contactar el servidor DNS.",
+            "decision": {
+                "risk_level": "MEDIO",
+                "action": "ANALYZE_ONLY",
+                "response_to_user": "Precaución: El mensaje contiene enlaces no verificables.",
+                "reasoning": "Heurística detectó palabras sospechosas pero sandbox falló"
+            },
+            "tool_results": {
+                "threat": {"findings": ["Palabras de urgencia"]},
+                "url": {"status": "error", "error": "Fallo de conexión DNS"}
+            }
+        }
+        at.button(key="btn_analyze_main").click().run()
+
+    # 1. Debe advertir explícitamente que es un ANÁLISIS PARCIAL
+    warning_texts = [w.value for w in at.warning]
+    assert any("Análisis Parcial" in w for w in warning_texts), "Debe presentar la advertencia de Análisis Parcial"
+    
+    # 2. Debe conservar el nivel de riesgo MEDIO
+    assert any("NIVEL DE AMENAZA: MEDIO" in w for w in warning_texts)
+
+    # 3. Debe conservar el veredicto del agente
+    markdown_texts = [m.value for m in at.markdown]
+    assert any("El mensaje contiene enlaces no verificables" in m for m in markdown_texts)
+
+    # 4. No debe reportarse como análisis fallido total ni como aparentemente legítimo
+    error_texts = [e.value for e in at.error]
+    assert not any("Análisis no completado" in err for err in error_texts), "Un análisis parcial no debe marcarse como fallo total"
+
+
+def test_apptest_sanitizes_sensitive_error_traces():
+    """Punto 4: Sanitiza trazas internas y credenciales para no exponerlas al usuario."""
+    at = AppTest.from_file(APP_PATH, default_timeout=30)
+    at.run()
+
+    at.text_area(key="user_input_text").input("Mensaje que detona excepción con secreto").run()
+
+    with patch("src.agent.sentinel.SentinelAgent.process_message") as mock_agent:
+        mock_agent.side_effect = Exception("Traceback (most recent call last): File 'server.py', line 12: api_key=sk-proj-SUPER_SECRET_12345")
+        at.button(key="btn_analyze_main").click().run()
+
+    error_texts = [e.value for e in at.error]
+    markdown_texts = [m.value for m in at.markdown]
+    all_rendered = " ".join(error_texts + markdown_texts)
+
+    # La clave secreta y la traza interna NO deben aparecer en la interfaz
+    assert "sk-proj-SUPER_SECRET_12345" not in all_rendered, "No debe exponer credenciales en la UI"
+    assert "Traceback (most recent call last)" not in all_rendered, "No debe exponer trazas de stack en la UI"
+
+    # Debe mostrar mensaje de error seguro y no presentar el mensaje como legítimo
+    assert any("Análisis no completado" in err for err in error_texts)
+    success_texts = [s.value for s in at.success]
+    assert not any("MENSAJE APARENTEMENTE LEGÍTIMO" in s for s in success_texts)
+
+
+def test_apptest_retry_analysis_after_error():
+    """Punto 4 y 5: Permite al usuario volver a ejecutar un análisis exitosamente tras un error."""
+    at = AppTest.from_file(APP_PATH, default_timeout=30)
+    at.run()
+
+    # 1. Primer intento que falla
+    at.text_area(key="user_input_text").input("Primer intento fallido").run()
+    with patch("src.agent.sentinel.SentinelAgent.process_message") as mock_agent_fail:
+        mock_agent_fail.side_effect = Exception("Fallo transitorio de conexión")
+        at.button(key="btn_analyze_main").click().run()
+
+    assert any("Análisis no completado" in e.value for e in at.error)
+
+    # 2. Segundo intento exitoso
+    at.text_area(key="user_input_text").input("Segundo intento corregido").run()
+    with patch("src.agent.sentinel.SentinelAgent.process_message") as mock_agent_success:
+        mock_agent_success.return_value = {
+            "status": "success",
+            "decision": {
+                "risk_level": "BAJO",
+                "action": "INFORMATIVE_ONLY",
+                "response_to_user": "Análisis reintentado con éxito.",
+                "reasoning": "Todo en orden"
+            },
+            "tool_results": {"threat": {"findings": []}}
+        }
+        at.button(key="btn_analyze_main").click().run()
+
+    # Verificar que el error ya no está activo y se muestra el nuevo veredicto
+    assert not any("Análisis no completado" in e.value for e in at.error)
+    markdown_texts = [m.value for m in at.markdown]
+    assert any("Análisis reintentado con éxito" in m for m in markdown_texts)
+
+
+
