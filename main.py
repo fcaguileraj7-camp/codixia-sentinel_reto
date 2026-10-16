@@ -1,3 +1,4 @@
+import datetime as dt
 import sys
 
 if sys.platform == "win32":
@@ -12,6 +13,14 @@ from rich.panel import Panel
 from rich.table import Table
 from src.agent.sentinel import SentinelAgent
 from src.config import is_configured, GROK_MODEL, RETO_BASE_URL
+from src.tools.emergency_escalator import escalate_emergency
+from src.tools.route_companion import (
+    confirm_checkin,
+    detect_overdue_checkins,
+    finalize_trip,
+    get_trip_status,
+    register_trip,
+)
 
 console = Console()
 
@@ -57,6 +66,43 @@ def run_scenario_route_companion(agent: SentinelAgent):
     table.add_row("Respuesta al Usuario", f"[green]{decision.get('response_to_user', '')}[/green]")
     console.print(table)
 
+
+def run_route_companion_workflow_demo():
+    console.print("\n[bold yellow]═══ DEMO: FLUJO DE ROUTE COMPANION ═══[/bold yellow]")
+    trip = register_trip(
+        plate="WDY-452",
+        destination="Centro Comercial Andino",
+        origin="Oficina principal",
+        checkin_interval_minutes=10,
+    )
+
+    status = get_trip_status(trip["trip_id"])
+    confirm = confirm_checkin(trip["trip_id"], timestamp=dt.datetime.now())
+    overdue = detect_overdue_checkins(now=dt.datetime.now() + dt.timedelta(minutes=20))
+    final = finalize_trip(trip["trip_id"], reason="Destino alcanzado")
+
+    demo_table = Table(title="🧭 Monitoreo del viaje", border_style="green")
+    demo_table.add_column("Campo", style="cyan")
+    demo_table.add_column("Valor", style="white")
+    demo_table.add_row("trip_id", trip["trip_id"])
+    demo_table.add_row("estado_inicial", status["status"])
+    demo_table.add_row("ultimo_checkin", confirm["last_checkin_at"])
+    demo_table.add_row("checkins_vencidos", str(overdue))
+    demo_table.add_row("finalizacion", final["status"])
+    console.print(demo_table)
+
+    emergency = escalate_emergency(
+        incident_type="PHYSICAL_RISK",
+        evidence_payload={
+            "vehicle_plate": trip["vehicle_plate"],
+            "destination": trip["destination"],
+            "decision": {"risk_level": "CRITICO"},
+        },
+        contacts=["contacto_1", "contacto_2"],
+    )
+    console.print(Panel(f"Alert ID: {emergency['alert_id']}\nSeveridad: {emergency['severity']}\nMensaje: {emergency['alert_message']}", title="🚨 Escala local preparada", border_style="red"))
+
+
 def main():
     console.print(Panel.fit(
         "[bold cyan]🛡️ SENTINELGUARD AI — EQUIPO CODIXIA[/bold cyan]\n"
@@ -72,6 +118,7 @@ def main():
     # Ejecución de demostración end-to-end de ambos escenarios
     run_scenario_digital_fraud(agent)
     run_scenario_route_companion(agent)
+    run_route_companion_workflow_demo()
 
     console.print("\n[bold green]✓ Demostración completada con éxito. SentinelGuard listo para operar end-to-end.[/bold green]\n")
 
