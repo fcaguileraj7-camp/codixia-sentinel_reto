@@ -119,7 +119,18 @@ class GrokClient:
             "mode": "simulated_local"
         }
         last_message = messages[-1].get("content", "")
-        if "taxi" in last_message.lower() or "trayecto" in last_message.lower():
+        # Si el prompt está estructurado con delimitadores de auditoría, inspeccionar solo el texto sospechoso
+        audit_text = last_message
+        if "--- TEXTO SOSPECHOSO A AUDITAR ---" in last_message and "--- FIN DEL TEXTO SOSPECHOSO ---" in last_message:
+            try:
+                start = last_message.find("--- TEXTO SOSPECHOSO A AUDITAR ---") + len("--- TEXTO SOSPECHOSO A AUDITAR ---")
+                end = last_message.find("--- FIN DEL TEXTO SOSPECHOSO ---")
+                audit_text = last_message[start:end]
+            except Exception:
+                audit_text = last_message
+
+        audit_lower = audit_text.lower()
+        if "taxi" in audit_lower or "trayecto" in audit_lower:
             return json.dumps({
                 "mode": "route_companion",
                 "risk_level": "BAJO",
@@ -127,7 +138,7 @@ class GrokClient:
                 "action": "SCHEDULE_CHECKIN",
                 "response_to_user": "Acompañamiento iniciado para el vehículo. Tu ruta y placa quedan registradas. Te escribiré en 10 minutos para confirmar que todo va bien."
             }, ensure_ascii=False)
-        elif any(w in last_message.lower() for w in ["bloqueada", "bancolombia", "nequi", "urgente", "alerta", "pague", "frente urbano", "herido", "accidente", "hospital", "secuestr"]):
+        elif any(w in audit_lower for w in ["bloqueada", "bancolombia", "nequi", "urgente", "alerta", "pague", "frente urbano", "herido", "accidente", "hospital", "secuestr"]):
             return json.dumps({
                 "mode": "threat_inspection",
                 "risk_level": "CRÍTICO",
