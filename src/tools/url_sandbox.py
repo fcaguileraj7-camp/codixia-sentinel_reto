@@ -7,6 +7,8 @@ import http.client
 import ipaddress
 import re
 import socket
+import ssl
+import time
 from urllib.parse import urljoin, urlparse
 from typing import Dict, Any, List, Optional, Tuple
 
@@ -23,6 +25,8 @@ SHORTENERS = {"bit.ly", "tinyurl.com", "t.co", "is.gd", "cutt.ly", "rb.gy"}
 
 MAX_REDIRECTS = 5
 EXPAND_TIMEOUT = 3
+EXPAND_BUDGET = 8
+ALLOWED_PORTS = {80, 443, 8080, 8443}
 
 _LEET_MAP = str.maketrans({"0": "o", "1": "l", "3": "e", "4": "a", "5": "s", "7": "t", "$": "s", "@": "a"})
 _MIN_FUZZY_LEN = 5
@@ -71,24 +75,58 @@ def _detect_brand(domain: str):
                 return brand
     return None
 
-def _is_public_host(host: str) -> bool:
-    """False si el host resuelve a una IP privada, loopback, link-local o reservada (anti-SSRF)."""
+def _resolve_public_ip(host: str) -> Optional[str]:
+    """
+    Resuelve `host` una sola vez. Devuelve la IP si TODAS las direcciones son públicas;
+    None si alguna es privada, loopback, link-local o reservada (anti-SSRF), o si no resuelve.
+    """
     try:
         infos = socket.getaddrinfo(host, None)
     except (socket.gaierror, UnicodeError):
-        return False
-    for info in infos:
-        ip = ipaddress.ip_address(info[4][0].split("%")[0])
-        if not ip.is_global:
-            return False
-    return bool(infos)
+        return None
+    if not infos:
+        return None
+    ips = [info[4][0].split("%")[0] for info in infos]
+    if not all(ipaddress.ip_address(ip).is_global for ip in ips):
+        return None
+    return ips[0]
+
+
+def _is_public_host(host: str) -> bool:
+    return _resolve_public_ip(host) is not None
+
+
+class _PinnedHTTPConnection(http.client.HTTPConnection):
+    """Conecta a una IP ya validada, evitando una segunda resolución DNS (DNS rebinding)."""
+
+    def __init__(self, host, ip, **kwargs):
+        super().__init__(host, **kwargs)
+        self._pinned_ip = ip
+
+    def connect(self):
+        self.sock = socket.create_connection((self._pinned_ip, self.port), self.timeout)
+
+
+class _PinnedHTTPSConnection(http.client.HTTPSConnection):
+    """Igual que la HTTP, pero mantiene el nombre original en SNI y verificación del certificado."""
+
+    def __init__(self, host, ip, **kwargs):
+        super().__init__(host, context=ssl.create_default_context(), **kwargs)
+        self._pinned_ip = ip
+
+    def connect(self):
+        sock = socket.create_connection((self._pinned_ip, self.port), self.timeout)
+        self.sock = self._context.wrap_socket(sock, server_hostname=self.host)
 
 
 def _head_request(url: str, timeout: float = EXPAND_TIMEOUT) -> Tuple[int, Optional[str]]:
     """Una sola petición HEAD sin seguir redirecciones. Devuelve (status, cabecera Location)."""
     parsed = urlparse(url)
-    conn_cls = http.client.HTTPSConnection if parsed.scheme == "https" else http.client.HTTPConnection
-    conn = conn_cls(parsed.hostname, parsed.port, timeout=timeout)
+    ip = _resolve_public_ip(parsed.hostname)
+    if ip is None:
+        raise PermissionError("Host no público bloqueado (protección SSRF)")
+    conn_cls = _PinnedHTTPSConnection if parsed.scheme == "https" else _PinnedHTTPConnection
+    conn = conn_cls(parsed.hostname, ip, port=parsed.port, timeout=timeout)
     try:
         path = parsed.path or "/"
         if parsed.query:
@@ -107,11 +145,16 @@ def _expand_url(url: str) -> Tuple[str, List[str], Optional[str]]:
     """
     chain = [url]
     current = url
+    deadline = time.monotonic() + EXPAND_BUDGET
     try:
         for _ in range(MAX_REDIRECTS + 1):
+            if time.monotonic() > deadline:
+                return current, chain, f"Presupuesto de tiempo agotado (>{EXPAND_BUDGET}s)"
             parsed = urlparse(current)
             if parsed.scheme not in ("http", "https") or not parsed.hostname:
                 return current, chain, "Esquema o host no permitido"
+            if parsed.port is not None and parsed.port not in ALLOWED_PORTS:
+                return current, chain, f"Puerto no permitido ({parsed.port})"
             if not _is_public_host(parsed.hostname):
                 return current, chain, "Host no público bloqueado (protección SSRF)"
             status, location = _head_request(current)
@@ -137,6 +180,23 @@ def analyze_url(raw_url: str, expand: bool = True) -> Dict[str, Any]:
     - Detección de typosquatting contra entidades financieras colombianas
     - Verificación de entropía y TLDs sospechosos
     """
+    if not isinstance(raw_url, str) or not raw_url.strip():
+        return {
+            "status": "error",
+            "original_url": raw_url,
+            "expanded_url": raw_url,
+            "domain": "",
+            "is_suspicious_tld": False,
+            "is_shortener": False,
+            "is_typosquatting": False,
+            "impersonated_brand": None,
+            "risk_score": 0,
+            "verdict": "NO_ANALIZADO",
+            "findings": ["Entrada vacía o inválida: no hay URL para analizar"],
+            "redirect_chain": [],
+            "expansion_error": None
+        }
+    raw_url = raw_url.strip()
     findings = []
     risk_score = 0
     expanded_url = raw_url
@@ -145,9 +205,8 @@ def analyze_url(raw_url: str, expand: bool = True) -> Dict[str, Any]:
 
     try:
         parsed = urlparse(raw_url if "://" in raw_url else f"http://{raw_url}")
-        domain = parsed.netloc.lower() or parsed.path.lower()
-        if ":" in domain:
-            domain = domain.split(":")[0]
+        # hostname descarta userinfo (user:pass@), puerto y corchetes IPv6
+        domain = (parsed.hostname or parsed.path).lower()
     except Exception as e:
         domain = raw_url.lower()
 

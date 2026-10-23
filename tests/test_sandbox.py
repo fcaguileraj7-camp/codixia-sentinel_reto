@@ -4,7 +4,11 @@ Reto Agente 2026 - SentinelGuard AI · Equipo Codixia
 """
 
 import src.tools.url_sandbox as sandbox
-from src.tools.url_sandbox import analyze_url, _is_public_host as real_is_public_host
+from src.tools.url_sandbox import (
+    analyze_url,
+    _head_request as real_head_request,
+    _is_public_host as real_is_public_host,
+)
 
 def test_analyze_official_url():
     url = "https://www.bancolombia.com/personas"
@@ -161,3 +165,60 @@ def test_is_public_host_literals():
 def test_expand_rejects_non_http_scheme():
     _, _, err = sandbox._expand_url("file:///etc/passwd")
     assert err == "Esquema o host no permitido"
+
+
+def test_userinfo_does_not_spoof_official_domain():
+    res = analyze_url("https://www.bancolombia.com:pass@evil.xyz/login", expand=False)
+    assert res["domain"] == "evil.xyz"
+    assert res["verdict"] != "SEGURO"
+
+def test_userinfo_with_official_name_as_user():
+    res = analyze_url("https://www.bancolombia.com@evil.com/", expand=False)
+    assert res["domain"] == "evil.com"
+
+def test_domain_strips_port_and_ipv6_brackets():
+    assert analyze_url("https://www.bancolombia.com:443/x", expand=False)["verdict"] == "SEGURO"
+    assert analyze_url("http://[::1]/x", expand=False)["domain"] == "::1"
+
+def test_expand_time_budget(monkeypatch):
+    monkeypatch.setattr(sandbox, "EXPAND_BUDGET", -1)
+    _, _, err = sandbox._expand_url("https://bit.ly/x")
+    assert "Presupuesto de tiempo agotado" in err
+
+
+def test_empty_input_is_not_safe():
+    for bad in ("", "   ", None):
+        res = analyze_url(bad)
+        assert res["status"] == "error"
+        assert res["verdict"] == "NO_ANALIZADO"
+
+def test_non_web_port_blocked():
+    _, chain, err = sandbox._expand_url("http://8.8.8.8:22/")
+    assert err == "Puerto no permitido (22)"
+    _, _, err = sandbox._expand_url("http://8.8.8.8:6379/")
+    assert err == "Puerto no permitido (6379)"
+
+def test_head_request_blocks_rebinding_to_private_ip(monkeypatch):
+    # Segunda resolución devuelve IP privada: el request real debe abortar antes de conectar
+    monkeypatch.setattr(sandbox, "_resolve_public_ip", lambda host: None)
+    def _no_connect(*a, **k):
+        raise AssertionError("no debe abrir socket")
+    monkeypatch.setattr(sandbox.socket, "create_connection", _no_connect)
+    try:
+        real_head_request("http://evil.example/x")
+        assert False, "debía lanzar PermissionError"
+    except PermissionError as e:
+        assert "SSRF" in str(e)
+
+def test_head_request_connects_to_validated_ip_only(monkeypatch):
+    seen = {}
+    def _fake_connect(addr, timeout=None):
+        seen["addr"] = addr
+        raise OSError("stop")
+    monkeypatch.setattr(sandbox, "_resolve_public_ip", lambda host: "93.184.216.34")
+    monkeypatch.setattr(sandbox.socket, "create_connection", _fake_connect)
+    try:
+        real_head_request("http://rebind.example/x")
+    except OSError:
+        pass
+    assert seen["addr"] == ("93.184.216.34", 80)
