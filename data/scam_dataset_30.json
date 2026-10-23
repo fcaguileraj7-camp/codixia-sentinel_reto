@@ -118,5 +118,125 @@
     "text": "Nequi: Le enviaste $20.000 a Maria Perez. Tu nuevo saldo disponible es $85.400.",
     "entity_target": "Nequi",
     "has_malicious_url": false
+  },
+  {
+    "id": "CASE-016",
+    "category": "PHISHING_DAVIPLATA",
+    "expected_verdict": "CRÍTICO",
+    "text": "Daviplata informa: Su clave virtual ha sido bloqueada por intentos no autorizados. Ingrese de inmediato a https://daviplata-activacion-segura.cc para reactivar su saldo antes de que se aplique la suspensión definitiva.",
+    "entity_target": "Daviplata",
+    "has_malicious_url": true
+  },
+  {
+    "id": "CASE-017",
+    "category": "FALSO_SERVICIO",
+    "expected_verdict": "CRÍTICO",
+    "text": "Ingeniero, estamos en la finca de la vereda El Hatillo. La zona está rodeada por el frente armado y tenemos interceptadas sus comunicaciones. Si no transfiera 3 millones urgente a este Nequi, no sale de la zona y procedemos con la captura de su camioneta.",
+    "entity_target": "Profesionales / Falso Servicio",
+    "has_malicious_url": false
+  },
+  {
+    "id": "CASE-018",
+    "category": "SUPLANTACION_PAQUETERIA",
+    "expected_verdict": "ALTO",
+    "text": "Servientrega: Su envío nacional #CO-928172 presenta dirección incompleta y está retenido. Ingrese de inmediato a https://servientrega-entregas-colombia.site/rastreo para que actualice sus datos y liquide el flete pendiente.",
+    "entity_target": "Servientrega",
+    "has_malicious_url": true
+  },
+  {
+    "id": "CASE-019",
+    "category": "SUPLANTACION_FISCALIA",
+    "expected_verdict": "CRÍTICO",
+    "text": "Fiscalía General de la Nación: Notificación urgente de citación judicial y orden de captura preventiva por investigación penal en curso. Descargue el expediente completo de inmediato en https://fiscalia-notificaciones-gob.top/citacion",
+    "entity_target": "Fiscalía General",
+    "has_malicious_url": true
+  },
+  {
+    "id": "CASE-020",
+    "category": "FALSO_SUBSIDIO_ESTATAL",
+    "expected_verdict": "ALTO",
+    "text": "Prosperidad Social: Beneficiario prioritario del giro extraordinario de $500.000 de Renta Ciudadana. Ingrese urgente y actualice sus datos con su cédula en https://subsidios-prosperidadsocial.xyz para autorizar el desembolso.",
+    "entity_target": "Prosperidad Social",
+    "has_malicious_url": true
+  },
+  {
+    "id": "CASE-021",
+    "category": "FRAUDE_CONSIGNACION_EQUIVOCADA",
+    "expected_verdict": "MEDIO",
+    "text": "Buenas tardes vecino, por error le transfiera $180.000 a su Nequi pensando que era mi hermano. Es urgente para comprar los medicamentos de mi hija, por favor comuníquese de inmediato a este número o devuelva la plata a este Daviplata.",
+    "entity_target": "Nequi / Daviplata",
+    "has_malicious_url": false
+  },
+  {
+    "id": "CASE-022",
+    "category": "CLONACION_WHATSAPP",
+    "expected_verdict": "CRÍTICO",
+    "text": "WhatsApp Soporte: Se ha detectado un inicio de sesión no autorizado en un dispositivo desconocido. Para evitar la suspensión de su cuenta, comparta de inmediato el código de seguridad de 6 dígitos que acaba de recibir por SMS.",
+    "entity_target": "WhatsApp",
+    "has_malicious_url": false
+  },
+  {
+    "id": "CASE-023",
+    "category": "PRESTAMO_GOTA_A_GOTA_APP",
+    "expected_verdict": "ALTO",
+    "text": "Préstamos Ya Colombia: Su crédito preaprobado por $2.500.000 está listo sin codeudor ni historial crediticio. Ingrese urgente a https://prestamos-facil-colombia.site/desembolso para recibir el dinero de inmediato en su cuenta.",
+    "entity_target": "Crédito Montadeudas",
+    "has_malicious_url": true
+  },
+  {
+    "id": "CASE-024",
+    "category": "PHISHING_TARJETA_CREDITO",
+    "expected_verdict": "CRÍTICO",
+    "text": "Tarjeta Éxito Tuya: Notificación de embargo preventivo y tarjeta bloqueada por compras inusuales en moneda extranjera. Actualice sus datos de inmediato en https://tuya-portal-seguro.online para evitar la suspensión definitiva.",
+    "entity_target": "Tarjeta Tuya / Éxito",
+    "has_malicious_url": true
+  },
+  {
+    "id": "CASE-025",
+    "category": "ACOMPANAMIENTO_FISICO_PANICO",
+    "expected_verdict": "CRÍTICO",
+    "text": "Voy en el taxi placa TRL-981 hacia Suba, pero el conductor se desvió por una trocha oscura, apagó las luces y no me responde. Es urgente, auxilio inmediato por favor.",
+    "entity_target": "Seguridad Transporte / Taxi",
+    "has_malicious_url": false
+  },
+  {
+    "id": "CASE-026",
+    "category": "LEGITIMO_CONTROL",
+    "expected_verdict": "BAJO",
+    "text": "EPS Sanitas le recuerda su cita programada de medicina general para mañana a las 3:30 PM en el Centro Médico Calle 80 con el Dr. Mendoza. Por favor presentarse 15 minutos antes con su documento.",
+    "entity_target": "Salud EPS",
+    "has_malicious_url": false
+  },
+  {
+    "id": "CASE-027",
+    "category": "LEGITIMO_CONTROL",
+    "expected_verdict": "BAJO",
+    "text": "Acabo de abordar el taxi de placas WDY-452 saliendo de la oficina en Chapinero hacia mi casa en Cedritos. Inicio recorrido tranquilo, les aviso apenas llegue.",
+    "entity_target": "Seguridad Transporte / Taxi",
+    "has_malicious_url": false
+  },
+  {
+    "id": "CASE-028",
+    "category": "LEGITIMO_CONTROL",
+    "expected_verdict": "BAJO",
+    "text": "TuLlave Bogotá: Su recarga web por valor de $25.000 fue confirmada. Recuerde validar su saldo acercando la tarjeta a los validadores del sistema TransMilenio.",
+    "entity_target": "Transporte Masivo",
+    "has_malicious_url": false
+  },
+  {
+    "id": "CASE-029",
+    "category": "LEGITIMO_CONTROL",
+    "expected_verdict": "BAJO",
+    "text": "Hola Juan, ya salí de la oficina. Paso por la panadería comprando el café y el pan y llego en 20 minutos a la casa.",
+    "entity_target": "Familiar",
+    "has_malicious_url": false
+  },
+  {
+    "id": "CASE-030",
+    "category": "LEGITIMO_CONTROL",
+    "expected_verdict": "BAJO",
+    "text": "Mercado Libre: Tu compra ya fue entregada por la transportadora en la portería del edificio. Gracias por confiar en nosotros.",
+    "entity_target": "Comercio Electrónico",
+    "has_malicious_url": false
   }
 ]
