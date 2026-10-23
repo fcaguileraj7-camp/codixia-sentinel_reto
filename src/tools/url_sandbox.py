@@ -3,9 +3,12 @@ Módulo de Sandbox e Inspección de Enlaces (UrlSandbox)
 Reto Agente 2026 - SentinelGuard AI · Equipo Codixia
 """
 
+import http.client
+import ipaddress
 import re
-from urllib.parse import urlparse
-from typing import Dict, Any
+import socket
+from urllib.parse import urljoin, urlparse
+from typing import Dict, Any, List, Optional, Tuple
 
 SUSPICIOUS_TLDS = {".xyz", ".top", ".cc", ".ru", ".tk", ".ml", ".ga", ".cf", ".gq", ".live"}
 OFFICIAL_BANKS = {
@@ -17,6 +20,9 @@ OFFICIAL_BANKS = {
     "scotiabank": "scotiabankcolpatria.com"
 }
 SHORTENERS = {"bit.ly", "tinyurl.com", "t.co", "is.gd", "cutt.ly", "rb.gy"}
+
+MAX_REDIRECTS = 5
+EXPAND_TIMEOUT = 3
 
 _LEET_MAP = str.maketrans({"0": "o", "1": "l", "3": "e", "4": "a", "5": "s", "7": "t", "$": "s", "@": "a"})
 _MIN_FUZZY_LEN = 5
@@ -65,7 +71,64 @@ def _detect_brand(domain: str):
                 return brand
     return None
 
-def analyze_url(raw_url: str) -> Dict[str, Any]:
+def _is_public_host(host: str) -> bool:
+    """False si el host resuelve a una IP privada, loopback, link-local o reservada (anti-SSRF)."""
+    try:
+        infos = socket.getaddrinfo(host, None)
+    except (socket.gaierror, UnicodeError):
+        return False
+    for info in infos:
+        ip = ipaddress.ip_address(info[4][0].split("%")[0])
+        if not ip.is_global:
+            return False
+    return bool(infos)
+
+
+def _head_request(url: str, timeout: float = EXPAND_TIMEOUT) -> Tuple[int, Optional[str]]:
+    """Una sola petición HEAD sin seguir redirecciones. Devuelve (status, cabecera Location)."""
+    parsed = urlparse(url)
+    conn_cls = http.client.HTTPSConnection if parsed.scheme == "https" else http.client.HTTPConnection
+    conn = conn_cls(parsed.hostname, parsed.port, timeout=timeout)
+    try:
+        path = parsed.path or "/"
+        if parsed.query:
+            path += f"?{parsed.query}"
+        conn.request("HEAD", path, headers={"User-Agent": "SentinelGuard-UrlSandbox/1.0"})
+        resp = conn.getresponse()
+        return resp.status, resp.getheader("Location")
+    finally:
+        conn.close()
+
+
+def _expand_url(url: str) -> Tuple[str, List[str], Optional[str]]:
+    """
+    Desenrolla redirecciones con HEAD manual (máx. MAX_REDIRECTS saltos).
+    Devuelve (url_final, cadena_de_saltos, error). Nunca lanza excepciones.
+    """
+    chain = [url]
+    current = url
+    try:
+        for _ in range(MAX_REDIRECTS + 1):
+            parsed = urlparse(current)
+            if parsed.scheme not in ("http", "https") or not parsed.hostname:
+                return current, chain, "Esquema o host no permitido"
+            if not _is_public_host(parsed.hostname):
+                return current, chain, "Host no público bloqueado (protección SSRF)"
+            status, location = _head_request(current)
+            if status not in (301, 302, 303, 307, 308) or not location:
+                return current, chain, None
+            if len(chain) > MAX_REDIRECTS:
+                break
+            current = urljoin(current, location)
+            if current in chain:
+                return current, chain, "Bucle de redirecciones"
+            chain.append(current)
+        return current, chain, f"Demasiadas redirecciones (>{MAX_REDIRECTS})"
+    except Exception as e:
+        return current, chain, f"No se pudo expandir el enlace: {type(e).__name__}"
+
+
+def analyze_url(raw_url: str, expand: bool = True) -> Dict[str, Any]:
     """
     Inspecciona y calcula el nivel de riesgo de una URL sospechosa.
     
@@ -77,7 +140,9 @@ def analyze_url(raw_url: str) -> Dict[str, Any]:
     findings = []
     risk_score = 0
     expanded_url = raw_url
-    
+    redirect_chain = [raw_url]
+    expansion_error = None
+
     try:
         parsed = urlparse(raw_url if "://" in raw_url else f"http://{raw_url}")
         domain = parsed.netloc.lower() or parsed.path.lower()
@@ -93,7 +158,7 @@ def analyze_url(raw_url: str) -> Dict[str, Any]:
         findings.append(f"Dominio utiliza extensión de alto riesgo TLD ({domain})")
 
     # 2. Verificación de acortadores
-    is_shortener = any(shortener in domain for shortener in SHORTENERS)
+    is_shortener = domain.removeprefix("www.") in SHORTENERS
     if is_shortener:
         risk_score += 25
         findings.append(f"Enlace oculto bajo acortador público ({domain})")
@@ -107,6 +172,22 @@ def analyze_url(raw_url: str) -> Dict[str, Any]:
         impersonated_brand = brand
         risk_score += 60
         findings.append(f"Alerta de Typosquatting: El dominio '{domain}' imita ilícitamente a '{brand}'")
+
+    # 3b. Desenrollado del acortador y análisis del destino real
+    if is_shortener and expand:
+        start = raw_url if "://" in raw_url else f"http://{raw_url}"
+        expanded_url, redirect_chain, expansion_error = _expand_url(start)
+        if expansion_error:
+            findings.append(f"No se pudo verificar el destino del acortador: {expansion_error}")
+        if expanded_url != start:
+            findings.append(f"Acortador desenrollado: {expanded_url}")
+            final = analyze_url(expanded_url, expand=False)
+            risk_score += final["risk_score"]
+            findings.extend(final["findings"])
+            is_suspicious_tld = is_suspicious_tld or final["is_suspicious_tld"]
+            if final["is_typosquatting"]:
+                is_typosquatting = True
+                impersonated_brand = final["impersonated_brand"]
 
     # 4. Veredicto
     if risk_score >= 60:
@@ -127,5 +208,7 @@ def analyze_url(raw_url: str) -> Dict[str, Any]:
         "impersonated_brand": impersonated_brand,
         "risk_score": min(100, risk_score),
         "verdict": verdict,
-        "findings": findings
+        "findings": findings,
+        "redirect_chain": redirect_chain,
+        "expansion_error": expansion_error
     }
