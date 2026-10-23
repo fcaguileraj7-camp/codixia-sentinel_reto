@@ -665,6 +665,16 @@ CATEGORY_METADATA: Dict[str, Dict[str, str]] = {
     "COMPRA_MARKETPLACE": {"icon": "🛒", "category_label": "Fraude Marketplace", "phone": "+57 314 222 3344"},
     "SUPLANTACION_SIMIT": {"icon": "🚗", "category_label": "Fotomultas SIMIT", "phone": "+57 316 888 9900"},
     "EXTORSION_SEXTORSION": {"icon": "⚠️", "category_label": "Sextorsión Digital", "phone": "+57 305 444 5566"},
+    "PHISHING_DAVIPLATA": {"icon": "💳", "category_label": "Phishing Daviplata", "phone": "+57 310 234 5678"},
+    "FALSO_SERVICIO": {"icon": "⚠️", "category_label": "Falso Servicio GAULA", "phone": "+57 314 789 0123"},
+    "SUPLANTACION_PAQUETERIA": {"icon": "📦", "category_label": "Falsa Paquetería", "phone": "+57 321 345 6789"},
+    "SUPLANTACION_FISCALIA": {"icon": "⚖️", "category_label": "Falsa Orden Fiscalía", "phone": "+57 317 456 7890"},
+    "FALSO_SUBSIDIO_ESTATAL": {"icon": "🏛️", "category_label": "Falso Subsidio Renta", "phone": "+57 300 654 3210"},
+    "FRAUDE_CONSIGNACION_EQUIVOCADA": {"icon": "💸", "category_label": "Consignación Equivocada", "phone": "+57 312 345 6789"},
+    "CLONACION_WHATSAPP": {"icon": "📲", "category_label": "Clonación WhatsApp", "phone": "+57 319 876 5432"},
+    "PRESTAMO_GOTA_A_GOTA_APP": {"icon": "💰", "category_label": "Crédito Montadeudas", "phone": "+57 313 567 8901"},
+    "PHISHING_TARJETA_CREDITO": {"icon": "💳", "category_label": "Phishing Tarjeta Tuya", "phone": "+57 302 456 7890"},
+    "ACOMPANAMIENTO_FISICO_PANICO": {"icon": "🚖", "category_label": "Alerta SOS Taxi", "phone": "+57 318 901 2345"},
     "LEGITIMO_CONTROL": {"icon": "✅", "category_label": "Mensaje Legítimo", "phone": "+57 315 555 7890"},
 }
 
