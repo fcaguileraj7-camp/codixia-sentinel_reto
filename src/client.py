@@ -138,11 +138,11 @@ class GrokClient:
                 "action": "SCHEDULE_CHECKIN",
                 "response_to_user": "Acompañamiento iniciado para el vehículo. Tu ruta y placa quedan registradas. Te escribiré en 10 minutos para confirmar que todo va bien."
             }, ensure_ascii=False)
-        elif any(w in audit_lower for w in ["bloqueada", "bancolombia", "nequi", "urgente", "alerta", "pague", "frente urbano", "herido", "accidente", "hospital", "secuestr"]):
+        elif any(w in audit_lower for w in ["bloqueada", "bancolombia", "nequi", "urgente", "alerta", "pague", "frente urbano", "herido", "accidente", "hospital", "secuestr", "simit", "fotomulta", "comparendo", "multa", "infraccion", "infracción"]):
             return json.dumps({
                 "mode": "threat_inspection",
                 "risk_level": "CRÍTICO",
-                "reasoning": "Mensaje típico de ingeniería social que simula bloqueo de cuenta, extorsión o falsa emergencia médica/familiar con urgencia artificial.",
+                "reasoning": "Mensaje típico de ingeniería social que simula bloqueo de cuenta, comparendo de tránsito, extorsión o falsa emergencia médica/familiar con urgencia artificial.",
                 "action": "BLOCK_AND_REPORT",
                 "response_to_user": "🚨 ALERTA ROJA: El mensaje que recibiste es un intento de fraude / manipulación de ingeniería social. No respondas, no abras enlaces ni consignes dinero. Hemos generado un radicado preventivo para el CAI Virtual."
             }, ensure_ascii=False)

@@ -1,4 +1,5 @@
 import json
+import re
 from typing import Dict, Any
 from src.client import GrokClient
 from src.agent.prompts import SENTINEL_SYSTEM_PROMPT
@@ -9,6 +10,40 @@ from src.tools.route_companion import register_trip, evaluate_trip_audio_respons
 from src.tools.emergency_escalator import escalate_emergency
 from src.tools.vision_parser import parse_receipt_image
 from src.utils.logger import logger
+
+def _is_physical_route_request(text: str) -> bool:
+    """
+    Determina con alta precisión pericial si el mensaje corresponde a una solicitud
+    de acompañamiento físico en ruta (taxi/transporte) o a una auditoría de ciberseguridad.
+    Evita falsos positivos con mensajes de trámites/estafas que mencionan 'placas' o 'vehículos'.
+    """
+    t = text.lower()
+
+    # Capa 1: Filtro de exclusión de fraude digital y trámites
+    # Si el mensaje habla de comparendos, multas, entidades financieras o cobros, es Escudo Digital.
+    fraud_indicators = [
+        "simit", "fotomulta", "comparendo", "multa", "infracción", "infraccion",
+        "pague en línea", "pague en linea", "descuento hoy", "embargo", "bancolombia",
+        "nequi", "daviplata", "dian", "claro", "sorteo", "premio", "ganador", "banco"
+    ]
+    if any(ind in t for ind in fraud_indicators):
+        return False
+
+    # Capa 2: Términos explícitos de abordaje, transporte o auxilio en ruta
+    transport_terms = [
+        "taxi", "uber", "didi", "indriver", "cabify",
+        "voy en", "me subí", "me subi", "abordé", "aborde", "inicio viaje", "inicio trayecto",
+        "trocha oscura", "se desvió", "se desvio", "conductor no responde", "pánico", "panico"
+    ]
+    if any(term in t for term in transport_terms):
+        return True
+
+    # Capa 3: Patrón estricto de matrícula vehicular colombiana (AAA-123 / AAA123)
+    # Solo aplica como transporte si viene acompañada de contexto de desplazamiento.
+    has_plate = bool(re.search(r"\b[a-z]{3}[-\s]?\d{3}\b", t))
+    has_trip_context = any(w in t for w in ["hacia", "destino", "camino", "conductor", "ruta", "llegando", "desplaz"])
+
+    return has_plate and has_trip_context
 
 class SentinelAgent:
     """Orquestador del agente autónomo SentinelGuard AI."""
@@ -47,7 +82,8 @@ class SentinelAgent:
                 }
 
         # 1. Ejecución resiliente de herramientas según el contexto (Tolerancia a fallos S2)
-        if any(term in user_input.lower() for term in ["taxi", "placa", "voy en", "trayecto"]):
+        is_route_mode = _is_physical_route_request(user_input)
+        if is_route_mode:
             # Modo acompañamiento físico: RouteCompanion
             plate = metadata.get("plate", "ABC123")
             dest = metadata.get("destination", "Destino particular")
@@ -82,7 +118,6 @@ class SentinelAgent:
                 logger.info(f"[blue]⚡ Tool ejecutada: url_sandbox -> {len(sandbox_results)} enlaces analizados[/blue]")
 
         # 2. Construcción del contexto para el razonamiento de Grok
-        is_route_mode = any(term in user_input.lower() for term in ["taxi", "placa", "voy en", "trayecto"])
         if is_route_mode:
             context_prompt = (
                 f"SOLICITUD DE ACOMPAÑAMIENTO FÍSICO EN RUTA:\n"
@@ -191,4 +226,3 @@ class SentinelAgent:
             "simulated": getattr(self.client, "last_simulated", not getattr(self.client, "live_mode", False)),
             "analysis_source": getattr(self.client, "last_source", "simulated" if not getattr(self.client, "live_mode", False) else "grok_4.7")
         }
-

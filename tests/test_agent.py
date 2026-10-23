@@ -99,3 +99,23 @@ def test_grok_client_default_operates_in_local_simulated_mode():
     assert client.last_usage["estimated_cost_usd"] == 0.0
     assert client.last_usage["mode"] == "simulated_local"
 
+# ==============================================================================
+# 4. Pruebas de Enrutamiento Preciso (Prevención de Falsos Negativos SIMIT/Placas)
+# ==============================================================================
+
+def test_sentinel_routing_simit_not_confused_with_taxi():
+    """Verifica que mensajes de multas que mencionen 'placas' se procesen en Escudo Digital y no como taxi."""
+    agent = SentinelAgent()
+    simit_msg = (
+        "SIMIT FOTOMULTAS: Su vehículo con placas registradas tiene un comparendo vigente por exceso "
+        "de velocidad con 50% de descuento hoy. Pague en línea: https://simit-multas-colombia.site/pagos"
+    )
+    res = agent.process_message(simit_msg)
+    assert res["status"] == "success"
+    assert res["decision"]["mode"] == "threat_inspection"
+    assert res["decision"]["risk_level"] in ["ALTO", "CRÍTICO"]
+    assert "threat" in res["tool_results"]
+    assert "url_sandbox" in res["tool_results"]
+    assert "route" not in res["tool_results"]
+    assert res["police_report"] is not None
+    assert "CAI-COL-" in res["police_report"]["report_id"]
