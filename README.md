@@ -4,7 +4,7 @@
 [![Reto Agente 2026](https://img.shields.io/badge/Reto_Agente_2026-Platica.mx_x_Campuslands-2eb872.svg)](https://reto.pltk.mx/)
 [![Core Brain](https://img.shields.io/badge/Brain-Grok_4.7_(xAI)-black.svg)](https://x.ai/)
 [![Team](https://img.shields.io/badge/Team-Codixia-blue.svg)](#-equipo-codixia)
-[![Tests](https://img.shields.io/badge/Tests-47%20Passed%20(100%25)-brightgreen.svg)](#-6-pruebas-y-calidad)
+[![Tests](https://img.shields.io/badge/Tests-74%20Passed%20(100%25)-brightgreen.svg)](#-6-pruebas-y-calidad)
 [![Python](https://img.shields.io/badge/Python-3.10%2B-3776AB.svg)](https://www.python.org/)
 
 > **Protección integral 24/7 en WhatsApp: neutraliza estafas y extorsiones digitales con visión multimodal y cuida tu espalda en calles y taxis en tiempo real con monitoreo desatendido.**
@@ -79,7 +79,7 @@ flowchart TD
 ## ⚙️ 3. Las 5 Herramientas Reales (Tools Conectadas)
 
 1. **`ThreatInspector`**: Extrae texto, analiza patrones de ingeniería social, detecta sesgos de urgencia artificial y clasifica amenazas (*Phishing Bancario*, *Extorsión Carcelaria*, *Falsa Oferta*, *SIMIT* o *Legítimo*).
-2. **`UrlSandbox`**: Inspecciona enlaces, desenrolla acortadores (`bit.ly`, `tinyurl`) y analiza dominios con detección de *typosquatting* contra entidades financieras colombianas (`banc0lombia`, `nequii-pagos`).
+2. **`UrlSandbox`**: Inspecciona enlaces, desenrolla acortadores (`bit.ly`, `tinyurl`) y analiza dominios con detección de *typosquatting* contra entidades financieras colombianas (`banc0lombia`, `nequii-pagos`) y protección perimetral SSRF.
 3. **`VisionParser`**: Análisis forense multimodal para comprobantes de transferencia (Nequi, Bancolombia, Daviplata), cotejando metadatos para detectar falsificaciones digitales.
 4. **`PoliceReporter`**: Genera expedientes probatorios estandarizados con radicado formal (`CAI-COL-XXXXXX`) listos para radicar ante el **CAI Virtual de la Policía Nacional de Colombia**.
 5. **`RouteCompanion` & `EmergencyEscalator`**: Monitoreo de seguridad en transporte con sanitización de placas, intervalos de check-in, detección de palabras de auxilio/pánico (*safe words*) y despacho de escalada preventiva con guion disuasorio de audio.
@@ -161,21 +161,21 @@ El proyecto cuenta con un blindaje estructural de presupuesto: **todas las prueb
 python -m pytest tests/ -v
 ```
 
-* **Resultado:** **47 tests pasando al 100% en verde** en ~5 segundos:
-  * `tests/test_agent.py`: Ciclo autónomo, visión multimodal, tolerancia a fallos y blindaje de saldo.
+* **Resultado:** **74 tests pasando al 100% en verde** en ~6 segundos:
+  * `tests/test_agent.py`: Ciclo autónomo, visión multimodal, tolerancia a fallos, blindaje de saldo y enrutamiento pericial SIMIT.
+  * `tests/test_sandbox.py`: 29 pruebas exhaustivas de ciberseguridad en red (typosquatting por distancia de edición y leetspeak, desenrollado seguro de acortadores bit.ly/t.co, protección contra SSRF y redirecciones a redes privadas).
   * `tests/test_app_streamlit.py`: 21 pruebas completas de la interfaz web y estados de error.
-  * `tests/test_threat.py`: Reglas heurísticas y patrones de ingeniería social.
-  * `tests/test_sandbox.py`: Análisis de dominios y desenrollado seguro de acortadores.
-  * `tests/test_vision.py`: Radicado policial CAI Virtual y comprobantes.
   * `tests/test_route.py`: Monitoreo de trayectos, alertas de pánico y escalada SOS.
-  * `tests/test_performance.py`: Exactitud sobre dataset de evaluación.
+  * `tests/test_threat.py`: Reglas heurísticas y patrones de ingeniería social.
+  * `tests/test_vision.py`: Radicado policial CAI Virtual y comprobantes.
+  * `tests/test_performance.py`: Exactitud sobre el dataset de evaluación.
 
 ---
 
 ## 📅 7. Hoja de Ruta de los Hitos (Track 1)
 
 * [x] **Semana 1 (S1) · Agente corriendo (Oct 5 - 11)**: Repositorio estructurado, cliente contra Grok funcional en `main.py` con llave oficial y simulación end-to-end.
-* [x] **Semana 2 (S2) · Herramientas reales (Oct 12 - 24)**: Conexión de 5 herramientas reales, tolerancia a fallos sin falsos veredictos, 10 ejecuciones documentadas con Grok 4.7 ($0.06 USD), suite de 47 pruebas e interfaz Streamlit para video demo.
+* [x] **Semana 2 (S2) · Herramientas reales (Oct 12 - 24)**: Conexión de 5 herramientas reales, tolerancia a fallos sin falsos veredictos, 10 ejecuciones documentadas con Grok 4.7 ($0.06 USD), suite de 74 pruebas e interfaz Streamlit para video demo.
 * [ ] **Semana 3 (S3) · Datos reales (Oct 25 - 31)**: Dataset dual de 30+ casos evaluados, memoria multi-turno en `src/agent/memory.py` y telemetría de costos en USD por tarea.
 * [ ] **Semana 4 (S4) · Semana de carga (Nov 1 - 7)**: Procesamiento de 1.000 peticiones en 12 horas desatendidas con métricas de latencia y concurrencia.
 * [ ] **Cierre Final & Pitch (Noviembre)**: Mentorías 1 a 1, pitch deck, video final y postulación a premiación.
