@@ -93,11 +93,12 @@ flowchart TD
 | **3+ Herramientas Reales** | ✅ **Cumplido (5 tools)** | Conectadas y orquestadas en `src/agent/sentinel.py`. |
 | **Tolerancia a Fallos y Manejo de Errores** | ✅ **Cumplido** | Fallback resiliente en cada tool; ante fallos de IA responde `risk_level: "NO_ANALIZADO"` sin falsos veredictos ni falsas denuncias. Blindaje de presupuesto a $0.00 en tests. |
 | **10 Ejecuciones Reales Documentadas** | ✅ **Cumplido** | Ejecutadas con Grok 4.7. Bitácora completa en [`logs/s2_10_executions.md`](./logs/s2_10_executions.md) y [`logs/s2_10_executions.json`](./logs/s2_10_executions.json). Costo total: **$0.06289 USD**. |
-| **Video Demo de 2 Minutos** | 🎥 **Listo para enlace** | [**Ver Video Demo Oficial en YouTube / Drive**](#-enlace-al-video-demo) *(Duración: 2:00 min)* |
+| **Video Demo de 2 Minutos** | 🎥 **Cumplido (100%)** | [**Ver Video Demo Oficial (`video/SentinelGuard_AI_S2.mp4`)**](./video/SentinelGuard_AI_S2.mp4) *(Duración: ~2:00 min)* |
 
 ### 🎥 Enlace al Video Demo (2 minutos)
-> 🔗 **Enlace del Video:** `[Colocar enlace de YouTube / Loom / Drive aquí]`  
-> *Muestra en 2 minutos: Presentación del problema, detección de phishing bancario con radicado CAI Virtual, tolerancia a fallos y acompañamiento en taxi.*
+> 🎬 **Archivo en el Repositorio:** [`video/SentinelGuard_AI_S2.mp4`](./video/SentinelGuard_AI_S2.mp4)  
+> 🔗 **Enlace Directo en GitHub:** [Ver video SentinelGuard_AI_S2.mp4 en GitHub](https://github.com/fcaguileraj7-camp/codixia-sentinel_reto/blob/main/video/SentinelGuard_AI_S2.mp4)  
+> *Muestra en 2 minutos: Presentación del problema, detección de phishing bancario con radicado CAI Virtual, tolerancia a fallos, acompañamiento en taxi y suite de 74 pruebas en verde.*
 
 ---
 
