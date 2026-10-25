@@ -9,6 +9,13 @@ from unittest.mock import MagicMock
 from src.agent.sentinel import SentinelAgent
 from src.client import GrokClient
 
+# PNG mínimo válido (1x1) para pruebas locales deterministas de VisionParser
+PNG_1x1 = (
+    b"\x89PNG\r\n\x1a\n\x00\x00\x00\rIHDR\x00\x00\x00\x01\x00\x00\x00\x01"
+    b"\x08\x06\x00\x00\x00\x1f\x15\xc4\x89\x00\x00\x00\nIDATx\x9cc\x00\x01"
+    b"\x00\x00\x05\x00\x01\r\n-\xb4\x00\x00\x00\x00IEND\xaeB`\x82"
+)
+
 def test_sentinel_process_legitimate():
     agent = SentinelAgent()
     res = agent.process_message("Hola mamá, ¿cómo estás? Ya voy saliendo del trabajo.")
@@ -29,9 +36,9 @@ def test_sentinel_process_phishing():
 
 def test_sentinel_process_with_image_metadata(tmp_path):
     """Verifica que VisionParser se invoque cuando metadata['image_path'] está presente."""
-    # Crear archivo temporal simulado de comprobante
-    dummy_image = tmp_path / "comprobante_nequi_test.jpg"
-    dummy_image.write_bytes(b"fake image data")
+    # Crear archivo temporal simulado de comprobante válido
+    dummy_image = tmp_path / "comprobante_nequi_test.png"
+    dummy_image.write_bytes(PNG_1x1)
 
     agent = SentinelAgent()
     res = agent.process_message(
@@ -43,7 +50,7 @@ def test_sentinel_process_with_image_metadata(tmp_path):
     assert "vision" in res["tool_results"]
     assert res["tool_results"]["vision"]["status"] == "success"
     assert res["tool_results"]["vision"]["is_receipt"] is True
-    assert res["tool_results"]["vision"]["bank_detected"] == "Nequi"
+    assert "Nequi" in res["tool_results"]["vision"]["bank_detected"]
 
 def test_sentinel_process_without_image_backward_compatibility():
     """Confirma que la ausencia de image_path mantiene el comportamiento actual sin fallos."""

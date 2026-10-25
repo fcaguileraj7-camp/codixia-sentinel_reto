@@ -154,3 +154,57 @@ class GrokClient:
                 "action": "INFORMATIVE_ONLY",
                 "response_to_user": "Dictamen: No se detectaron indicios de amenaza o estafa en el mensaje recibido. Recuerda no compartir claves ni códigos si te los solicitan más adelante."
             }, ensure_ascii=False)
+
+    def vision_completion(
+        self,
+        messages: list[dict],
+        model: str = GROK_MODEL,
+        temperature: float = 0.2,
+        max_tokens: int = 500,
+    ) -> str:
+        """
+        Ejecuta solicitud multimodal a Grok Vision controlando el consumo de tokens.
+        A diferencia de chat_completion, vision_completion requiere explícitamente modo en vivo;
+        en modo simulado o mock se rehúsa a ejecutarse para evitar falsos positivos de red.
+        Si la API del proveedor falla, propaga la excepción directamente sin fallback silencioso.
+        """
+        if not getattr(self, "live_mode", False) or not getattr(self, "client", None):
+            raise RuntimeError("El cliente GrokClient requiere modo en vivo explícito para vision_completion.")
+
+        try:
+            response = self.client.chat.completions.create(
+                model=model,
+                messages=messages,
+                temperature=temperature,
+                max_tokens=max_tokens,
+            )
+
+            # Monitoreo de Tokens y Cálculo de Costo
+            if hasattr(response, "usage") and response.usage:
+                p_tokens = getattr(response.usage, "prompt_tokens", 0) or 0
+                c_tokens = getattr(response.usage, "completion_tokens", 0) or 0
+                t_tokens = getattr(response.usage, "total_tokens", 0) or (p_tokens + c_tokens)
+                estimated_cost = (p_tokens * 0.000002) + (c_tokens * 0.000010)
+                self.last_usage = {
+                    "prompt_tokens": p_tokens,
+                    "completion_tokens": c_tokens,
+                    "total_tokens": t_tokens,
+                    "estimated_cost_usd": round(estimated_cost, 6),
+                    "mode": "live_api"
+                }
+            else:
+                self.last_usage = {
+                    "prompt_tokens": 0,
+                    "completion_tokens": 0,
+                    "total_tokens": 0,
+                    "estimated_cost_usd": 0.0,
+                    "mode": "live_api"
+                }
+
+            self.last_source = "grok_vision"
+            self.last_simulated = False
+            return response.choices[0].message.content or ""
+        except Exception:
+            self.last_source = "unavailable"
+            self.last_simulated = False
+            raise
