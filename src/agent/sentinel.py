@@ -110,9 +110,19 @@ class SentinelAgent:
         # 1. Ejecución resiliente de herramientas según el contexto (Tolerancia a fallos S2 y Memoria S3)
         is_route_mode = _is_physical_route_request(user_input, has_active_trip=(active_trip is not None))
         if is_route_mode:
-            # Modo acompañamiento físico: RouteCompanion
-            plate = metadata.get("plate") or (active_trip.get("vehicle_plate") if active_trip else "ABC123")
-            dest = metadata.get("destination") or (active_trip.get("destination") if active_trip else "Destino particular")
+            # Extracción inteligente de placa y destino desde el texto del chat si no vienen en metadatos
+            extracted_plate = None
+            plate_match = re.search(r"\b([a-zA-Z]{3}[-\s]?\d{3})\b", user_input)
+            if plate_match:
+                extracted_plate = plate_match.group(1).upper().replace(" ", "")
+
+            extracted_dest = None
+            dest_match = re.search(r"(?:hacia|para|a el|al|con destino a)\s+([A-Za-zÁ-ÿ0-9\s]+?)(?:[.,;]|$)", user_input, re.IGNORECASE)
+            if dest_match:
+                extracted_dest = dest_match.group(1).strip()
+
+            plate = metadata.get("plate") or extracted_plate or (active_trip.get("vehicle_plate") if active_trip else "ABC123")
+            dest = metadata.get("destination") or extracted_dest or (active_trip.get("destination") if active_trip else "Destino particular")
 
             is_panic = any(w in user_input.lower() for w in [
                 "desvió", "desvio", "trocha", "panico", "pánico", "auxilio",
