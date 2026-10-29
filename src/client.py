@@ -7,7 +7,7 @@ class GrokClient:
     """
     Cliente para la API de Grok con monitoreo de tokens, cálculo de costos y fallback local.
     
-    Blindaje de Presupuesto (Requisito Hito 2):
+    Blindaje de Presupuesto (Requisito Hito 2 y Hito 3):
     Por defecto opera en modo de simulación local ($0.00 USD), impidiendo cualquier
     solicitud HTTP externa involuntaria aunque exista una llave válida en .env.
     Para activar llamadas reales a la API de Grok, se debe solicitar explícitamente con:
@@ -130,13 +130,33 @@ class GrokClient:
                 audit_text = last_message
 
         audit_lower = audit_text.lower()
-        if "taxi" in audit_lower or "trayecto" in audit_lower:
+        last_message_lower = last_message.lower()
+
+        # Detección de pánico o desvío crítico en taxi (Escenario Físico Multi-Turno)
+        if any(w in audit_lower for w in ["desvio", "desvió", "panico", "pánico", "trocha", "miedo", "no para", "no frena", "auxilio", "peligro"]):
+            return json.dumps({
+                "mode": "route_companion",
+                "risk_level": "CRÍTICO",
+                "reasoning": "El usuario reporta situación de peligro, coacción o desvío anómalo en su ruta de transporte. Se activa alarma SOS y protocolo de escalada inmediata.",
+                "action": "TRIGGER_ALARM",
+                "response_to_user": "🚨 ALERTA DE EMERGENCIA ACTIVADA: Hemos detectado una situación de riesgo crítico en tu trayecto. Notificando de inmediato a tus contactos de emergencia y cuerpos de seguridad con la matrícula del vehículo."
+            }, ensure_ascii=False)
+        elif "taxi" in audit_lower or "trayecto" in audit_lower:
             return json.dumps({
                 "mode": "route_companion",
                 "risk_level": "BAJO",
                 "reasoning": "El usuario inicia trayecto en taxi. Se activan temporizadores de check-in preventivo a 10 minutos.",
                 "action": "SCHEDULE_CHECKIN",
                 "response_to_user": "Acompañamiento iniciado para el vehículo. Tu ruta y placa quedan registradas. Te escribiré en 10 minutos para confirmar que todo va bien."
+            }, ensure_ascii=False)
+        # Seguimiento multi-turno a fraude previo
+        elif ("alerta previa en curso" in last_message_lower or "riesgo crítico" in last_message_lower) and any(w in audit_lower for w in ["debo", "hago", "respondo", "llaman", "consigno", "codigo", "código", "clave", "consignar", "responder", "número", "numero"]):
+            return json.dumps({
+                "mode": "threat_inspection",
+                "risk_level": "CRÍTICO",
+                "reasoning": "Seguimiento a incidente de ingeniería social previamente alertado. El usuario consulta si debe interactuar, responder o entregar credenciales al atacante.",
+                "action": "BLOCK_AND_REPORT",
+                "response_to_user": "🚨 Recordatorio de seguridad sobre el fraude reportado: Bajo ninguna circunstancia respondas ni compartas datos, códigos o consignaciones. Mantén el bloqueo al remitente."
             }, ensure_ascii=False)
         elif any(w in audit_lower for w in ["bloqueada", "bancolombia", "nequi", "urgente", "alerta", "pague", "frente urbano", "herido", "accidente", "hospital", "secuestr", "simit", "fotomulta", "comparendo", "multa", "infraccion", "infracción"]):
             return json.dumps({
