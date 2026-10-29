@@ -1,8 +1,9 @@
 import json
 import re
-from typing import Dict, Any
+from typing import Dict, Any, Optional
 from src.client import GrokClient
 from src.agent.prompts import SENTINEL_SYSTEM_PROMPT
+from src.agent.memory import ConversationMemory
 from src.tools.threat_inspector import inspect_threat
 from src.tools.url_sandbox import analyze_url
 from src.tools.police_reporter import generate_police_report
@@ -11,7 +12,7 @@ from src.tools.emergency_escalator import escalate_emergency
 from src.tools.vision_parser import parse_receipt_image
 from src.utils.logger import logger
 
-def _is_physical_route_request(text: str) -> bool:
+def _is_physical_route_request(text: str, has_active_trip: bool = False) -> bool:
     """
     Determina con alta precisión pericial si el mensaje corresponde a una solicitud
     de acompañamiento físico en ruta (taxi/transporte) o a una auditoría de ciberseguridad.
@@ -28,6 +29,15 @@ def _is_physical_route_request(text: str) -> bool:
     ]
     if any(ind in t for ind in fraud_indicators):
         return False
+
+    # Si hay un viaje activo en memoria, palabras de seguimiento, desvío o pánico en cabina se canalizan en modo ruta
+    if has_active_trip:
+        trip_followup_terms = [
+            "desvió", "desvio", "trocha", "conductor", "ruta", "frena", "para", "apaga",
+            "miedo", "panico", "pánico", "auxilio", "ayuda", "llegué", "llegue", "bien", "ok"
+        ]
+        if any(term in t for term in trip_followup_terms):
+            return True
 
     # Capa 2: Términos explícitos de abordaje, transporte o auxilio en ruta
     transport_terms = [
@@ -46,23 +56,39 @@ def _is_physical_route_request(text: str) -> bool:
     return has_plate and has_trip_context
 
 class SentinelAgent:
-    """Orquestador del agente autónomo SentinelGuard AI."""
+    """
+    Orquestador del agente autónomo SentinelGuard AI.
+    Soporta percepción de herramientas, razonamiento en Grok, tolerancia a fallos
+    y memoria conversacional multi-turno con gestión de contexto (Hito S3).
+    """
 
-    def __init__(self, client: GrokClient = None, use_real_api: bool = False):
+    def __init__(
+        self,
+        client: Optional[GrokClient] = None,
+        use_real_api: bool = False,
+        memory: Optional[ConversationMemory] = None
+    ):
         if client is not None:
             self.client = client
         else:
             self.client = GrokClient(use_real_api=use_real_api)
+        self.memory = memory if memory is not None else ConversationMemory()
 
-    def process_message(self, user_input: str, metadata: Dict[str, Any] = None) -> Dict[str, Any]:
+    def process_message(
+        self,
+        user_input: str,
+        metadata: Optional[Dict[str, Any]] = None,
+        session_id: str = "default"
+    ) -> Dict[str, Any]:
         """
-        Ciclo autónomo completo:
-        Percibir -> Ejecutar Tools -> Razonar con Grok -> Decidir -> Actuar
+        Ciclo autónomo completo multi-turno:
+        Recuperar Contexto -> Ejecutar Tools -> Razonar con Grok -> Decidir -> Actuar -> Actualizar Memoria
         """
         metadata = metadata or {}
-        logger.info(f"[cyan]→ Recibiendo entrada de usuario:[/cyan] {user_input[:80]}...")
+        logger.info(f"[cyan]→ Recibiendo entrada de usuario (Sesión: {session_id}):[/cyan] {user_input[:80]}...")
 
         tool_results = {}
+        active_trip = self.memory.get_active_trip(session_id)
 
         # 0. Inspección multimodal de comprobantes/imágenes (VisionParser - Requisito Hito 2)
         image_path = metadata.get("image_path")
@@ -81,18 +107,40 @@ class SentinelAgent:
                     "confidence_score": 0.0
                 }
 
-        # 1. Ejecución resiliente de herramientas según el contexto (Tolerancia a fallos S2)
-        is_route_mode = _is_physical_route_request(user_input)
+        # 1. Ejecución resiliente de herramientas según el contexto (Tolerancia a fallos S2 y Memoria S3)
+        is_route_mode = _is_physical_route_request(user_input, has_active_trip=(active_trip is not None))
         if is_route_mode:
             # Modo acompañamiento físico: RouteCompanion
-            plate = metadata.get("plate", "ABC123")
-            dest = metadata.get("destination", "Destino particular")
-            try:
-                tool_results["route"] = register_trip(plate=plate, destination=dest)
-                logger.info(f"[blue]⚡ Tool ejecutada: register_trip -> {tool_results['route'].get('trip_id')}[/blue]")
-            except Exception as e:
-                logger.warning(f"[yellow]⚠ Falla en tool register_trip ({e}). Continuando con fallback.[/yellow]")
-                tool_results["route"] = {"status": "error", "error": str(e), "monitoring_active": False}
+            plate = metadata.get("plate") or (active_trip.get("vehicle_plate") if active_trip else "ABC123")
+            dest = metadata.get("destination") or (active_trip.get("destination") if active_trip else "Destino particular")
+
+            is_panic = any(w in user_input.lower() for w in [
+                "desvió", "desvio", "trocha", "panico", "pánico", "auxilio",
+                "miedo", "no para", "no frena", "apaga", "secuestr", "peligro"
+            ])
+
+            if active_trip and is_panic:
+                tool_results["route"] = {
+                    **active_trip,
+                    "event": "PANIC_REPORTED",
+                    "panic_signal": True,
+                    "monitoring_active": True
+                }
+                logger.info(f"[red]⚡ Alerta de pánico detectada en viaje activo: {active_trip.get('trip_id')}[/red]")
+            elif not active_trip:
+                try:
+                    tool_results["route"] = register_trip(plate=plate, destination=dest)
+                    logger.info(f"[blue]⚡ Tool ejecutada: register_trip -> {tool_results['route'].get('trip_id')}[/blue]")
+                except Exception as e:
+                    logger.warning(f"[yellow]⚠ Falla en tool register_trip ({e}). Continuando con fallback.[/yellow]")
+                    tool_results["route"] = {"status": "error", "error": str(e), "monitoring_active": False}
+            else:
+                # Viaje en curso, check-in ordinario
+                tool_results["route"] = {
+                    **active_trip,
+                    "event": "CHECKIN_NORMAL",
+                    "monitoring_active": True
+                }
         else:
             # Modo escudo digital: ThreatInspector
             try:
@@ -117,7 +165,9 @@ class SentinelAgent:
                 tool_results["url_sandbox"] = sandbox_results
                 logger.info(f"[blue]⚡ Tool ejecutada: url_sandbox -> {len(sandbox_results)} enlaces analizados[/blue]")
 
-        # 2. Construcción del contexto para el razonamiento de Grok
+        # 2. Construcción del contexto para el razonamiento de Grok (incluyendo Memoria Multi-Turno)
+        history_summary = self.memory.get_context_summary(session_id=session_id)
+
         if is_route_mode:
             context_prompt = (
                 f"SOLICITUD DE ACOMPAÑAMIENTO FÍSICO EN RUTA:\n"
@@ -140,12 +190,19 @@ class SentinelAgent:
                 f"3. En 'response_to_user', emite un DICTAMEN PREVENTIVO claro dirigido al ciudadano consultante: indícale con precisión si el mensaje recibido es seguro o una trampa, qué tipo de ciberpeligro representa y qué medidas inmediatas debe tomar (no abrir enlaces, no enviar dinero, bloquear al remitente)."
             )
 
+        if history_summary:
+            context_prompt += (
+                f"\n\nHISTORIAL CONVERSACIONAL PREVIO (MEMORIA MULTI-TURNO):\n"
+                f"{history_summary}\n"
+                f"Considera este historial anterior para mantener la coherencia y responder adecuadamente al seguimiento."
+            )
+
         messages = [
             {"role": "system", "content": SENTINEL_SYSTEM_PROMPT},
             {"role": "user", "content": context_prompt}
         ]
 
-        # 3. Razonamiento en Grok con tolerancia a fallos y sin falsos veredictos (Requisito Hito 2)
+        # 3. Razonamiento en Grok con tolerancia a fallos y sin falsos veredictos (Requisito Hito 2 y 3)
         logger.info("[magenta]🧠 Consultando núcleo de razonamiento Grok 4.7...[/magenta]")
         status = "success"
         try:
@@ -216,13 +273,26 @@ class SentinelAgent:
                     logger.warning(f"[yellow]⚠ Falla en generate_police_report ({e})[/yellow]")
                     police_report = {"status": "error", "error": str(e)}
 
+        # 6. Registro del turno en la memoria conversacional (Requisito Hito S3)
+        turn_record = self.memory.add_turn(
+            session_id=session_id,
+            user_input=user_input,
+            agent_decision=decision,
+            tool_results=tool_results,
+            metadata=metadata,
+            police_report=police_report,
+        )
+
         return {
             "status": status,
+            "session_id": session_id,
+            "turn_id": turn_record.turn_id,
             "decision": decision,
             "tool_results": tool_results,
             "escalation": escalation_result,
             "police_report": police_report,
             "telemetry": getattr(self.client, "last_usage", {}),
             "simulated": getattr(self.client, "last_simulated", not getattr(self.client, "live_mode", False)),
-            "analysis_source": getattr(self.client, "last_source", "simulated" if not getattr(self.client, "live_mode", False) else "grok_4.7")
+            "analysis_source": getattr(self.client, "last_source", "simulated" if not getattr(self.client, "live_mode", False) else "grok_4.7"),
+            "active_trip": self.memory.get_active_trip(session_id),
         }
