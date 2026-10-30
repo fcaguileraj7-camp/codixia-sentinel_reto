@@ -420,3 +420,92 @@ def test_real_blacklist_file_sanity():
         assert domain == domain.strip().lower().rstrip("."), domain
         assert "." in domain, domain
     assert bl == sandbox._load_blacklist(sandbox.BLACKLIST_PATH)
+
+
+# --- Host tal como lo interpretaría un navegador (barra invertida y %XX) ---
+
+_LISTADO = frozenset({"listado.site"})
+
+def test_backslash_does_not_hide_blacklisted_host():
+    res = analyze_url("https://listado.site\\@www.bancolombia.com/", blacklist=_LISTADO)
+    assert res["domain"] == "listado.site"
+    assert res["is_blacklisted"] is True
+    assert res["verdict"] == "MALICIOSO"
+
+def test_backslash_does_not_spoof_official_domain():
+    res = analyze_url("https://evil.xyz\\@www.bancolombia.com/", blacklist=frozenset())
+    assert res["domain"] == "evil.xyz"
+    assert res["is_suspicious_tld"] is True
+    assert res["verdict"] != "SEGURO"
+
+def test_percent_encoded_dot_in_host_is_decoded():
+    for url in ("https://listado%2esite/", "https://listado%2Esite/x", "http://listado%2esite:8080"):
+        res = analyze_url(url, blacklist=_LISTADO)
+        assert res["domain"] == "listado.site", url
+        assert res["is_blacklisted"] is True, url
+
+def test_backslash_in_query_or_fragment_is_untouched():
+    for url in ("https://www.bancolombia.com/x?u=\\@evil.xyz", "https://www.bancolombia.com/#\\@evil.xyz"):
+        res = analyze_url(url, blacklist=frozenset())
+        assert res["domain"] == "www.bancolombia.com", url
+        assert res["verdict"] == "SEGURO", url
+
+def test_backslash_only_in_path_keeps_host():
+    res = analyze_url("https://www.bancolombia.com\\login", blacklist=frozenset())
+    assert res["domain"] == "www.bancolombia.com"
+    assert res["verdict"] == "SEGURO"
+
+def test_backslash_shortener_requests_the_browser_host(monkeypatch):
+    seen = []
+    def _head(url, timeout=3):
+        seen.append(url)
+        return (200, None)
+    monkeypatch.setattr(sandbox, "_head_request", _head)
+    res = analyze_url("https://bit.ly\\@evil.com/x", blacklist=frozenset())
+    assert res["is_shortener"] is True
+    assert res["domain"] == "bit.ly"
+    assert res["original_url"] == "https://bit.ly\\@evil.com/x"
+    assert seen == ["https://bit.ly/@evil.com/x"]
+
+def test_percent_encoded_letter_in_host_is_decoded_to_lowercase():
+    assert analyze_url("https://%41bc.site/", expand=False, blacklist=frozenset())["domain"] == "abc.site"
+    assert analyze_url("https://EXAMPL%45.site", expand=False, blacklist=frozenset())["domain"] == "example.site"
+
+def test_malformed_percent_escapes_in_host_do_not_raise():
+    for url in ("https://a%zz.site/", "https://a%.site/", "https://a%ff.site/", "https://%/"):
+        res = analyze_url(url, expand=False, blacklist=frozenset())
+        assert res["status"] == "success", url
+
+def test_percent_escapes_outside_host_are_not_decoded():
+    res = analyze_url("https://www.bancolombia.com/%2e%2e/x?u=%2e", blacklist=frozenset())
+    assert res["domain"] == "www.bancolombia.com"
+    assert res["verdict"] == "SEGURO"
+
+def test_normalize_url_only_rewrites_backslashes_before_query_or_fragment():
+    assert sandbox._normalize_url("https://a.com\\p?q=\\z#f\\g") == "https://a.com/p?q=\\z#f\\g"
+    assert sandbox._normalize_url("https://a.com\\p#f?x\\y") == "https://a.com/p#f?x\\y"
+    assert sandbox._normalize_url("https://a.com/x?u=\\@b.xyz") == "https://a.com/x?u=\\@b.xyz"
+    assert sandbox._normalize_url("https:\\\\a.com\\p") == "https://a.com/p"
+
+def test_normalize_url_prepends_scheme_when_missing():
+    assert sandbox._normalize_url("a.com/x") == "http://a.com/x"
+    assert sandbox._normalize_url("a.com\\x") == "http://a.com/x"
+    assert sandbox._normalize_url("https://a.com") == "https://a.com"
+    once = sandbox._normalize_url("evil.xyz\\@b.com?q=\\")
+    assert sandbox._normalize_url(once) == once
+
+def test_normalize_url_fragment_without_query_is_untouched():
+    assert sandbox._normalize_url("https://a.com/#f\\g") == "https://a.com/#f\\g"
+    assert sandbox._normalize_url("https://a.com\\p#f\\g") == "https://a.com/p#f\\g"
+
+def test_percent_encoded_slash_in_userinfo_does_not_hide_real_host():
+    # el %2f pertenece al userinfo: el host real es listado.site, no www.bancolombia.com.
+    # Falla si se decodifica toda la URL en vez de solo el host.
+    res = analyze_url("https://www.bancolombia.com%2f@listado.site/", blacklist=_LISTADO)
+    assert res["domain"] == "listado.site"
+    assert res["is_blacklisted"] is True
+
+def test_percent_encoded_hash_in_userinfo_does_not_cut_the_host():
+    res = analyze_url("https://listado.site%23@www.bancolombia.com/", blacklist=_LISTADO)
+    assert res["domain"] == "www.bancolombia.com"
+    assert res["is_blacklisted"] is False

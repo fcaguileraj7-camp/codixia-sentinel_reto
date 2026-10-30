@@ -12,7 +12,7 @@ import ssl
 import time
 from functools import lru_cache
 from pathlib import Path
-from urllib.parse import urljoin, urlparse
+from urllib.parse import unquote, urljoin, urlparse
 from typing import Dict, Any, List, Optional, Tuple
 
 SUSPICIOUS_TLDS = {".xyz", ".top", ".cc", ".ru", ".tk", ".ml", ".ga", ".cf", ".gq", ".live"}
@@ -176,17 +176,32 @@ def _expand_url(url: str) -> Tuple[str, List[str], Optional[str]]:
         return current, chain, f"No se pudo expandir el enlace: {type(e).__name__}"
 
 
-def _ensure_scheme(raw: str) -> str:
-    """Devuelve la URL tal cual si ya trae esquema ("://"); si no, antepone http://."""
+def _normalize_url(raw: str) -> str:
+    """
+    Aproxima cómo lee un navegador la URL solo en lo que afecta al host: la barra invertida
+    (aquí) y los %XX del host (en _extract_domain). No emula el estándar WHATWG completo:
+    por ejemplo "http:\\host" o IDNA no se cubren.
+    Los navegadores tratan "\\" como "/" en la autoridad y la ruta de URLs http/https
+    (https://evil.xyz\\@www.bancolombia.com/ abre evil.xyz), pero urlparse no, así que
+    el host quedaría mal calculado. Se reemplaza solo antes del primer "?" o "#" (en la
+    query y el fragmento la barra invertida se deja intacta), con cualquier esquema aunque
+    solo es exacto para http/https. Después antepone http:// si la URL no trae esquema ("://").
+    """
+    cut = min((i for i in (raw.find("?"), raw.find("#")) if i != -1), default=len(raw))
+    raw = raw[:cut].replace("\\", "/") + raw[cut:]
     return raw if "://" in raw else f"http://{raw}"
 
 
 def _extract_domain(raw: str) -> str:
     """Extrae el dominio (host en minúsculas) de una URL; ante error, devuelve la entrada en minúsculas."""
     try:
-        parsed = urlparse(_ensure_scheme(raw))
+        parsed = urlparse(_normalize_url(raw))
         # hostname descarta userinfo (user:pass@), puerto y corchetes IPv6
-        return (parsed.hostname or parsed.path).lower()
+        host = parsed.hostname
+        if host:
+            # el navegador decodifica %XX en el host (p. ej. %2e -> "."); solo se decodifica el host
+            return unquote(host).lower()
+        return parsed.path.lower()
     except Exception:
         return raw.lower()
 
@@ -270,7 +285,8 @@ def analyze_url(raw_url: str, expand: bool = True, blacklist: Optional[frozenset
         - status: "success", o "error" si la entrada está vacía o no es texto.
         - original_url / expanded_url: URL recibida (sin espacios en los extremos) y URL
           final tras el desenrollado.
-        - domain: dominio analizado en minúsculas.
+        - domain: dominio analizado en minúsculas. Aproxima la lectura de un navegador solo en
+          dos puntos: "\\" antes de "?" o "#" equivale a "/" y se decodifican los %XX del host.
         - is_suspicious_tld / is_shortener / is_typosquatting: indicadores booleanos.
         - is_blacklisted: True si el dominio, o el destino de un acortador desenrollado,
           está en la lista negra.
@@ -344,7 +360,9 @@ def _analyze_url(raw_url: str, expand: bool, blacklist: Optional[frozenset]) -> 
 
     # 3b. Desenrollado del acortador y análisis del destino real
     if is_shortener and expand:
-        start = _ensure_scheme(raw_url)
+        # misma cadena normalizada que usa _extract_domain; los %XX del host no se decodifican
+        # para el HEAD (un host con %XX no resuelve y la expansión falla cerrada)
+        start = _normalize_url(raw_url)
         expanded_url, redirect_chain, expansion_error = _expand_url(start)
         if expansion_error:
             findings.append(f"No se pudo verificar el destino del acortador: {expansion_error}")
