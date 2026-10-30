@@ -3,6 +3,8 @@ Pruebas Unitarias para UrlSandbox
 Reto Agente 2026 - SentinelGuard AI · Equipo Codixia
 """
 
+import json
+
 import src.tools.url_sandbox as sandbox
 from src.tools.url_sandbox import (
     analyze_url,
@@ -222,3 +224,199 @@ def test_head_request_connects_to_validated_ip_only(monkeypatch):
     except OSError:
         pass
     assert seen["addr"] == ("93.184.216.34", 80)
+
+
+# --- Lista negra local ---
+
+_LISTED = "simit-multas-colombia.site"
+_BLACKLIST = frozenset({_LISTED})
+_BLACKLIST_FINDING = f"Dominio en lista negra local de URLs fraudulentas ({_LISTED})"
+
+def test_blacklist_exact_domain_is_malicious():
+    res = analyze_url(f"https://{_LISTED}/pagos", blacklist=_BLACKLIST)
+    assert res["status"] == "success"
+    assert res["verdict"] == "MALICIOSO"
+    assert res["is_blacklisted"] is True
+    assert res["risk_score"] == 100
+    assert _BLACKLIST_FINDING in res["findings"]
+    assert res["findings"][0] == _BLACKLIST_FINDING
+
+def test_blacklist_matches_subdomain_and_www():
+    for url in (
+        f"https://login.{_LISTED}/x",
+        f"https://www.{_LISTED}",
+        f"https://a.b.{_LISTED}",
+        f"HTTPS://{_LISTED.upper()}/PAGOS",
+        f"https://{_LISTED}./x",
+        f"{_LISTED}:8443/x",
+    ):
+        res = analyze_url(url, blacklist=_BLACKLIST)
+        assert res["is_blacklisted"] is True, url
+        assert res["verdict"] == "MALICIOSO", url
+
+def test_blacklist_requires_label_boundary():
+    res = analyze_url("https://xsimit-multas-colombia.site/pagos", blacklist=_BLACKLIST)
+    assert res["is_blacklisted"] is False
+    assert not any("lista negra" in f for f in res["findings"])
+
+def test_blacklist_empty_set_means_heuristics_only():
+    res = analyze_url(f"https://{_LISTED}/pagos", blacklist=frozenset())
+    assert res["is_blacklisted"] is False
+    assert res["verdict"] == "SEGURO"
+    assert res["findings"] == []
+
+def test_blacklist_applies_to_shortener_destination(monkeypatch):
+    monkeypatch.setattr(sandbox, "_head_request", _fake_head({
+        "https://bit.ly/x": (301, f"https://{_LISTED}/pagos"),
+    }))
+    res = analyze_url("https://bit.ly/x", blacklist=_BLACKLIST)
+    assert res["domain"] == "bit.ly"
+    assert res["expanded_url"] == f"https://{_LISTED}/pagos"
+    assert res["is_shortener"] is True
+    assert res["is_blacklisted"] is True
+    assert res["verdict"] == "MALICIOSO"
+    assert _BLACKLIST_FINDING in res["findings"]
+
+def test_blacklist_shortener_destination_uses_the_same_injected_list(monkeypatch):
+    # Con lista vacía el destino no se marca: la recursión reenvía la lista inyectada,
+    # no vuelve a la lista por defecto (que sí contiene el dominio).
+    monkeypatch.setattr(sandbox, "_get_blacklist", lambda: _BLACKLIST)
+    monkeypatch.setattr(sandbox, "_head_request", _fake_head({
+        "https://bit.ly/x": (301, f"https://{_LISTED}/pagos"),
+    }))
+    res = analyze_url("https://bit.ly/x", blacklist=frozenset())
+    assert res["expanded_url"] == f"https://{_LISTED}/pagos"
+    assert res["is_blacklisted"] is False
+    assert res["verdict"] == "SOSPECHOSO"
+
+def test_blacklist_default_is_resolved_once_and_wired(monkeypatch):
+    calls = []
+    def _fake_get():
+        calls.append(1)
+        return frozenset({"ejemplo-reportado.site"})
+    monkeypatch.setattr(sandbox, "_get_blacklist", _fake_get)
+    res = analyze_url("https://ejemplo-reportado.site")
+    assert res["is_blacklisted"] is True
+    assert res["verdict"] == "MALICIOSO"
+    assert calls == [1]
+
+def test_blacklist_default_resolved_once_even_when_unrolling_shortener(monkeypatch):
+    calls = []
+    def _fake_get():
+        calls.append(1)
+        return frozenset({"ejemplo-reportado.site"})
+    monkeypatch.setattr(sandbox, "_get_blacklist", _fake_get)
+    monkeypatch.setattr(sandbox, "_head_request", _fake_head({
+        "https://bit.ly/x": (301, "https://ejemplo-reportado.site/a"),
+    }))
+    res = analyze_url("https://bit.ly/x")
+    assert res["is_blacklisted"] is True
+    assert calls == [1]
+
+def test_blacklist_flag_present_in_error_result():
+    res = analyze_url("")
+    assert res["status"] == "error"
+    assert res["is_blacklisted"] is False
+
+def test_blacklist_flag_false_for_clean_url():
+    res = analyze_url("https://www.bancolombia.com/personas", blacklist=_BLACKLIST)
+    assert res["is_blacklisted"] is False
+    assert res["verdict"] == "SEGURO"
+
+
+def _write_blacklist(tmp_path, payload):
+    path = tmp_path / "blacklist.json"
+    path.write_text(json.dumps(payload), encoding="utf-8")
+    return path
+
+def test_load_blacklist_valid_file_is_normalized(tmp_path):
+    path = _write_blacklist(tmp_path, {
+        "updated": "2026-10-30",
+        "entries": [
+            {"domain": "  Ejemplo-Uno.SITE. ", "origin": "x"},
+            {"domain": "otro.xyz"},
+            {"domain": "OTRO.xyz"},
+        ],
+    })
+    result = sandbox._load_blacklist(path)
+    assert isinstance(result, frozenset)
+    assert result == frozenset({"ejemplo-uno.site", "otro.xyz"})
+
+def test_load_blacklist_missing_file_returns_empty(tmp_path):
+    assert sandbox._load_blacklist(tmp_path / "no_existe.json") == frozenset()
+
+def test_load_blacklist_directory_returns_empty(tmp_path):
+    assert sandbox._load_blacklist(tmp_path) == frozenset()
+
+def test_load_blacklist_corrupt_json_returns_empty(tmp_path):
+    path = tmp_path / "blacklist.json"
+    path.write_text("{ esto no es json", encoding="utf-8")
+    assert sandbox._load_blacklist(path) == frozenset()
+
+def test_load_blacklist_invalid_encoding_returns_empty(tmp_path):
+    path = tmp_path / "blacklist.json"
+    path.write_bytes(b"\xff\xfe\x00{")
+    assert sandbox._load_blacklist(path) == frozenset()
+
+def test_load_blacklist_unexpected_structure_returns_empty(tmp_path):
+    for payload in (
+        [],
+        ["a.site"],
+        "texto",
+        42,
+        None,
+        {},
+        {"entries": "a.site"},
+        {"entries": {"domain": "a.site"}},
+        {"entries": None},
+    ):
+        path = _write_blacklist(tmp_path, payload)
+        assert sandbox._load_blacklist(path) == frozenset(), payload
+
+def test_load_blacklist_skips_invalid_entries_and_keeps_valid_ones(tmp_path):
+    path = _write_blacklist(tmp_path, {"entries": [
+        "texto",
+        42,
+        None,
+        ["domain"],
+        {"origin": "sin dominio"},
+        {"domain": None},
+        {"domain": 5},
+        {"domain": ["a.site"]},
+        {"domain": ""},
+        {"domain": "   "},
+        {"domain": "."},
+        {"domain": "valido.site"},
+        {"domain": " Otro-Valido.XYZ. "},
+    ]})
+    assert sandbox._load_blacklist(path) == frozenset({"valido.site", "otro-valido.xyz"})
+
+def test_is_blacklisted_suffix_matching():
+    bl = frozenset({"mala.site", "otra.co.xyz"})
+    assert sandbox._is_blacklisted("mala.site", bl) is True
+    assert sandbox._is_blacklisted("a.mala.site", bl) is True
+    assert sandbox._is_blacklisted("a.b.mala.site", bl) is True
+    assert sandbox._is_blacklisted("mala.site.", bl) is True
+    assert sandbox._is_blacklisted("x.otra.co.xyz", bl) is True
+    assert sandbox._is_blacklisted("xmala.site", bl) is False
+    assert sandbox._is_blacklisted("mala.site.evil.com", bl) is False
+    assert sandbox._is_blacklisted("co.xyz", bl) is False
+
+def test_is_blacklisted_never_matches_bare_tld():
+    assert sandbox._is_blacklisted("algo.site", frozenset({"site"})) is False
+    assert sandbox._is_blacklisted("a.b.site", frozenset({"site"})) is False
+
+def test_is_blacklisted_empty_set_and_degenerate_domains():
+    assert sandbox._is_blacklisted("mala.site", frozenset()) is False
+    assert sandbox._is_blacklisted("localhost", frozenset({"localhost"})) is False
+    assert sandbox._is_blacklisted("::1", frozenset({"::1"})) is False
+    assert sandbox._is_blacklisted("", frozenset({"mala.site"})) is False
+
+def test_real_blacklist_file_sanity():
+    bl = sandbox._get_blacklist()
+    assert bl, "la lista negra real no debe estar vacía"
+    assert _LISTED in bl
+    for domain in bl:
+        assert domain == domain.strip().lower().rstrip("."), domain
+        assert "." in domain, domain
+    assert bl == sandbox._load_blacklist(sandbox.BLACKLIST_PATH)

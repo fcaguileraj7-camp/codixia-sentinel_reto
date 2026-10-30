@@ -5,10 +5,13 @@ Reto Agente 2026 - SentinelGuard AI · Equipo Codixia
 
 import http.client
 import ipaddress
+import json
 import re
 import socket
 import ssl
 import time
+from functools import lru_cache
+from pathlib import Path
 from urllib.parse import urljoin, urlparse
 from typing import Dict, Any, List, Optional, Tuple
 
@@ -27,6 +30,8 @@ MAX_REDIRECTS = 5
 EXPAND_TIMEOUT = 3
 EXPAND_BUDGET = 8
 ALLOWED_PORTS = {80, 443, 8080, 8443}
+
+BLACKLIST_PATH = Path(__file__).resolve().parents[2] / "data" / "url_blacklist.json"
 
 _LEET_MAP = str.maketrans({"0": "o", "1": "l", "3": "e", "4": "a", "5": "s", "7": "t", "$": "s", "@": "a"})
 _MIN_FUZZY_LEN = 5
@@ -186,11 +191,60 @@ def _extract_domain(raw: str) -> str:
         return raw.lower()
 
 
-def analyze_url(raw_url: str, expand: bool = True) -> Dict[str, Any]:
+def _load_blacklist(path) -> frozenset[str]:
+    """
+    Carga los dominios de la lista negra desde un JSON {"entries": [{"domain": ...}, ...]}.
+    Normaliza cada dominio (strip, minúsculas, sin punto final) y descarta entradas inválidas.
+    Nunca lanza: ante archivo inexistente, JSON corrupto o estructura inesperada
+    devuelve un conjunto vacío (el análisis sigue funcionando solo con heurística).
+    """
+    try:
+        with open(path, "r", encoding="utf-8") as f:
+            data = json.load(f)
+        entries = data.get("entries") if isinstance(data, dict) else None
+        if not isinstance(entries, list):
+            return frozenset()
+        domains = set()
+        for entry in entries:
+            if not isinstance(entry, dict):
+                continue
+            domain = entry.get("domain")
+            if not isinstance(domain, str):
+                continue
+            domain = domain.strip().lower().rstrip(".")
+            if domain:
+                domains.add(domain)
+        return frozenset(domains)
+    except Exception:
+        return frozenset()
+
+
+@lru_cache(maxsize=1)
+def _get_blacklist() -> frozenset[str]:
+    """Lista negra local por defecto (BLACKLIST_PATH), leída una sola vez y cacheada en memoria."""
+    return _load_blacklist(BLACKLIST_PATH)
+
+
+def _is_blacklisted(domain: str, blacklist: frozenset) -> bool:
+    """
+    Indica si `domain` o alguno de sus sufijos de etiquetas está en `blacklist`
+    (a.b.site se prueba como "a.b.site" y "b.site"). Nunca se prueba el TLD suelto.
+    """
+    if not blacklist:
+        return False
+    labels = domain.rstrip(".").split(".")
+    return any(".".join(labels[i:]) in blacklist for i in range(len(labels) - 1))
+
+
+def analyze_url(raw_url: str, expand: bool = True, blacklist: Optional[frozenset] = None) -> Dict[str, Any]:
     """
     Inspecciona una URL sospechosa y calcula su nivel de riesgo.
 
-    Realiza cuatro análisis:
+    Realiza cinco análisis:
+    - Consulta de la lista negra local de URLs fraudulentas reportadas: un dominio listado
+      (o cuyo sufijo de etiquetas esté listado) suma riesgo máximo y es MALICIOSO aunque
+      su TLD y su nombre pasen los demás filtros. También se aplica al destino real de un
+      acortador desenrollado.
     - Detección de TLDs de alto riesgo (por ejemplo .xyz, .top, .ru).
     - Detección de acortadores públicos (SHORTENERS); se hace siempre, con o sin `expand`.
     - Desenrollado de los acortadores detectados (solo si `expand` es True) con peticiones
@@ -205,6 +259,11 @@ def analyze_url(raw_url: str, expand: bool = True) -> Dict[str, Any]:
     Args:
         raw_url: URL o dominio a analizar (se acepta sin esquema).
         expand: si es True, desenrolla los acortadores detectados.
+        blacklist: conjunto de dominios ya normalizados (minúsculas, sin punto final) contra
+            el que se compara el dominio. Si es None se usa la lista local de
+            data/url_blacklist.json (BLACKLIST_PATH), leída una vez y cacheada; si ese archivo
+            falta o es inválido la lista queda vacía. Un frozenset vacío desactiva la
+            consulta y deja solo la heurística.
 
     Returns:
         Diccionario con las claves:
@@ -213,6 +272,8 @@ def analyze_url(raw_url: str, expand: bool = True) -> Dict[str, Any]:
           final tras el desenrollado.
         - domain: dominio analizado en minúsculas.
         - is_suspicious_tld / is_shortener / is_typosquatting: indicadores booleanos.
+        - is_blacklisted: True si el dominio, o el destino de un acortador desenrollado,
+          está en la lista negra.
         - impersonated_brand: entidad suplantada, o None.
         - risk_score: puntaje de riesgo entre 0 y 100.
         - verdict: "SEGURO", "SOSPECHOSO", "MALICIOSO" o "NO_ANALIZADO".
@@ -220,10 +281,10 @@ def analyze_url(raw_url: str, expand: bool = True) -> Dict[str, Any]:
         - redirect_chain: cadena de URLs recorridas durante el desenrollado.
         - expansion_error: motivo del fallo al expandir, o None.
     """
-    return _analyze_url(raw_url, expand)
+    return _analyze_url(raw_url, expand, blacklist)
 
 
-def _analyze_url(raw_url: str, expand: bool) -> Dict[str, Any]:
+def _analyze_url(raw_url: str, expand: bool, blacklist: Optional[frozenset]) -> Dict[str, Any]:
     """Núcleo del análisis de URL; lo invocan analyze_url y la recursión del desenrollado."""
     if not isinstance(raw_url, str) or not raw_url.strip():
         return {
@@ -234,6 +295,7 @@ def _analyze_url(raw_url: str, expand: bool) -> Dict[str, Any]:
             "is_suspicious_tld": False,
             "is_shortener": False,
             "is_typosquatting": False,
+            "is_blacklisted": False,
             "impersonated_brand": None,
             "risk_score": 0,
             "verdict": "NO_ANALIZADO",
@@ -242,6 +304,8 @@ def _analyze_url(raw_url: str, expand: bool) -> Dict[str, Any]:
             "expansion_error": None
         }
     raw_url = raw_url.strip()
+    if blacklist is None:
+        blacklist = _get_blacklist()
     findings = []
     risk_score = 0
     expanded_url = raw_url
@@ -249,6 +313,12 @@ def _analyze_url(raw_url: str, expand: bool) -> Dict[str, Any]:
     expansion_error = None
 
     domain = _extract_domain(raw_url)
+
+    # 0. Lista negra local de URLs fraudulentas reportadas
+    is_blacklisted = _is_blacklisted(domain, blacklist)
+    if is_blacklisted:
+        risk_score += 100
+        findings.append(f"Dominio en lista negra local de URLs fraudulentas ({domain})")
 
     # 1. Verificación de TLD sospechoso
     is_suspicious_tld = any(domain.endswith(tld) for tld in SUSPICIOUS_TLDS)
@@ -280,10 +350,11 @@ def _analyze_url(raw_url: str, expand: bool) -> Dict[str, Any]:
             findings.append(f"No se pudo verificar el destino del acortador: {expansion_error}")
         if expanded_url != start:
             findings.append(f"Acortador desenrollado: {expanded_url}")
-            final = _analyze_url(expanded_url, False)
+            final = _analyze_url(expanded_url, False, blacklist)
             risk_score += final["risk_score"]
             findings.extend(final["findings"])
             is_suspicious_tld = is_suspicious_tld or final["is_suspicious_tld"]
+            is_blacklisted = is_blacklisted or final["is_blacklisted"]
             if final["is_typosquatting"]:
                 is_typosquatting = True
                 impersonated_brand = final["impersonated_brand"]
@@ -304,6 +375,7 @@ def _analyze_url(raw_url: str, expand: bool) -> Dict[str, Any]:
         "is_suspicious_tld": is_suspicious_tld,
         "is_shortener": is_shortener,
         "is_typosquatting": is_typosquatting,
+        "is_blacklisted": is_blacklisted,
         "impersonated_brand": impersonated_brand,
         "risk_score": min(100, risk_score),
         "verdict": verdict,
