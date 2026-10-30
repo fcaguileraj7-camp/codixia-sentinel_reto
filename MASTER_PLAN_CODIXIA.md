@@ -155,14 +155,11 @@ Para garantizar un trabajo equilibrado, claro y sin bloqueos, el equipo opera ba
 - **Objetivo:** Aislar e inspeccionar de manera segura cualquier enlace contenido en un mensaje sospechoso.
 - **Entregables:**
   - `src/tools/url_sandbox.py`:
-    - Normalización de URLs: la extracción de URLs desde el texto del mensaje vive en `threat_inspector.py`; `url_sandbox.py` normaliza el host de una URL dada (esquema, `\` y `%XX`, aproximando cómo los lee un navegador).
-    - Expansión de URLs acortadas (`bit.ly`, `tinyurl.com`, `is.gd`, `t.co`) mediante peticiones `HEAD` sin descargar contenido peligroso, protegida contra SSRF (IP validada como pública y fijada para conectar, solo puertos 80/443/8080/8443 y presupuesto de tiempo).
+    - Extracción y normalización de URLs.
+    - Expansión de URLs acortadas (`bit.ly`, `tinyurl.com`, `is.gd`, `t.co`) mediante peticiones `HEAD` sin descargar contenido peligroso.
     - Detección de *typosquatting* (ej. `banc0lombia-seguro.com`, `nequii-pagos.cc`).
-    - Marcado de dominios de alto riesgo (`.xyz`, `.top`, `.ru`, `.cc`). El certificado TLS solo se valida (contexto SSL por defecto) al expandir acortadores por HTTPS.
-    - Lista negra local (`data/url_blacklist.json`, cada entrada con su `origin`): un dominio listado se marca MALICIOSO. Con `blacklist=frozenset()` se mide solo la heurística.
-    - Telemetría de latencia (`telemetry`) en cada llamada a `analyze_url`.
-    - `scripts/eval_sandbox_urls.py`: evidencia que separa las detecciones por heurística de las detecciones por lista.
-  - `tests/test_sandbox.py`: Pruebas de detección con enlaces maliciosos simulados, incluidas lista negra, telemetría y normalización de host.
+    - Verificación de certificados y dominios de alto riesgo (`.xyz`, `.top`, `.ru`, `.cc`).
+  - `tests/test_sandbox.py`: Pruebas de detección con enlaces maliciosos simulados.
 
 ### 5.3 Santiago (Rol 3: Seguridad Física, Rutas & Acompañamiento en Taxis)
 - **Objetivo:** Desarrollar el copiloto de seguridad física para trayectos nocturnos y transporte en taxi.
@@ -219,33 +216,21 @@ def inspect_threat(text: str) -> dict:
 ### 6.2 Contrato de `UrlSandbox` (Miguel)
 ```python
 # src/tools/url_sandbox.py
-def analyze_url(raw_url: str, expand: bool = True, blacklist: frozenset | None = None) -> dict:
+def analyze_url(raw_url: str) -> dict:
     """
     Retorna:
     {
-        "status": "success" | "error",    # error = entrada vacía o no-str
+        "status": "success" | "error",
         "original_url": str,
         "expanded_url": str,              # url final tras desenrollar acortadores
-        "domain": str,                    # host analizado, en minúsculas
         "is_suspicious_tld": bool,        # verdadero si usa .xyz, .top, etc.
-        "is_shortener": bool,             # verdadero si el dominio es un acortador público
         "is_typosquatting": bool,         # verdadero si imita marca oficial
-        "is_blacklisted": bool,           # verdadero si el dominio (o el destino de un acortador) está en la lista negra local
         "impersonated_brand": str | None, # ej: "bancolombia" si aplica
         "risk_score": int (0 a 100),
-        "verdict": "SEGURO" | "SOSPECHOSO" | "MALICIOSO" | "NO_ANALIZADO",
-        "findings": list[str],            # hallazgos legibles
-        "redirect_chain": list[str],      # URLs recorridas al desenrollar
-        "expansion_error": str | None,    # motivo del fallo al expandir, si lo hubo
-        "telemetry": {                    # mediciones de la llamada, en milisegundos
-            "latency_ms": float,          # tiempo total de analyze_url
-            "expansion_ms": float | None  # tiempo de la parte de red; None = no hubo red
-        }
+        "verdict": "SEGURO" | "SOSPECHOSO" | "MALICIOSO"
     }
     """
 ```
-
-> Notas: con `blacklist=None` se usa `data/url_blacklist.json`; un `frozenset()` desactiva la lista y deja solo la heurística. El contrato es aditivo: consumidores como `sentinel.py` y `app_streamlit.py` no deben asumir un conjunto cerrado de claves.
 
 ### 6.3 Contrato de `VisionParser` y `PoliceReporter` (Nicolle)
 ```python
