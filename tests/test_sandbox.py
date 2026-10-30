@@ -4,6 +4,8 @@ Reto Agente 2026 - SentinelGuard AI · Equipo Codixia
 """
 
 import json
+import time
+import types
 
 import src.tools.url_sandbox as sandbox
 from src.tools.url_sandbox import (
@@ -509,3 +511,142 @@ def test_percent_encoded_hash_in_userinfo_does_not_cut_the_host():
     res = analyze_url("https://listado.site%23@www.bancolombia.com/", blacklist=_LISTADO)
     assert res["domain"] == "www.bancolombia.com"
     assert res["is_blacklisted"] is False
+
+
+# --- Telemetría de latencia (solo tipos y >= 0; los valores exactos usan un reloj falso) ---
+
+def _assert_ms(value):
+    assert isinstance(value, float) and value >= 0, value
+
+def _one_hop_head():
+    return _fake_head({"https://bit.ly/x": (301, "https://example.org/final")})
+
+def test_telemetry_present_in_success_result():
+    res = analyze_url("https://www.bancolombia.com", blacklist=frozenset())
+    assert res["status"] == "success"
+    _assert_ms(res["telemetry"]["latency_ms"])
+    assert res["telemetry"]["expansion_ms"] is None
+
+def test_telemetry_present_in_error_results():
+    for bad in (None, "", "   ", 123):
+        res = analyze_url(bad)
+        assert res["status"] == "error", bad
+        assert set(res["telemetry"]) == {"expansion_ms", "latency_ms"}, bad
+        assert res["telemetry"]["expansion_ms"] is None, bad
+        _assert_ms(res["telemetry"]["latency_ms"])
+
+def test_telemetry_non_shortener_has_no_expansion_time(monkeypatch):
+    def _boom(*a, **k):
+        raise AssertionError("no debe hacer red")
+    monkeypatch.setattr(sandbox, "_head_request", _boom)
+    res = analyze_url("https://www.bancolombia.com", blacklist=frozenset())
+    assert res["telemetry"]["expansion_ms"] is None
+    assert res["expansion_error"] is None
+    _assert_ms(res["telemetry"]["latency_ms"])
+
+def test_telemetry_expanded_shortener_reports_expansion_time(monkeypatch):
+    monkeypatch.setattr(sandbox, "_head_request", _one_hop_head())
+    res = analyze_url("https://bit.ly/x", blacklist=frozenset())
+    assert res["expanded_url"] == "https://example.org/final"
+    _assert_ms(res["telemetry"]["expansion_ms"])
+    _assert_ms(res["telemetry"]["latency_ms"])
+
+def test_telemetry_failed_expansion_still_reports_expansion_time():
+    # conftest bloquea la red: el desenrollado falla, pero sí se intentó y se midió
+    res = analyze_url("https://bit.ly/3xXyZ", blacklist=frozenset())
+    assert res["expansion_error"] is not None
+    _assert_ms(res["telemetry"]["expansion_ms"])
+    _assert_ms(res["telemetry"]["latency_ms"])
+
+def test_telemetry_shortener_without_expand_has_no_expansion_time(monkeypatch):
+    def _boom(*a, **k):
+        raise AssertionError("no debe hacer red")
+    monkeypatch.setattr(sandbox, "_head_request", _boom)
+    res = analyze_url("https://bit.ly/x", expand=False, blacklist=frozenset())
+    assert res["is_shortener"] is True
+    assert res["telemetry"]["expansion_ms"] is None
+    _assert_ms(res["telemetry"]["latency_ms"])
+
+def test_telemetry_keys_are_exact(monkeypatch):
+    monkeypatch.setattr(sandbox, "_head_request", _one_hop_head())
+    res = analyze_url("https://bit.ly/x", blacklist=frozenset())
+    assert set(res) >= {"status", "domain", "verdict", "risk_score", "findings", "telemetry"}
+    assert set(res["telemetry"]) == {"expansion_ms", "latency_ms"}
+
+
+def _use_clock(monkeypatch, read):
+    """Reemplaza el `time` del sandbox (no el del proceso). monotonic se conserva porque
+    _expand_url lo lee para su presupuesto de tiempo."""
+    monkeypatch.setattr(
+        sandbox, "time", types.SimpleNamespace(perf_counter=read, monotonic=time.monotonic)
+    )
+
+def test_telemetry_values_with_scripted_clock(monkeypatch):
+    # Lecturas esperadas: inicio total, inicio de la red, fin de la red, fin total.
+    ticks = iter([0.0, 1.0, 1.5, 4.0])
+    _use_clock(monkeypatch, lambda: next(ticks))
+    monkeypatch.setattr(sandbox, "_head_request", _one_hop_head())
+    res = analyze_url("https://bit.ly/x", blacklist=frozenset())
+    assert res["telemetry"] == {"expansion_ms": 500.0, "latency_ms": 4000.0}
+    assert res["telemetry"]["latency_ms"] >= res["telemetry"]["expansion_ms"]
+    assert next(ticks, None) is None  # se consumieron exactamente 4 lecturas
+
+def test_telemetry_expansion_excludes_destination_reanalysis(monkeypatch):
+    # Reloj con estado: avanza dentro de la red (cada HEAD tarda 0.5 s) y dentro del
+    # re-análisis del destino (2 s). expansion_ms debe contar solo la red; latency_ms, todo.
+    clock = {"t": 0.0}
+    _use_clock(monkeypatch, lambda: clock["t"])
+    def _head(url, timeout=3):
+        clock["t"] += 0.5
+        return (301, "https://example.org/final") if url == "https://bit.ly/x" else (200, None)
+    real_detect_brand = sandbox._detect_brand
+    def _detect_brand(domain):
+        if domain == "example.org":  # solo ocurre al re-analizar el destino
+            clock["t"] += 2.0
+        return real_detect_brand(domain)
+    monkeypatch.setattr(sandbox, "_head_request", _head)
+    monkeypatch.setattr(sandbox, "_detect_brand", _detect_brand)
+    res = analyze_url("https://bit.ly/x", blacklist=frozenset())
+    assert res["expanded_url"] == "https://example.org/final"
+    assert res["telemetry"] == {"expansion_ms": 1000.0, "latency_ms": 3000.0}
+
+def test_telemetry_expansion_ms_is_rounded_to_two_decimals(monkeypatch):
+    ticks = iter([0.0, 1.0, 1.123456, 2.0])
+    _use_clock(monkeypatch, lambda: next(ticks))
+    monkeypatch.setattr(sandbox, "_head_request", _one_hop_head())
+    res = analyze_url("https://bit.ly/x", blacklist=frozenset())
+    assert res["telemetry"] == {"expansion_ms": 123.46, "latency_ms": 2000.0}
+
+def test_telemetry_latency_ms_is_rounded_to_two_decimals(monkeypatch):
+    clock = {"t": 0.0}
+    _use_clock(monkeypatch, lambda: clock["t"])
+    def _detect_brand(domain):
+        clock["t"] += 0.0012345  # 1.2345 ms: con 3 decimales saldría 1.234 o 1.235
+        return None
+    monkeypatch.setattr(sandbox, "_detect_brand", _detect_brand)
+    res = analyze_url("https://www.bancolombia.com", blacklist=frozenset())
+    assert res["telemetry"] == {"expansion_ms": None, "latency_ms": 1.23}
+
+def test_telemetry_clock_without_network_and_on_error(monkeypatch):
+    ticks = iter([5.0, 5.25, 7.0, 7.5])
+    _use_clock(monkeypatch, lambda: next(ticks))
+    ok = analyze_url("https://www.bancolombia.com", blacklist=frozenset())
+    assert ok["telemetry"] == {"expansion_ms": None, "latency_ms": 250.0}
+    err = analyze_url("")
+    assert err["telemetry"] == {"expansion_ms": None, "latency_ms": 500.0}
+    assert next(ticks, None) is None
+
+def test_analyze_url_wrapper_does_not_mutate_core_result(monkeypatch):
+    # Si el núcleo devolviera siempre el mismo objeto (p. ej. una caché futura), el envoltorio
+    # no debe escribir latency_ms en él ni compartir su dict de telemetría.
+    shared = {"status": "success", "telemetry": {"expansion_ms": None}}
+    monkeypatch.setattr(sandbox, "_analyze_url", lambda *args, **kwargs: shared)
+    first = analyze_url("https://www.bancolombia.com")
+    second = analyze_url("https://www.bancolombia.com")
+    assert shared["telemetry"] == {"expansion_ms": None}
+    for res in (first, second):
+        assert res is not shared
+        assert res["telemetry"] is not shared["telemetry"]
+        assert set(res["telemetry"]) == {"expansion_ms", "latency_ms"}
+        _assert_ms(res["telemetry"]["latency_ms"])
+    assert first["telemetry"] is not second["telemetry"]

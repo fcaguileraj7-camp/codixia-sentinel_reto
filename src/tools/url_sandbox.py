@@ -296,8 +296,21 @@ def analyze_url(raw_url: str, expand: bool = True, blacklist: Optional[frozenset
         - findings: lista de hallazgos legibles.
         - redirect_chain: cadena de URLs recorridas durante el desenrollado.
         - expansion_error: motivo del fallo al expandir, o None.
+        - telemetry: mediciones de esta llamada, en milisegundos (time.perf_counter, redondeadas
+          a 2 decimales) y también presente cuando la entrada es inválida:
+            - latency_ms: tiempo total de analyze_url (en la primera llamada incluye la carga
+              de la lista negra por defecto).
+            - expansion_ms: tiempo de la llamada a _expand_url (la parte de red), o None si no
+              hubo desenrollado (no es acortador o expand es False). No incluye el re-análisis
+              del destino.
     """
-    return _analyze_url(raw_url, expand, blacklist)
+    # perf_counter mide duraciones; en Windows con Python < 3.13 monotonic tiene resolución de ~15 ms
+    t0 = time.perf_counter()
+    core = _analyze_url(raw_url, expand, blacklist)
+    latency_ms = round((time.perf_counter() - t0) * 1000, 2)
+    # No muta el resultado del núcleo, para que una caché futura sobre _analyze_url no se contamine.
+    # Ojo: findings y redirect_chain siguen siendo listas compartidas (una caché deberá copiarlas).
+    return {**core, "telemetry": {**core["telemetry"], "latency_ms": latency_ms}}
 
 
 def _analyze_url(raw_url: str, expand: bool, blacklist: Optional[frozenset]) -> Dict[str, Any]:
@@ -317,7 +330,8 @@ def _analyze_url(raw_url: str, expand: bool, blacklist: Optional[frozenset]) -> 
             "verdict": "NO_ANALIZADO",
             "findings": ["Entrada vacía o inválida: no hay URL para analizar"],
             "redirect_chain": [],
-            "expansion_error": None
+            "expansion_error": None,
+            "telemetry": {"expansion_ms": None}
         }
     raw_url = raw_url.strip()
     if blacklist is None:
@@ -327,6 +341,7 @@ def _analyze_url(raw_url: str, expand: bool, blacklist: Optional[frozenset]) -> 
     expanded_url = raw_url
     redirect_chain = [raw_url]
     expansion_error = None
+    expansion_ms = None  # None = no hubo red (distinto de 0 ms)
 
     domain = _extract_domain(raw_url)
 
@@ -363,7 +378,9 @@ def _analyze_url(raw_url: str, expand: bool, blacklist: Optional[frozenset]) -> 
         # misma cadena normalizada que usa _extract_domain; los %XX del host no se decodifican
         # para el HEAD (un host con %XX no resuelve y la expansión falla cerrada)
         start = _normalize_url(raw_url)
+        t_expand = time.perf_counter()
         expanded_url, redirect_chain, expansion_error = _expand_url(start)
+        expansion_ms = round((time.perf_counter() - t_expand) * 1000, 2)
         if expansion_error:
             findings.append(f"No se pudo verificar el destino del acortador: {expansion_error}")
         if expanded_url != start:
@@ -399,5 +416,7 @@ def _analyze_url(raw_url: str, expand: bool, blacklist: Optional[frozenset]) -> 
         "verdict": verdict,
         "findings": findings,
         "redirect_chain": redirect_chain,
-        "expansion_error": expansion_error
+        "expansion_error": expansion_error,
+        # solo la red de ESTE nivel: la telemetría del destino (final) no se suma ni se propaga
+        "telemetry": {"expansion_ms": expansion_ms}
     }
