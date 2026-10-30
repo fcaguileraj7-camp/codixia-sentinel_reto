@@ -171,15 +171,60 @@ def _expand_url(url: str) -> Tuple[str, List[str], Optional[str]]:
         return current, chain, f"No se pudo expandir el enlace: {type(e).__name__}"
 
 
+def _ensure_scheme(raw: str) -> str:
+    """Devuelve la URL tal cual si ya trae esquema ("://"); si no, antepone http://."""
+    return raw if "://" in raw else f"http://{raw}"
+
+
+def _extract_domain(raw: str) -> str:
+    """Extrae el dominio (host en minúsculas) de una URL; ante error, devuelve la entrada en minúsculas."""
+    try:
+        parsed = urlparse(_ensure_scheme(raw))
+        # hostname descarta userinfo (user:pass@), puerto y corchetes IPv6
+        return (parsed.hostname or parsed.path).lower()
+    except Exception:
+        return raw.lower()
+
+
 def analyze_url(raw_url: str, expand: bool = True) -> Dict[str, Any]:
     """
-    Inspecciona y calcula el nivel de riesgo de una URL sospechosa.
-    
-    Miguel implementa aquí:
-    - Desenrollado seguro de acortadores con peticiones HEAD
-    - Detección de typosquatting contra entidades financieras colombianas
-    - Verificación de entropía y TLDs sospechosos
+    Inspecciona una URL sospechosa y calcula su nivel de riesgo.
+
+    Realiza cuatro análisis:
+    - Detección de TLDs de alto riesgo (por ejemplo .xyz, .top, .ru).
+    - Detección de acortadores públicos (SHORTENERS); se hace siempre, con o sin `expand`.
+    - Desenrollado de los acortadores detectados (solo si `expand` es True) con peticiones
+      HEAD, sin seguir redirecciones automáticamente (cada salto se valida a mano). Incluye
+      protección SSRF: la IP del destino se valida como pública y se fija para la conexión,
+      solo se permiten los puertos de ALLOWED_PORTS, y la expansión se corta si se supera
+      el presupuesto de tiempo, comprobado antes de cada salto. El destino real se vuelve
+      a analizar sin expandir de nuevo.
+    - Detección de typosquatting bancario contra entidades financieras colombianas,
+      mediante normalización leetspeak y distancia de edición.
+
+    Args:
+        raw_url: URL o dominio a analizar (se acepta sin esquema).
+        expand: si es True, desenrolla los acortadores detectados.
+
+    Returns:
+        Diccionario con las claves:
+        - status: "success", o "error" si la entrada está vacía o no es texto.
+        - original_url / expanded_url: URL recibida (sin espacios en los extremos) y URL
+          final tras el desenrollado.
+        - domain: dominio analizado en minúsculas.
+        - is_suspicious_tld / is_shortener / is_typosquatting: indicadores booleanos.
+        - impersonated_brand: entidad suplantada, o None.
+        - risk_score: puntaje de riesgo entre 0 y 100.
+        - verdict: "SEGURO", "SOSPECHOSO", "MALICIOSO" o "NO_ANALIZADO".
+        - findings: lista de hallazgos legibles.
+        - redirect_chain: cadena de URLs recorridas durante el desenrollado.
+        - expansion_error: motivo del fallo al expandir, o None.
     """
+    return _analyze_url(raw_url, expand)
+
+
+def _analyze_url(raw_url: str, expand: bool) -> Dict[str, Any]:
+    """Núcleo del análisis de URL; lo invocan analyze_url y la recursión del desenrollado."""
     if not isinstance(raw_url, str) or not raw_url.strip():
         return {
             "status": "error",
@@ -203,12 +248,7 @@ def analyze_url(raw_url: str, expand: bool = True) -> Dict[str, Any]:
     redirect_chain = [raw_url]
     expansion_error = None
 
-    try:
-        parsed = urlparse(raw_url if "://" in raw_url else f"http://{raw_url}")
-        # hostname descarta userinfo (user:pass@), puerto y corchetes IPv6
-        domain = (parsed.hostname or parsed.path).lower()
-    except Exception as e:
-        domain = raw_url.lower()
+    domain = _extract_domain(raw_url)
 
     # 1. Verificación de TLD sospechoso
     is_suspicious_tld = any(domain.endswith(tld) for tld in SUSPICIOUS_TLDS)
@@ -234,13 +274,13 @@ def analyze_url(raw_url: str, expand: bool = True) -> Dict[str, Any]:
 
     # 3b. Desenrollado del acortador y análisis del destino real
     if is_shortener and expand:
-        start = raw_url if "://" in raw_url else f"http://{raw_url}"
+        start = _ensure_scheme(raw_url)
         expanded_url, redirect_chain, expansion_error = _expand_url(start)
         if expansion_error:
             findings.append(f"No se pudo verificar el destino del acortador: {expansion_error}")
         if expanded_url != start:
             findings.append(f"Acortador desenrollado: {expanded_url}")
-            final = analyze_url(expanded_url, expand=False)
+            final = _analyze_url(expanded_url, False)
             risk_score += final["risk_score"]
             findings.extend(final["findings"])
             is_suspicious_tld = is_suspicious_tld or final["is_suspicious_tld"]
