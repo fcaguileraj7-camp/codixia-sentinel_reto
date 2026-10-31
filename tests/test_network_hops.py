@@ -103,35 +103,42 @@ def test_blacklisted_hops_direct_lengths_and_subdomains():
     # Longitud 0: cadena vacia
     assert sandbox._blacklisted_hops([], blacklist) == []
 
-    # Longitud 1: solo salto inicial (no cuenta)
-    assert sandbox._blacklisted_hops(["https://listado.site/"], blacklist) == []
+    # Longitud 1: solo salto inicial (con skip no cuenta)
+    assert sandbox._blacklisted_hops(["https://listado.site/"], blacklist, skip={"listado.site"}) == []
+    # Sin skip evalúa todos los elementos
+    assert sandbox._blacklisted_hops(["https://listado.site/"], blacklist) == ["listado.site"]
 
-    # Longitud 2: salto inicial y salto final (ninguno cuenta)
+    # Longitud 2: salto inicial y salto final con skip no cuentan
     assert sandbox._blacklisted_hops(
         ["https://listado.site/inicio", "https://malicioso.org/fin"],
         blacklist,
+        skip={"listado.site", "malicioso.org"},
     ) == []
 
-    # Longitud 3: salto intermedio listado (cuenta)
+    # Longitud 3: salto intermedio listado (cuenta con skip de extremos)
     assert sandbox._blacklisted_hops(
         ["https://rb.gy/x", "https://listado.site/r", "https://limpio.com/"],
         blacklist,
+        skip={"rb.gy", "limpio.com"},
     ) == ["listado.site"]
 
     # Longitud 3: subdominios de un dominio listado cuentan
     assert sandbox._blacklisted_hops(
         ["https://rb.gy/x", "https://sub.listado.site/r", "https://limpio.com/"],
         blacklist,
+        skip={"rb.gy", "limpio.com"},
     ) == ["sub.listado.site"]
     assert sandbox._blacklisted_hops(
         ["https://rb.gy/x", "https://a.b.listado.site/r", "https://limpio.com/"],
         blacklist,
+        skip={"rb.gy", "limpio.com"},
     ) == ["a.b.listado.site"]
 
     # Longitud 3: salto intermedio limpio no cuenta aunque extremos esten listados
     assert sandbox._blacklisted_hops(
         ["https://listado.site/inicio", "https://limpio.com/r", "https://malicioso.org/fin"],
         blacklist,
+        skip={"listado.site", "malicioso.org"},
     ) == []
 
     # Longitud 4: dos saltos intermedios listados en orden y sin extremos
@@ -143,6 +150,7 @@ def test_blacklisted_hops_direct_lengths_and_subdomains():
             "https://fin.com/3",
         ],
         blacklist,
+        skip={"inicio.com", "fin.com"},
     ) == ["listado.site", "sub.malicioso.org"]
 
     # Longitud 4: extremos listados no cuentan, solo intermedios
@@ -154,6 +162,7 @@ def test_blacklisted_hops_direct_lengths_and_subdomains():
             "https://malicioso.org/fin",
         ],
         blacklist,
+        skip={"listado.site", "malicioso.org"},
     ) == ["sub.listado.site"]
 
     # Longitud 4: desduplicacion de dominios repetidos en saltos intermedios
@@ -165,6 +174,7 @@ def test_blacklisted_hops_direct_lengths_and_subdomains():
             "https://fin.com/3",
         ],
         blacklist,
+        skip={"inicio.com", "fin.com"},
     ) == ["listado.site"]
 
 

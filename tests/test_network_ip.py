@@ -142,6 +142,7 @@ def test_resolve_public_ip_resolution_errors(monkeypatch, scenario):
         ("64:ff9b::a9fe:a9fe", False),
         ("64:ff9b:1::1", False),
         ("2002:7f00:1::", False),
+        ("2002:0808:0808::", False),
         ("2001:0:a00:1::f7f7:f7f7", False),
         ("2001:0:808:808::3f57:fefe", False),
     ],

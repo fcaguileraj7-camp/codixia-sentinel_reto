@@ -14,8 +14,8 @@ import time
 import unicodedata
 from functools import lru_cache
 from pathlib import Path
-from urllib.parse import quote, unquote, urljoin, urlparse
-from typing import Dict, Any, List, Optional, Tuple
+from urllib.parse import quote, unquote, urljoin, urlparse, urlsplit
+from typing import Dict, Any, List, Optional, Tuple, Iterable
 
 SUSPICIOUS_TLDS = {".xyz", ".top", ".cc", ".ru", ".tk", ".ml", ".ga", ".cf", ".gq", ".live"}
 OFFICIAL_BANKS = {
@@ -125,31 +125,40 @@ def _detect_brand(domain: str):
                 return brand
     return None
 
-# Redes IPv6 que `is_global` no siempre descarta y que pueden esconder una IPv4 interna:
-# site-local (obsoleto), IPv4-compatible (::a.b.c.d) y los prefijos NAT64 completos.
+# Redes IPv6 rechazadas por completo (fail-closed, sin evaluar direcciones embebidas):
+# site-local (obsoleto), IPv4-compatible (::/96), 6to4 (2002::/16), Teredo (2001::/32) y NAT64.
 _IPV6_SITE_LOCAL = ipaddress.ip_network("fec0::/10")
 _IPV6_IPV4_COMPATIBLE = ipaddress.ip_network("::/96")
+_IPV6_6TO4 = ipaddress.ip_network("2002::/16")
+_IPV6_TEREDO = ipaddress.ip_network("2001::/32")
 _IPV6_NAT64 = (ipaddress.ip_network("64:ff9b::/96"), ipaddress.ip_network("64:ff9b:1::/48"))
+_IPV6_REJECTED_NETWORKS = (
+    _IPV6_SITE_LOCAL,
+    _IPV6_IPV4_COMPATIBLE,
+    _IPV6_6TO4,
+    _IPV6_TEREDO,
+    *_IPV6_NAT64,
+)
 
 
 def _is_public_ip(ip) -> bool:
     """
     Indica si `ip` (un ipaddress.ip_address) es una dirección pública de unicast.
-    No es pública si no es global, si es multicast, o si es IPv6 site-local (fec0::/10),
-    IPv4-compatible (::/96) o NAT64 (64:ff9b::/96 y 64:ff9b:1::/48; el prefijo entero se
-    rechaza, sin mirar la IPv4 embebida). Una IPv6 que lleve una IPv4 embebida
-    (IPv4-mapped, 6to4, Teredo con su servidor y su cliente) solo es pública si esa IPv4 lo es.
+    Para IPv4-mapped (::ffff:0:0/96), la decisión depende de si la IPv4 embebida es pública.
+    No es pública si no es global, si es multicast, o si pertenece a redes IPv6 rechazadas
+    por completo (fail-closed): site-local (fec0::/10), IPv4-compatible (::/96), 6to4
+    (2002::/16), Teredo (2001::/32) y NAT64 (64:ff9b::/96 y 64:ff9b:1::/48), descartadas
+    enteras de forma explícita sin evaluar direcciones embebidas.
     """
+    if ip.version == 6 and ip.ipv4_mapped is not None:
+        return _is_public_ip(ip.ipv4_mapped)
     if not ip.is_global or ip.is_multicast:
         return False
     if ip.version == 4:
         return True
-    if ip in _IPV6_SITE_LOCAL or ip in _IPV6_IPV4_COMPATIBLE or any(ip in net for net in _IPV6_NAT64):
+    if any(ip in net for net in _IPV6_REJECTED_NETWORKS):
         return False
-    embedded = [ip.ipv4_mapped, ip.sixtofour]
-    if ip.teredo is not None:
-        embedded.extend(ip.teredo)
-    return all(_is_public_ip(v4) for v4 in embedded if v4 is not None)
+    return True
 
 
 def _resolve_public_ip(host: str) -> Optional[str]:
@@ -157,8 +166,9 @@ def _resolve_public_ip(host: str) -> Optional[str]:
     Resuelve `host` una sola vez y es el ÚNICO validador anti-SSRF: la IP que devuelve es la
     que luego se fija para conectar (no hay una segunda resolución DNS que pueda cambiar).
     Devuelve la IP (la primera) si TODAS las direcciones resueltas cumplen _is_public_ip; None si
-    alguna es privada, loopback, link-local, multicast, reservada, site-local o NAT64/IPv4
-    embebida no pública, o si el host no resuelve. getaddrinfo no tiene timeout propio.
+    alguna es privada, loopback, link-local, multicast, reservada, site-local, IPv4-compatible (::/96),
+    6to4 (2002::/16), Teredo (2001::/32), NAT64 (64:ff9b::/96 y 64:ff9b:1::/48) o una IPv4
+    embebida no pública en IPv4-mapped, o si el host no resuelve. getaddrinfo no tiene timeout propio.
     """
     try:
         infos = socket.getaddrinfo(host, None)
@@ -215,13 +225,14 @@ def _head_request(url: str, timeout: float = EXPAND_TIMEOUT) -> Tuple[int, Optio
     porcentaje (UTF-8; los %XX existentes no se re-escapan) porque http.client exige ASCII.
     `timeout` es por operación de socket (conexión, handshake, lectura), no el total.
     """
-    parsed = urlparse(url)
+    parsed = urlsplit(url)
     ip = _resolve_public_ip(parsed.hostname)
     if ip is None:
         raise PermissionError("Host no público bloqueado (protección SSRF)")
     conn_cls = _PinnedHTTPSConnection if parsed.scheme == "https" else _PinnedHTTPConnection
     port = parsed.port if parsed.port is not None else (443 if parsed.scheme == "https" else 80)
     conn = conn_cls(parsed.hostname, ip, port=port, timeout=timeout)
+    resp = None
     try:
         path = quote(parsed.path or "/", safe=_PATH_SAFE)
         if parsed.query:
@@ -230,6 +241,8 @@ def _head_request(url: str, timeout: float = EXPAND_TIMEOUT) -> Tuple[int, Optio
         resp = conn.getresponse()
         return resp.status, resp.getheader("Location")
     finally:
+        if resp is not None:
+            resp.close()
         conn.close()
 
 
@@ -545,14 +558,22 @@ def _is_blacklisted(domain: str, blacklist: frozenset) -> bool:
     return any(".".join(labels[i:]) in blacklist for i in range(len(labels) - 1))
 
 
-def _blacklisted_hops(chain: List[str], blacklist: frozenset) -> List[str]:
+def _blacklisted_hops(
+    chain: List[str],
+    blacklist: frozenset,
+    skip: Optional[Iterable[str]] = None,
+) -> List[str]:
     """
-    Dominios de los saltos INTERMEDIOS de `chain` (chain[1:-1]; el inicial y el final ya se
-    analizan por separado) que están en `blacklist`, sin repetir y en orden de aparición.
+    Dominios de los saltos de `chain` que están en `blacklist`, omitiendo los dominios
+    indicados en `skip` (normalizados sin punto final), sin repetir y en orden de aparición.
+    La deduplicación y la comparación con inicial/final normalizan los dominios con rstrip('.').
     """
+    skip_set = {s.rstrip(".") for s in skip} if skip else set()
     hops: List[str] = []
-    for hop in chain[1:-1]:
-        domain = _extract_domain(hop)
+    for hop in chain:
+        domain = _extract_domain(hop).rstrip(".")
+        if not domain or domain in skip_set:
+            continue
         if _is_blacklisted(domain, blacklist) and domain not in hops:
             hops.append(domain)
     return hops
@@ -787,6 +808,7 @@ def _analyze_url(raw_url: str, expand: bool, blacklist: Optional[frozenset]) -> 
         expansion_ms = round((time.perf_counter() - t_expand) * 1000, 2)
         if expansion_error:
             findings.append(f"No se pudo verificar el destino del acortador: {expansion_error}")
+        skip = {domain.rstrip(".")}
         if expanded_url != start:
             findings.append(f"Acortador desenrollado: {expanded_url}")
             final = _analyze_url(expanded_url, False, blacklist)
@@ -797,11 +819,13 @@ def _analyze_url(raw_url: str, expand: bool, blacklist: Optional[frozenset]) -> 
             if final["is_typosquatting"]:
                 is_typosquatting = True
                 impersonated_brand = final["impersonated_brand"]
-            # el inicial y el final ya puntuaron arriba: aquí solo los saltos del medio
-            for hop in _blacklisted_hops(redirect_chain, blacklist):
-                if hop not in (domain, final["domain"]):
-                    is_blacklisted, risk_score = True, risk_score + 100
-                    findings.append(f"Salto intermedio en lista negra local ({hop})")
+            if final.get("domain"):
+                skip.add(final["domain"].rstrip("."))
+
+        for hop in _blacklisted_hops(redirect_chain, blacklist, skip=skip):
+            is_blacklisted = True
+            risk_score += 100
+            findings.append(f"Salto intermedio en lista negra local ({hop})")
 
     # 4. Veredicto
     if risk_score >= 60:
