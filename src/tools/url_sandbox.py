@@ -9,7 +9,9 @@ import json
 import re
 import socket
 import ssl
+import stringprep
 import time
+import unicodedata
 from functools import lru_cache
 from pathlib import Path
 from urllib.parse import unquote, urljoin, urlparse
@@ -33,8 +35,45 @@ ALLOWED_PORTS = {80, 443, 8080, 8443}
 
 BLACKLIST_PATH = Path(__file__).resolve().parents[2] / "data" / "url_blacklist.json"
 
+# Longitud máxima de un nombre de dominio (RFC 1035); por encima el host se marca inválido
+# y no se ejecutan los chequeos costosos (lista negra y typosquatting).
+MAX_DOMAIN_LEN = 253
+
+# Longitud máxima de URL que se analiza a fondo: las URLs reales casi nunca pasan de 2-8 KB
+# (enlaces con muchos parámetros de tracking o SAML pueden superarla y quedan marcados como
+# sospechosos, lo cual se acepta en SMS). Acota el coste de unicodedata.normalize (NFKC), que es
+# cuadrático con caracteres que se expanden mucho (U+FDFA): solo se lee el host de los primeros
+# MAX_URL_LEN caracteres; una URL más larga suma riesgo y no se desenrolla, y si la autoridad no
+# se cierra dentro de esa ventana el host también se marca como sospechoso.
+MAX_URL_LEN = 8192
+
 _LEET_MAP = str.maketrans({"0": "o", "1": "l", "3": "e", "4": "a", "5": "s", "7": "t", "$": "s", "@": "a"})
 _MIN_FUZZY_LEN = 5
+# Marcas cuya forma normalizada tiene menos caracteres que esto (bbva -> bva) no se buscan como
+# subcadena del token normalizado (darían falsos positivos: bvasports.com). Solo coinciden por
+# igualdad con el token normalizado, o si la marca literal aparece en el token tras el leetspeak
+# (bbv4seguro.com).
+_MIN_SUBSTRING_BRAND_LEN = 4
+
+# Controles C0 (U+0000..U+001F) y espacio (U+0020): los navegadores los quitan del inicio y del
+# final de la URL antes de leerla.
+_C0_AND_SPACE = "".join(chr(i) for i in range(0x21))
+# Esquemas que los navegadores aceptan con 0 o más "/" tras los dos puntos (https:evil.xyz).
+_SPECIAL_SCHEME_RE = re.compile(r"(https?|ftp|wss?):/*", re.IGNORECASE)
+_ANY_SCHEME_RE = re.compile(r"[A-Za-z][A-Za-z0-9+.\-]*://")
+# Puntos Unicode que un navegador trata como ".": U+3002, U+FF0E y U+FF61. NFKC ya lleva U+FF0E a "."
+# y U+FF61 a U+3002, pero U+3002 no cambia con NFKC, por eso hace falta este mapeo; se conservan
+# las tres entradas como defensa en profundidad.
+_UNICODE_DOTS = str.maketrans({"\u3002": ".", "\uff0e": ".", "\uff61": "."})
+# Puntuación ASCII que queda pegada al final del host cuando la URL se extrae de un texto
+# ("https://sitio.com," / "(https://sitio.com)"); urlparse la deja dentro del hostname.
+# _is_trailing_junk además quita cualquier puntuación o símbolo Unicode (comillas tipográficas,
+# comillas angulares, rayas, emoji...). Ninguna de las dos incluye ":" para no romper las IPv6
+# que terminan en "::". Las categorías P* y S* ya cubren estos caracteres ASCII; la constante
+# los deja explícitos.
+_TRAILING_PUNCTUATION = ".,;!)]}'" + '"'
+# Espacios, delimitadores de URL, "%" residual y caracteres de control (Cc) no válidos en un host.
+_INVALID_HOST_RE = re.compile(r"""[\s/\\?#@%<>^|\[\]{}"'`\x00-\x1f\x7f-\x9f]""")
 
 
 def _normalize(label: str) -> str:
@@ -72,10 +111,16 @@ def _detect_brand(domain: str):
             continue
         norm_brand = _normalize(brand)
         max_dist = 1 if len(brand) <= 8 else 2
+        short_brand = len(norm_brand) < _MIN_SUBSTRING_BRAND_LEN
         for token in tokens:
-            if brand in token or norm_brand in _normalize(token):
-                return brand
             norm_token = _normalize(token)
+            if short_brand:
+                # igualdad, o la marca literal tras el leetspeak (bbv4seguro -> bbvaseguro)
+                norm_match = norm_token == norm_brand or brand in token.lower().translate(_LEET_MAP)
+            else:
+                norm_match = norm_brand in norm_token
+            if brand in token or norm_match:
+                return brand
             if len(norm_token) >= _MIN_FUZZY_LEN and _edit_distance(norm_token, norm_brand) <= max_dist:
                 return brand
     return None
@@ -179,31 +224,211 @@ def _expand_url(url: str) -> Tuple[str, List[str], Optional[str]]:
 def _normalize_url(raw: str) -> str:
     """
     Aproxima cómo lee un navegador la URL solo en lo que afecta al host: la barra invertida
-    (aquí) y los %XX del host (en _extract_domain). No emula el estándar WHATWG completo:
-    por ejemplo "http:\\host" o IDNA no se cubren.
+    (aquí) y los %XX del host (en _parse_host). No emula el estándar WHATWG completo:
+    por ejemplo IDNA/punycode no se cubren.
     Los navegadores tratan "\\" como "/" en la autoridad y la ruta de URLs http/https
     (https://evil.xyz\\@www.bancolombia.com/ abre evil.xyz), pero urlparse no, así que
     el host quedaría mal calculado. Se reemplaza solo antes del primer "?" o "#" (en la
     query y el fragmento la barra invertida se deja intacta), con cualquier esquema aunque
-    solo es exacto para http/https. Después antepone http:// si la URL no trae esquema ("://").
+    solo es exacto para http/https.
+    Primero quita del inicio y del final los controles C0 y los espacios (_C0_AND_SPACE), como
+    hace el navegador ("\\x00https://sitio.com" se lee como "https://sitio.com").
+    Después fija el esquema, en este orden:
+    - http, https, ftp, ws o wss seguidos de cero o más "/": se reescribe como "<esquema>://"
+      (https:evil.xyz y https:///evil.xyz se leen como https://evil.xyz).
+    - empieza por "//": se reescribe como "http://" más el resto sin las "/" iniciales
+      ("//", "///" y "////evil.xyz" se leen como http://evil.xyz). Una sola "/" inicial no
+      entra aquí: es una ruta relativa, sin host, que _is_invalid_host marca inválida.
+    - ya trae "<esquema>://" de otro tipo (file://, javascript://...): se deja igual.
+    - cualquier otro caso: se antepone "http://" (aunque "://" aparezca más adelante, en la
+      ruta, la query o el fragmento).
+    No lanza con ningún str; aplicarla de nuevo sobre una URL bien formada no la cambia.
     """
+    raw = raw.strip(_C0_AND_SPACE)
     cut = min((i for i in (raw.find("?"), raw.find("#")) if i != -1), default=len(raw))
     raw = raw[:cut].replace("\\", "/") + raw[cut:]
-    return raw if "://" in raw else f"http://{raw}"
+    special = _SPECIAL_SCHEME_RE.match(raw)
+    if special:
+        return f"{special.group(1)}://{raw[special.end():]}"
+    if raw.startswith("//"):
+        return "http://" + raw.lstrip("/")
+    if _ANY_SCHEME_RE.match(raw):
+        return raw
+    return f"http://{raw}"
+
+
+def _is_ignorable(ch: str) -> bool:
+    """
+    True si `ch` es invisible, de formato o de control: categoría Cf (U+200B, U+00AD, U+2060,
+    U+FEFF...) o Cc, o un carácter que UTS46/nameprep "mapea a nada" (stringprep B.1: selectores
+    de variación U+FE00..U+FE0F, U+034F, U+180B..U+180D, U+1806...), que no siempre es Cf.
+    """
+    return unicodedata.category(ch) in ("Cf", "Cc") or stringprep.in_table_b1(ch)
+
+
+def _is_trailing_junk(ch: str) -> bool:
+    """
+    True si `ch` suele quedar pegado al final de una URL copiada de un texto: la puntuación ASCII
+    de _TRAILING_PUNCTUATION o cualquier puntuación o símbolo Unicode (categorías P* y S*:
+    comillas tipográficas, comillas angulares, rayas, signos invertidos, emoji...), salvo ":"
+    (rompería las IPv6 como "2001:db8::").
+    """
+    return ch != ":" and (ch in _TRAILING_PUNCTUATION or unicodedata.category(ch)[0] in "PS")
+
+
+def _strip_trailing_junk(text: str) -> str:
+    """Quita del final de `text` todos los caracteres para los que _is_trailing_junk es True."""
+    end = len(text)
+    while end and _is_trailing_junk(text[end - 1]):
+        end -= 1
+    return text[:end]
+
+
+def _canonical_host(host: str) -> str:
+    """
+    Forma canónica de un host para compararlo con listas y marcas, como la vería un navegador.
+    En este orden: se eliminan los caracteres ignorables (_is_ignorable: invisibles, de formato
+    o de control) para que no queden entre una letra y su marca combinante; NFKC (las letras de
+    ancho completo pasan a ASCII); los puntos U+3002/U+FF0E/U+FF61 pasan a "."; minúsculas; y se
+    quita la puntuación o símbolo final (_is_trailing_junk: el FQDN "evil.xyz." es "evil.xyz", y
+    "evil.xyz,", "evil.xyz)" o "evil.xyz" seguido de una comilla tipográfica también). Solo afecta
+    al final del host. No decodifica %XX (eso lo hace el llamador) ni cubre IDNA/punycode.
+    """
+    host = "".join(ch for ch in host if not _is_ignorable(ch))
+    host = unicodedata.normalize("NFKC", host).translate(_UNICODE_DOTS).lower()
+    stripped = _strip_trailing_junk(host)
+    # Un host hecho solo de puntuación ("%", "/", comillas) no se borra: se conserva para que
+    # _is_invalid_host lo marque sospechoso en vez de desaparecer como "sin host". Solo los puntos
+    # solos ("." o "..") se vacían, y eso sigue dando el resultado de error NO_ANALIZADO.
+    return stripped if stripped or not host.strip(".") else host
+
+
+def _has_hidden_chars(text: str) -> bool:
+    """True si `text` contiene algún carácter ignorable (invisible, de formato o de control; ver _is_ignorable)."""
+    return any(_is_ignorable(ch) for ch in text)
+
+
+def _strip_trailing_tail(text: str) -> str:
+    """
+    Quita del final de `text` la cola mixta de caracteres ignorables y de puntuación o símbolo
+    (_is_ignorable o _is_trailing_junk), p. ej. un emoji con su selector de variación o un ZWSP.
+    """
+    end = len(text)
+    while end and (_is_ignorable(text[end - 1]) or _is_trailing_junk(text[end - 1])):
+        end -= 1
+    return text[:end]
+
+
+def _manual_host(raw: str) -> str:
+    """
+    Extrae el host a mano cuando urlparse no puede leer la URL (corchete desbalanceado o, en
+    Python >= 3.11.4, host entre corchetes que no es IPv6 como http://[evil.xyz]). En un
+    enlace markdown [texto](destino) pegado entero el navegador abre el DESTINO, no el texto:
+    si hay "](" se usa lo que sigue al ÚLTIMO "](" (el ")" final lo quita la puntuación final);
+    si no, se ignoran los "[" iniciales. Después quita el esquema, corta la autoridad en el
+    primer "/", "?" o "#", descarta el userinfo (lo anterior al último "@", como hace el
+    navegador: en https://x]@sitio.com/ el host es sitio.com) y el ":puerto", y lo
+    canonicaliza. Devuelve "" si no hay host; no lanza.
+    """
+    try:
+        s = raw.rsplit("](", 1)[1] if "](" in raw else raw.lstrip("[")
+        s = _normalize_url(s)
+        if "://" in s:
+            s = s.split("://", 1)[1]
+        authority = re.split(r"[/?#]", s, maxsplit=1)[0]
+        # la puntuación final (el ")" del destino markdown) se quita ANTES del ":puerto": si no,
+        # "evil.xyz:8080)" conserva el ":" y el host se rechaza como inválido
+        host = re.sub(r":\d*$", "", _strip_trailing_junk(authority.rpartition("@")[2]))
+        return _canonical_host(unquote(host))
+    except Exception:
+        return ""
+
+
+def _parse_host_strict(raw: str) -> Tuple[str, bool]:
+    """Núcleo de _parse_host: lee el host y puede lanzar (urlparse lanza ValueError con corchetes desbalanceados)."""
+    parsed = urlparse(_normalize_url(raw))
+    try:
+        _ = parsed.port  # ValueError si el puerto no es numérico o está fuera de rango
+        bad_port = False
+    except ValueError:
+        bad_port = True
+    # hostname descarta userinfo (user:pass@), puerto y corchetes IPv6
+    host = parsed.hostname
+    if host:
+        # el navegador decodifica %XX en el host (p. ej. %2e -> "."); solo se decodifica el host
+        decoded = unquote(host)
+        # los ignorables de la cola final (un emoji con su selector de variación, un ZWSP pegado
+        # a un enlace copiado de un texto) no vuelven sospechoso el host; los interiores sí
+        core = _strip_trailing_tail(decoded)
+        return _canonical_host(decoded), bad_port or _has_hidden_chars(core)
+    # sin hostname el dominio es la ruta (p. ej. file:///etc), que empieza por "/" y
+    # _is_invalid_host rechaza; por eso aquí no hace falta marcarlo como sospechoso
+    return _canonical_host(parsed.path), bad_port
+
+
+def _parse_host(raw: str) -> Tuple[str, bool]:
+    """
+    Devuelve (dominio canónico, sospechoso). `sospechoso` es True si el host no se pudo leer
+    (urlparse falló y el dominio es la entrada completa en minúsculas), si el puerto no es
+    válido (no numérico o fuera de 0-65535; p. ej. "javascript:alert(1)" o "blob:https://x"
+    se leen como host:puerto), o si el host decodificado traía caracteres ignorables (invisibles,
+    de formato o de control; p. ej. un U+202E, un U+200B, un selector de variación o un %00
+    decodificado). Un navegador elimina o rechaza esos caracteres, pero _canonical_host los
+    elimina siempre para poder comparar contra la lista negra y las marcas.
+    La cola final de ignorables y puntuación del host no lo vuelve sospechoso; los ignorables
+    interiores sí.
+    Si urlparse falla (típico: un "]" final de markdown deja el corchete desbalanceado) se reintenta
+    UNA vez sin la puntuación final de la entrada; si el reintento funciona y deja un host no
+    vacío se devuelve tal cual, sin marcar sospechoso solo por esa puntuación. Si tampoco así, se
+    extrae el host a mano (_manual_host: enlace markdown [url](url), userinfo con "]") y, si es
+    un host válido, se devuelve ese dominio como sospechoso (urlparse no pudo leerlo, pero la
+    lista negra, el TLD y las marcas ven el host real). Último recurso: la entrada completa en
+    minúsculas como dominio, sospechoso.
+    """
+    try:
+        return _parse_host_strict(raw)
+    except Exception:
+        trimmed = _strip_trailing_junk(raw)
+        if trimmed != raw:
+            try:
+                retried = _parse_host_strict(trimmed)
+                if retried[0]:
+                    return retried
+            except Exception:
+                pass
+        manual = _manual_host(raw)
+        if manual and not _is_invalid_host(manual):
+            return manual, True
+        return raw.lower(), True
 
 
 def _extract_domain(raw: str) -> str:
-    """Extrae el dominio (host en minúsculas) de una URL; ante error, devuelve la entrada en minúsculas."""
-    try:
-        parsed = urlparse(_normalize_url(raw))
-        # hostname descarta userinfo (user:pass@), puerto y corchetes IPv6
-        host = parsed.hostname
-        if host:
-            # el navegador decodifica %XX en el host (p. ej. %2e -> "."); solo se decodifica el host
-            return unquote(host).lower()
-        return parsed.path.lower()
-    except Exception:
-        return raw.lower()
+    """Extrae el dominio canónico (host en minúsculas) de una URL; ante error, devuelve la entrada en minúsculas."""
+    return _parse_host(raw)[0]
+
+
+def _is_invalid_host(domain: str) -> bool:
+    """
+    True si `domain` no puede ser un host real y se usa para evadir filtros: más largo que
+    MAX_DOMAIN_LEN; con espacios, caracteres de control o delimitadores (/ \\ ? # @ % < > ^ | [ ]
+    { } " ' `); con una etiqueta vacía interna ("a..b"); con algún carácter que no sea letra,
+    marca combinante o número (categorías L*, M*, N*) ni uno de "-._:" (emoji, símbolos, "+", "~",
+    "=", "*", "(", ")", ",", ";" dentro del host); o con ":" sin ser una IPv6 válida (las IPv6
+    llegan sin corchetes, p. ej. "::1"); o sin ninguna letra ni número (L* o N*: "-", "_", "-.-").
+    Siguen siendo válidos "münchen.de", "xn--abc.com", "a_b.com", "123.example.com", "::1".
+    """
+    if len(domain) > MAX_DOMAIN_LEN or _INVALID_HOST_RE.search(domain) or ".." in domain:
+        return True
+    if not any(unicodedata.category(ch)[0] in "LN" for ch in domain):
+        return True
+    if any(ch not in "-._:" and unicodedata.category(ch)[0] not in "LMN" for ch in domain):
+        return True
+    if ":" in domain:
+        try:
+            ipaddress.ip_address(domain)
+        except ValueError:
+            return True
+    return False
 
 
 def _load_blacklist(path) -> frozenset[str]:
@@ -214,7 +439,8 @@ def _load_blacklist(path) -> frozenset[str]:
     devuelve un conjunto vacío (el análisis sigue funcionando solo con heurística).
     """
     try:
-        with open(path, "r", encoding="utf-8") as f:
+        # utf-8-sig tolera el BOM que añade el Bloc de notas de Windows (con utf-8 el JSON no parsea)
+        with open(path, "r", encoding="utf-8-sig") as f:
             data = json.load(f)
         entries = data.get("entries") if isinstance(data, dict) else None
         if not isinstance(entries, list):
@@ -244,8 +470,10 @@ def _is_blacklisted(domain: str, blacklist: frozenset) -> bool:
     """
     Indica si `domain` o alguno de sus sufijos de etiquetas está en `blacklist`
     (a.b.site se prueba como "a.b.site" y "b.site"). Nunca se prueba el TLD suelto.
+    Devuelve False sin trabajar si `domain` supera MAX_DOMAIN_LEN: así el coste queda acotado
+    (armar los sufijos de un dominio enorme sería cuadrático).
     """
-    if not blacklist:
+    if not blacklist or len(domain) > MAX_DOMAIN_LEN:
         return False
     labels = domain.rstrip(".").split(".")
     return any(".".join(labels[i:]) in blacklist for i in range(len(labels) - 1))
@@ -271,22 +499,55 @@ def analyze_url(raw_url: str, expand: bool = True, blacklist: Optional[frozenset
     - Detección de typosquatting bancario contra entidades financieras colombianas,
       mediante normalización leetspeak y distancia de edición.
 
+    El host se lee de forma aproximada a como lo haría un navegador, solo en lo que afecta a
+    los filtros (no es el estándar WHATWG completo; IDN/punycode no se cubren): "\\" antes de
+    "?" o "#" equivale a "/", se completa el esquema (https:evil.xyz, //evil.xyz), se decodifican
+    los %XX del host, se eliminan los caracteres ignorables (invisibles, de formato o de control,
+    y los que UTS46 mapea a nada, como los selectores de variación), se aplica NFKC, los puntos
+    Unicode (U+3002, U+FF0E, U+FF61) valen "." y se quita la puntuación o símbolo pegado al final
+    del host (el punto del FQDN, y también , ; ! ) ] } ' " o comillas tipográficas, rayas o emoji
+    cuando la URL viene de un texto); esa puntuación final, ASCII o tipográfica, se elimina antes
+    de comparar. Un host inválido o con caracteres de evasión (delimitadores, espacios, %,
+    caracteres ignorables, etiquetas vacías, más de 253 caracteres, ":" que no sea IPv6, un
+    puerto no numérico o fuera de 0-65535, un carácter que no sea letra, marca combinante, número
+    ni uno de "-._:" como emoji, símbolos o "+ ~ = * ( ) , ;" dentro del host, o un host que
+    urlparse no puede leer) suma 40 puntos y añade un hallazgo; así queda al menos SOSPECHOSO
+    (falla cerrado). Como los caracteres de formato se eliminan y dejan el host sospechoso, un
+    dominio legítimo con ZWNJ/ZWJ (persa, hindi) o con puntuación interna (p. ej. U+00B7)
+    también queda marcado: se acepta para el contexto de fraude en Colombia (SMS).
+    Casos particulares:
+    - la cola final de ignorables y puntuación (un emoji con su selector de variación, un ZWSP)
+      no vuelve sospechoso el host; los ignorables interiores sí;
+    - una entrada con "](" (enlace markdown [texto](destino) o "](" en ruta/fragmento) se divide en
+      segmentos (hasta 4: los 2 primeros y los 2 últimos), se analiza cada segmento no vacío sin
+      sumar puntos por ser markdown y se devuelve el resultado de mayor riesgo; un userinfo con "]"
+      (https://x]@sitio.com/), que urlparse no puede leer, se analiza con el host real y queda
+      sospechoso;
+    - los controles C0 y espacios iniciales o finales se ignoran, como hace el navegador;
+    - una URL de más de MAX_URL_LEN (8192) caracteres suma 40 puntos y no se desenrolla; el host se
+      lee solo de los primeros 8192 caracteres, y si la autoridad no se cierra dentro de esa ventana
+      el host también se marca como sospechoso.
+
     Args:
         raw_url: URL o dominio a analizar (se acepta sin esquema).
-        expand: si es True, desenrolla los acortadores detectados.
-        blacklist: conjunto de dominios ya normalizados (minúsculas, sin punto final) contra
-            el que se compara el dominio. Si es None se usa la lista local de
-            data/url_blacklist.json (BLACKLIST_PATH), leída una vez y cacheada; si ese archivo
-            falta o es inválido la lista queda vacía. Un frozenset vacío desactiva la
-            consulta y deja solo la heurística.
+        expand: si es True, desenrolla los acortadores detectados. Debe ser bool.
+        blacklist: conjunto (set o frozenset) de dominios ya normalizados (minúsculas, sin punto
+            final) contra el que se compara el dominio; un set se convierte a frozenset. Si es
+            None se usa la lista local de data/url_blacklist.json (BLACKLIST_PATH), leída una vez
+            y cacheada; si ese archivo falta o es inválido la lista queda vacía. Un frozenset
+            vacío desactiva la consulta y deja solo la heurística.
+
+    Raises:
+        TypeError: si `expand` no es bool, o si `blacklist` no es None, set ni frozenset.
 
     Returns:
         Diccionario con las claves:
-        - status: "success", o "error" si la entrada está vacía o no es texto.
+        - status: "success", o "error" si la entrada está vacía, no es texto o no contiene
+          un host (por ejemplo "http://"); en ese caso el veredicto es NO_ANALIZADO.
         - original_url / expanded_url: URL recibida (sin espacios en los extremos) y URL
-          final tras el desenrollado.
-        - domain: dominio analizado en minúsculas. Aproxima la lectura de un navegador solo en
-          dos puntos: "\\" antes de "?" o "#" equivale a "/" y se decodifican los %XX del host.
+          final tras el desenrollado; en un resultado de error siempre son str ("" si la
+          entrada no era texto).
+        - domain: dominio analizado, ya canonicalizado como se describe arriba.
         - is_suspicious_tld / is_shortener / is_typosquatting: indicadores booleanos.
         - is_blacklisted: True si el dominio, o el destino de un acortador desenrollado,
           está en la lista negra.
@@ -304,6 +565,13 @@ def analyze_url(raw_url: str, expand: bool = True, blacklist: Optional[frozenset
               hubo desenrollado (no es acortador o expand es False). No incluye el re-análisis
               del destino.
     """
+    if not isinstance(expand, bool):
+        raise TypeError("expand debe ser bool")
+    if blacklist is not None and not isinstance(blacklist, (set, frozenset)):
+        # un str haría que `in` buscara subcadenas; list/tuple/bytes tampoco son un conjunto de dominios
+        raise TypeError("blacklist debe ser un set/frozenset de dominios o None")
+    if isinstance(blacklist, set):
+        blacklist = frozenset(blacklist)
     # perf_counter mide duraciones; en Windows con Python < 3.13 monotonic tiene resolución de ~15 ms
     t0 = time.perf_counter()
     core = _analyze_url(raw_url, expand, blacklist)
@@ -313,27 +581,64 @@ def analyze_url(raw_url: str, expand: bool = True, blacklist: Optional[frozenset
     return {**core, "telemetry": {**core["telemetry"], "latency_ms": latency_ms}}
 
 
+def _error_result(raw_url: Any, finding: str) -> Dict[str, Any]:
+    """Resultado NO_ANALIZADO con las mismas claves que uno de éxito; las URLs siempre son str (JSON-seguro)."""
+    url = raw_url if isinstance(raw_url, str) else ""
+    return {
+        "status": "error",
+        "original_url": url,
+        "expanded_url": url,
+        "domain": "",
+        "is_suspicious_tld": False,
+        "is_shortener": False,
+        "is_typosquatting": False,
+        "is_blacklisted": False,
+        "impersonated_brand": None,
+        "risk_score": 0,
+        "verdict": "NO_ANALIZADO",
+        "findings": [finding],
+        "redirect_chain": [],
+        "expansion_error": None,
+        "telemetry": {"expansion_ms": None}
+    }
+
+
 def _analyze_url(raw_url: str, expand: bool, blacklist: Optional[frozenset]) -> Dict[str, Any]:
     """Núcleo del análisis de URL; lo invocan analyze_url y la recursión del desenrollado."""
     if not isinstance(raw_url, str) or not raw_url.strip():
-        return {
-            "status": "error",
-            "original_url": raw_url,
-            "expanded_url": raw_url,
-            "domain": "",
-            "is_suspicious_tld": False,
-            "is_shortener": False,
-            "is_typosquatting": False,
-            "is_blacklisted": False,
-            "impersonated_brand": None,
-            "risk_score": 0,
-            "verdict": "NO_ANALIZADO",
-            "findings": ["Entrada vacía o inválida: no hay URL para analizar"],
-            "redirect_chain": [],
-            "expansion_error": None,
-            "telemetry": {"expansion_ms": None}
-        }
+        return _error_result(raw_url, "Entrada vacía o inválida: no hay URL para analizar")
     raw_url = raw_url.strip()
+    if "](" in raw_url:
+        parts = raw_url.split("](")
+        if len(parts) > 4:
+            parts = parts[:2] + parts[-2:]
+        segments = [s for p in parts if (s := p.rstrip(")] \t\r\n").lstrip("["))]
+        if not segments:
+            return _error_result(raw_url, "No se pudo extraer un host de la entrada")
+        if blacklist is None:
+            blacklist = _get_blacklist()
+        results = [_analyze_url(seg, expand, blacklist) for seg in segments]
+        best = max(results, key=lambda r: (r["status"] == "success", r["risk_score"]))
+        expanded = (
+            raw_url
+            if best["expanded_url"] == best["original_url"]
+            else best["expanded_url"]
+        )
+        return {
+            **best,
+            "original_url": raw_url,
+            "expanded_url": expanded,
+            "findings": list(best["findings"]),
+        }
+    # el recorte se usa SOLO para leer el host (acota el coste de NFKC); original_url,
+    # redirect_chain y expanded_url conservan la URL completa
+    url_too_long = len(raw_url) > MAX_URL_LEN
+    window = raw_url[:MAX_URL_LEN]
+    after_scheme = window.split("://", 1)[1] if "://" in window else window
+    unclosed_authority = url_too_long and not any(c in after_scheme for c in "/?#\\")
+    domain, suspicious_host = _parse_host(window)
+    if not domain:
+        return _error_result(raw_url, "No se pudo extraer un host de la entrada")
     if blacklist is None:
         blacklist = _get_blacklist()
     findings = []
@@ -342,14 +647,29 @@ def _analyze_url(raw_url: str, expand: bool, blacklist: Optional[frozenset]) -> 
     redirect_chain = [raw_url]
     expansion_error = None
     expansion_ms = None  # None = no hubo red (distinto de 0 ms)
-
-    domain = _extract_domain(raw_url)
+    # por encima del límite no se corren los chequeos costosos (lista negra y typosquatting)
+    domain_too_long = len(domain) > MAX_DOMAIN_LEN
 
     # 0. Lista negra local de URLs fraudulentas reportadas
-    is_blacklisted = _is_blacklisted(domain, blacklist)
+    is_blacklisted = not domain_too_long and _is_blacklisted(domain, blacklist)
     if is_blacklisted:
         risk_score += 100
         findings.append(f"Dominio en lista negra local de URLs fraudulentas ({domain})")
+
+    # 0b. Host inválido o con caracteres de evasión: falla cerrado (sospechoso)
+    if suspicious_host or _is_invalid_host(domain):
+        risk_score += 40
+        findings.append(f"Host inválido o con caracteres de evasión ({domain[:80]!r})")
+    elif unclosed_authority:
+        risk_score += 40
+        findings.append(
+            "Host inválido o con caracteres de evasión (autoridad más larga que la ventana de análisis)"
+        )
+
+    # 0c. URL demasiado larga: sospechosa y sin desenrollar (casi ninguna URL legítima de SMS supera MAX_URL_LEN)
+    if url_too_long:
+        risk_score += 40
+        findings.append(f"URL demasiado larga ({len(raw_url)} caracteres)")
 
     # 1. Verificación de TLD sospechoso
     is_suspicious_tld = any(domain.endswith(tld) for tld in SUSPICIOUS_TLDS)
@@ -366,7 +686,7 @@ def _analyze_url(raw_url: str, expand: bool, blacklist: Optional[frozenset]) -> 
     # 3. Detección de Typosquatting (Suplantación bancaria)
     is_typosquatting = False
     impersonated_brand = None
-    brand = _detect_brand(domain)
+    brand = None if domain_too_long else _detect_brand(domain)
     if brand:
         is_typosquatting = True
         impersonated_brand = brand
@@ -374,8 +694,8 @@ def _analyze_url(raw_url: str, expand: bool, blacklist: Optional[frozenset]) -> 
         findings.append(f"Alerta de Typosquatting: El dominio '{domain}' imita ilícitamente a '{brand}'")
 
     # 3b. Desenrollado del acortador y análisis del destino real
-    if is_shortener and expand:
-        # misma cadena normalizada que usa _extract_domain; los %XX del host no se decodifican
+    if is_shortener and expand and not url_too_long:
+        # misma cadena normalizada que usa _parse_host; los %XX del host no se decodifican
         # para el HEAD (un host con %XX no resuelve y la expansión falla cerrada)
         start = _normalize_url(raw_url)
         t_expand = time.perf_counter()
