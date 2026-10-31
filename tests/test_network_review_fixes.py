@@ -39,8 +39,8 @@ class FakeSocket:
 # Detección de saltos intermedios en bucles de redirección
 # ============================================================================
 
-def test_f1_redirect_loop_aba_detects_blacklisted_intermediate(monkeypatch):
-    """Bucle A -> B -> A evalúa el salto intermedio B aunque expanded_url == start."""
+def test_redirect_loop_aba_detects_blacklisted_destination(monkeypatch):
+    """Bucle A -> B -> A evalúa el último salto alcanzado B como destino final."""
     routes = {
         "http://bit.ly/loop": (301, "https://malicioso.org/hop"),
         "https://malicioso.org/hop": (301, "http://bit.ly/loop"),
@@ -57,16 +57,17 @@ def test_f1_redirect_loop_aba_detects_blacklisted_intermediate(monkeypatch):
     assert res["is_blacklisted"] is True
     assert res["verdict"] == "MALICIOSO"
     assert res["risk_score"] == 100
-    assert "Salto intermedio en lista negra local (malicioso.org)" in res["findings"]
+    assert "Dominio en lista negra local de URLs fraudulentas (malicioso.org)" in res["findings"]
     assert res["expansion_error"] == "Bucle de redirecciones"
+    assert res["expanded_url"] == "https://malicioso.org/hop"
     assert res["redirect_chain"] == [
         "http://bit.ly/loop",
         "https://malicioso.org/hop",
     ]
 
 
-def test_f1_redirect_loop_abcb_detects_last_intermediate(monkeypatch):
-    """Bucle A -> B -> C -> B evalúa el salto C aunque vuelva a un salto previo B."""
+def test_redirect_loop_abcb_detects_last_hop(monkeypatch):
+    """Bucle A -> B -> C -> B evalúa el último salto C alcanzado como destino final."""
     routes = {
         "http://bit.ly/start": (301, "https://limpio-b.com/hop"),
         "https://limpio-b.com/hop": (301, "https://malicioso-c.org/gate"),
@@ -84,8 +85,9 @@ def test_f1_redirect_loop_abcb_detects_last_intermediate(monkeypatch):
     assert res["is_blacklisted"] is True
     assert res["verdict"] == "MALICIOSO"
     assert res["risk_score"] == 100
-    assert "Salto intermedio en lista negra local (malicioso-c.org)" in res["findings"]
+    assert "Dominio en lista negra local de URLs fraudulentas (malicioso-c.org)" in res["findings"]
     assert res["expansion_error"] == "Bucle de redirecciones"
+    assert res["expanded_url"] == "https://malicioso-c.org/gate"
     assert res["redirect_chain"] == [
         "http://bit.ly/start",
         "https://limpio-b.com/hop",
@@ -93,7 +95,7 @@ def test_f1_redirect_loop_abcb_detects_last_intermediate(monkeypatch):
     ]
 
 
-def test_f1_chain_without_loop_maintains_behavior(monkeypatch):
+def test_chain_without_loop_maintains_behavior(monkeypatch):
     """Cadena sin bucle sigue detectando saltos intermedios listados con normalidad."""
     routes = {
         "http://bit.ly/normal": (301, "https://intermedio.org/step"),
@@ -116,7 +118,7 @@ def test_f1_chain_without_loop_maintains_behavior(monkeypatch):
     assert res["expansion_error"] is None
 
 
-def test_f1_repeated_blacklisted_hop_counted_only_once(monkeypatch):
+def test_repeated_blacklisted_hop_counted_only_once(monkeypatch):
     """Un dominio intermedio listado repetido en la cadena solo puntúa y se reporta una vez."""
     routes = {
         "http://bit.ly/multi": (301, "https://repetido.org/1"),
@@ -143,7 +145,7 @@ def test_f1_repeated_blacklisted_hop_counted_only_once(monkeypatch):
 # Preservación de parámetros de matriz (;params) en HEAD request
 # ============================================================================
 
-def test_f3_head_request_preserves_matrix_parameters(monkeypatch):
+def test_head_request_preserves_matrix_parameters(monkeypatch):
     """_head_request conserva ;params en la ruta usando urlsplit (/a;b=1?q=2)."""
     fake_sock = FakeSocket()
     monkeypatch.setattr(sandbox, "_head_request", real_head_request)
@@ -161,7 +163,7 @@ def test_f3_head_request_preserves_matrix_parameters(monkeypatch):
 # Cierre explícito de la respuesta (resp.close()) antes de conn.close()
 # ============================================================================
 
-def test_f4_head_request_closes_response_on_success(monkeypatch):
+def test_head_request_closes_response_on_success(monkeypatch):
     """Verifica que resp.close() se llame en el finally antes de conn.close() en caso exitoso."""
     events = []
 
@@ -203,7 +205,7 @@ def test_f4_head_request_closes_response_on_success(monkeypatch):
     assert events.index("resp.close") < events.index("conn.close")
 
 
-def test_f4_head_request_closes_response_when_getheader_raises(monkeypatch):
+def test_head_request_closes_response_when_getheader_raises(monkeypatch):
     """Verifica que resp.close() se llame en el finally incluso cuando getheader lanza excepción."""
     events = []
 
@@ -248,7 +250,7 @@ def test_f4_head_request_closes_response_when_getheader_raises(monkeypatch):
 # Normalización de punto final (.rstrip('.')) en saltos de lista negra
 # ============================================================================
 
-def test_f5_blacklisted_hops_trailing_dot_deduplication():
+def test_blacklisted_hops_trailing_dot_deduplication():
     """Deduplicación considera idénticos dominios con y sin punto final (a.site. y a.site)."""
     chain = [
         "https://inicio.com/0",
@@ -263,7 +265,7 @@ def test_f5_blacklisted_hops_trailing_dot_deduplication():
     assert hops == ["malicioso.org"]
 
 
-def test_f5_blacklisted_hops_trailing_dot_skip_matching():
+def test_blacklisted_hops_trailing_dot_skip_matching():
     """La exclusión mediante skip reconoce dominios independientemente del punto final."""
     blacklist = frozenset({"salto.org", "otro.org"})
 
@@ -278,7 +280,7 @@ def test_f5_blacklisted_hops_trailing_dot_skip_matching():
     assert hops2 == ["otro.org"]
 
 
-def test_f5_analyze_url_intermediate_hop_with_trailing_dot(monkeypatch):
+def test_analyze_url_intermediate_hop_with_trailing_dot(monkeypatch):
     """analyze_url detecta y reporta salto intermedio con punto final normalizado."""
     routes = {
         "http://bit.ly/dot": (301, "https://malicioso.org./r"),
@@ -297,3 +299,44 @@ def test_f5_analyze_url_intermediate_hop_with_trailing_dot(monkeypatch):
     assert res["is_blacklisted"] is True
     assert res["verdict"] == "MALICIOSO"
     assert "Salto intermedio en lista negra local (malicioso.org)" in res["findings"]
+
+
+def test_redirect_loop_aba_scores_typosquatting_and_suspicious_tld_destination(monkeypatch):
+    """A->B->A con B de TLD .xyz imitando un banco y blacklist vacía sube de 25 y puntúa el destino B."""
+    routes = {
+        "http://bit.ly/loop": (301, "https://banc0lombia-seguro.xyz/login"),
+        "https://banc0lombia-seguro.xyz/login": (301, "http://bit.ly/loop"),
+    }
+    monkeypatch.setattr(sandbox, "_head_request", _fake_head(routes))
+
+    res = sandbox.analyze_url("bit.ly/loop", expand=True, blacklist=frozenset())
+
+    assert res["status"] == "success"
+    assert res["expanded_url"] == "https://banc0lombia-seguro.xyz/login"
+    assert res["risk_score"] > 25
+    assert res["verdict"] == "MALICIOSO"
+    assert res["is_typosquatting"] is True
+    assert res["impersonated_brand"] == "bancolombia"
+    assert res["is_suspicious_tld"] is True
+    assert res["expansion_error"] == "Bucle de redirecciones"
+
+
+def test_redirect_loop_abcb_analyzes_destination_c(monkeypatch):
+    """A->B->C->B analiza C como destino final."""
+    routes = {
+        "http://bit.ly/start": (301, "https://limpio-b.com/hop"),
+        "https://limpio-b.com/hop": (301, "https://destino-c.com/gate"),
+        "https://destino-c.com/gate": (301, "https://limpio-b.com/hop"),
+    }
+    monkeypatch.setattr(sandbox, "_head_request", _fake_head(routes))
+
+    res = sandbox.analyze_url("bit.ly/start", expand=True, blacklist=frozenset())
+
+    assert res["status"] == "success"
+    assert res["expanded_url"] == "https://destino-c.com/gate"
+    assert res["expansion_error"] == "Bucle de redirecciones"
+    assert res["redirect_chain"] == [
+        "http://bit.ly/start",
+        "https://limpio-b.com/hop",
+        "https://destino-c.com/gate",
+    ]

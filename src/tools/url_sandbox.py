@@ -246,6 +246,13 @@ def _head_request(url: str, timeout: float = EXPAND_TIMEOUT) -> Tuple[int, Optio
         conn.close()
 
 
+def _clean_backslashes(raw: str) -> str:
+    """Quita espacios y controles C0 de los extremos y reemplaza '\\' por '/' antes del primer '?' o '#'."""
+    raw = raw.strip(_C0_AND_SPACE)
+    cut = min((i for i in (raw.find("?"), raw.find("#")) if i != -1), default=len(raw))
+    return raw[:cut].replace("\\", "/") + raw[cut:]
+
+
 def _expand_url(url: str) -> Tuple[str, List[str], Optional[str]]:
     """
     Desenrolla redirecciones con HEAD manual (máx. MAX_REDIRECTS saltos).
@@ -285,12 +292,14 @@ def _expand_url(url: str) -> Tuple[str, List[str], Optional[str]]:
                 break
             if time.monotonic() > deadline:
                 return current, chain, budget_error
-            current = urljoin(current, location)
+            location = _clean_backslashes(location)
+            next_url = urljoin(current, location)
             # solo http/https: normalizar otro esquema (mailto:x@y) lo volvería http://mailto:x@y
-            if urlparse(current).scheme in ("http", "https"):
-                current = _normalize_url(current)
-            if current in chain:
+            if urlparse(next_url).scheme in ("http", "https"):
+                next_url = _normalize_url(next_url)
+            if next_url in chain:
                 return current, chain, "Bucle de redirecciones"
+            current = next_url
             chain.append(current)
         return current, chain, f"Demasiadas redirecciones (>{MAX_REDIRECTS})"
     except PermissionError:
@@ -323,9 +332,7 @@ def _normalize_url(raw: str) -> str:
       ruta, la query o el fragmento).
     No lanza con ningún str; aplicarla de nuevo sobre una URL bien formada no la cambia.
     """
-    raw = raw.strip(_C0_AND_SPACE)
-    cut = min((i for i in (raw.find("?"), raw.find("#")) if i != -1), default=len(raw))
-    raw = raw[:cut].replace("\\", "/") + raw[cut:]
+    raw = _clean_backslashes(raw)
     special = _SPECIAL_SCHEME_RE.match(raw)
     if special:
         return f"{special.group(1)}://{raw[special.end():]}"
@@ -400,11 +407,11 @@ def _strip_trailing_tail(text: str) -> str:
 
 def _manual_host(raw: str) -> str:
     """
-    Extrae el host a mano cuando urlparse no puede leer la URL (corchete desbalanceado o, en
-    Python >= 3.11.4, host entre corchetes que no es IPv6 como http://[evil.xyz]). En un
-    enlace markdown [texto](destino) pegado entero el navegador abre el DESTINO, no el texto:
-    si hay "](" se usa lo que sigue al ÚLTIMO "](" (el ")" final lo quita la puntuación final);
-    si no, se ignoran los "[" iniciales. Después quita el esquema, corta la autoridad en el
+    Extrae el host a mano cuando urlparse no puede leer la URL (corchete desbalanceado,
+    como https://x]@sitio.com/ o [host/ruta). En un enlace markdown [texto](destino) pegado
+    entero el navegador abre el DESTINO, no el texto: si hay "](" se usa lo que sigue al
+    ÚLTIMO "](" (el ")" final lo quita la puntuación final); si no, se ignoran los "["
+    iniciales de la entrada. Después quita el esquema, corta la autoridad en el
     primer "/", "?" o "#", descarta el userinfo (lo anterior al último "@", como hace el
     navegador: en https://x]@sitio.com/ el host es sitio.com) y el ":puerto", y lo
     canonicaliza. Devuelve "" si no hay host; no lanza.
@@ -571,7 +578,7 @@ def _blacklisted_hops(
     skip_set = {s.rstrip(".") for s in skip} if skip else set()
     hops: List[str] = []
     for hop in chain:
-        domain = _extract_domain(hop).rstrip(".")
+        domain = _extract_domain(hop[:MAX_URL_LEN]).rstrip(".")
         if not domain or domain in skip_set:
             continue
         if _is_blacklisted(domain, blacklist) and domain not in hops:
@@ -593,8 +600,9 @@ def analyze_url(raw_url: str, expand: bool = True, blacklist: Optional[frozenset
     - Desenrollado de los acortadores detectados (solo si `expand` es True) con peticiones
       HEAD, sin seguir redirecciones automáticamente (cada salto se valida a mano). Incluye
       protección SSRF: cada salto hace una sola resolución DNS, la IP del destino se valida
-      como pública (se rechazan privadas, loopback, link-local, multicast, site-local y las
-      NAT64 o IPv4 embebidas no públicas) y se fija para la conexión, solo se permiten los
+      como pública (se rechazan privadas, loopback, link-local, multicast, site-local, y redes
+      IPv6 descartadas por completo como ::/96, 6to4, Teredo y NAT64; para IPv4-mapped la
+      decisión depende de si su IPv4 embebida es pública) y se fija para la conexión, solo se permiten los
       puertos de ALLOWED_PORTS (el puerto siempre se envía explícito), y la expansión se corta
       si se supera el presupuesto de tiempo (EXPAND_BUDGET), comprobado antes y después de cada
       HEAD y pasado como timeout al HEAD; no es un límite duro, porque el timeout es por
@@ -708,11 +716,21 @@ def _error_result(raw_url: Any, finding: str) -> Dict[str, Any]:
     }
 
 
+def _verdict(score: int) -> str:
+    """Calcula el veredicto a partir del puntaje de riesgo."""
+    if score >= 60:
+        return "MALICIOSO"
+    elif score >= 25:
+        return "SOSPECHOSO"
+    return "SEGURO"
+
+
 def _analyze_url(raw_url: str, expand: bool, blacklist: Optional[frozenset]) -> Dict[str, Any]:
     """Núcleo del análisis de URL; lo invocan analyze_url y la recursión del desenrollado."""
     if not isinstance(raw_url, str) or not raw_url.strip():
         return _error_result(raw_url, "Entrada vacía o inválida: no hay URL para analizar")
     raw_url = raw_url.strip()
+    url_too_long = len(raw_url) > MAX_URL_LEN
     if "](" in raw_url:
         parts = raw_url.split("](")
         if len(parts) > 4:
@@ -722,18 +740,43 @@ def _analyze_url(raw_url: str, expand: bool, blacklist: Optional[frozenset]) -> 
             return _error_result(raw_url, "No se pudo extraer un host de la entrada")
         if blacklist is None:
             blacklist = _get_blacklist()
-        results = [_analyze_url(seg, expand, blacklist) for seg in segments]
+        results = [
+            _analyze_url(
+                seg,
+                expand=expand and (i == len(segments) - 1) and not url_too_long,
+                blacklist=blacklist,
+            )
+            for i, seg in enumerate(segments)
+        ]
         best = max(results, key=lambda r: (r["status"] == "success", r["risk_score"]))
         expanded = (
             raw_url
             if best["expanded_url"] == best["original_url"]
             else best["expanded_url"]
         )
+        findings = list(best["findings"])
+        risk_score = best["risk_score"]
+        verdict = best["verdict"]
+        # si el segmento elegido ya pagó su propio "URL demasiado larga", no se cobra dos veces
+        already_charged = any(f.startswith("URL demasiado larga") for f in findings)
+        if best["status"] == "success" and url_too_long and not already_charged:
+            risk_score = min(100, risk_score + 40)
+            findings.append(f"URL demasiado larga ({len(raw_url)} caracteres)")
+            verdict = _verdict(risk_score)
+        exp_times = [
+            r["telemetry"]["expansion_ms"]
+            for r in results
+            if r.get("telemetry") and r["telemetry"].get("expansion_ms") is not None
+        ]
+        expansion_ms = round(sum(exp_times), 2) if exp_times else None
         return {
             **best,
             "original_url": raw_url,
             "expanded_url": expanded,
-            "findings": list(best["findings"]),
+            "risk_score": risk_score,
+            "verdict": verdict,
+            "findings": findings,
+            "telemetry": {"expansion_ms": expansion_ms},
         }
     # el recorte se usa SOLO para leer el host (acota el coste de NFKC); original_url,
     # redirect_chain y expanded_url conservan la URL completa
@@ -828,12 +871,7 @@ def _analyze_url(raw_url: str, expand: bool, blacklist: Optional[frozenset]) -> 
             findings.append(f"Salto intermedio en lista negra local ({hop})")
 
     # 4. Veredicto
-    if risk_score >= 60:
-        verdict = "MALICIOSO"
-    elif risk_score >= 25:
-        verdict = "SOSPECHOSO"
-    else:
-        verdict = "SEGURO"
+    verdict = _verdict(risk_score)
 
     return {
         "status": "success",

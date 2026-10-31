@@ -210,3 +210,70 @@ def test_expand_url_budget_exhausted_before_head(monkeypatch: pytest.MonkeyPatch
     assert "Presupuesto de tiempo agotado" in err
     assert final_url == "http://bit.ly/expired"
     assert chain == ["http://bit.ly/expired"]
+
+
+def test_markdown_overlong_input_adds_score_and_does_not_expand(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Entrada markdown mayor que MAX_URL_LEN suma 40 puntos y analiza segmentos con expand=False."""
+    head_calls = []
+
+    def mock_head(url: str, timeout: float = sandbox.EXPAND_TIMEOUT):
+        head_calls.append(url)
+        return (200, None)
+
+    monkeypatch.setattr(sandbox, "_head_request", mock_head)
+
+    seg1 = "https://example.com/p?" + ("a" * 5000)
+    seg2 = "https://bit.ly/target?" + ("b" * 5000)
+    raw = f"[{seg1}]({seg2})"
+    assert len(raw) > sandbox.MAX_URL_LEN
+
+    res = sandbox.analyze_url(raw, expand=True, blacklist=frozenset())
+
+    assert res["status"] == "success"
+    assert res["risk_score"] >= 40
+    assert any("URL demasiado larga" in f for f in res["findings"])
+    assert res["verdict"] in ("SOSPECHOSO", "MALICIOSO")
+    assert len(head_calls) == 0
+
+
+def test_markdown_only_expands_last_segment(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Solo el último segmento de un enlace markdown se expande realizando como máximo una llamada de red."""
+    head_calls = []
+
+    def mock_head(url: str, timeout: float = sandbox.EXPAND_TIMEOUT):
+        head_calls.append(url)
+        return (200, None)
+
+    monkeypatch.setattr(sandbox, "_head_request", mock_head)
+
+    raw = "[https://bit.ly/first](https://bit.ly/second)](https://bit.ly/third)"
+    res = sandbox.analyze_url(raw, expand=True, blacklist=frozenset())
+
+    assert res["status"] == "success"
+    assert len(head_calls) == 1
+    assert "bit.ly/third" in head_calls[0]
+
+
+def test_markdown_telemetry_aggregates_expansion_ms_when_best_is_not_expanded(monkeypatch: pytest.MonkeyPatch) -> None:
+    """La telemetría expansion_ms conserva el tiempo de red aunque el mejor segmento no sea el expandido."""
+    def mock_head(url: str, timeout: float = sandbox.EXPAND_TIMEOUT):
+        return (200, None)
+
+    monkeypatch.setattr(sandbox, "_head_request", mock_head)
+
+    raw = "[https://banc0lombia-seguro.xyz](https://bit.ly/safe)"
+    res = sandbox.analyze_url(raw, expand=True, blacklist=frozenset())
+
+    assert res["status"] == "success"
+    assert res["domain"] == "banc0lombia-seguro.xyz"
+    assert res["is_typosquatting"] is True
+    assert res["telemetry"]["expansion_ms"] is not None
+    assert res["telemetry"]["expansion_ms"] >= 0
+
+
+def test_markdown_telemetry_expansion_ms_is_none_when_no_network() -> None:
+    """La telemetría expansion_ms es None si ningún segmento realizó expansión de red."""
+    raw = "[https://www.bancolombia.com](https://google.com)"
+    res = sandbox.analyze_url(raw, expand=True, blacklist=frozenset())
+    assert res["status"] == "success"
+    assert res["telemetry"]["expansion_ms"] is None

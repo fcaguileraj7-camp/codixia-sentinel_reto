@@ -153,15 +153,26 @@ def test_non_shortener_never_does_network(monkeypatch):
     assert res["expansion_error"] is None
 
 def test_ssrf_blocks_private_redirect_target(monkeypatch):
-    def _fake_head(url, timeout=3):
+    """
+    Verifica que al redirigir a un destino con IP privada sea la función
+    real de resolución y validación la que lance PermissionError y aborte
+    la conexión antes de invocar socket.create_connection.
+    """
+    def _fail_create_connection(*args, **kwargs):
+        pytest.fail("socket.create_connection no debe invocarse para un destino privado")
+
+    monkeypatch.setattr(sandbox.socket, "create_connection", _fail_create_connection)
+
+    def _fake_head(url, timeout=sandbox.EXPAND_TIMEOUT):
         if url == "https://8.8.8.8/x":
             return (301, "http://127.0.0.1/admin")
         if url == "http://127.0.0.1/admin":
-            raise PermissionError("Host no p\u00fablico bloqueado (protecci\u00f3n SSRF)")
+            return real_head_request(url, timeout=timeout)
         return (200, None)
+
     monkeypatch.setattr(sandbox, "_head_request", _fake_head)
     start, chain, err = sandbox._expand_url("https://8.8.8.8/x")
-    assert "SSRF" in err
+    assert err == "Host no público bloqueado (protección SSRF)"
     assert chain == ["https://8.8.8.8/x", "http://127.0.0.1/admin"]
 
 def test_is_public_host_literals():

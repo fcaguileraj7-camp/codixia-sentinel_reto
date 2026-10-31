@@ -1,6 +1,6 @@
 """
 Pruebas de saltos de red, redirecciones y lista negra para UrlSandbox.
-Reto Agente 2026 - SentinelGuard AI \u00b7 Equipo Codixia
+Reto Agente 2026 - SentinelGuard AI - Equipo Codixia
 """
 
 import src.tools.url_sandbox as sandbox
@@ -269,4 +269,87 @@ def test_redirect_loop_multi_hop_normalized(monkeypatch):
         "https://bit.ly/start",
         "https://example.com/inter/hop",
     ]
-    assert expanded_url == "https://bit.ly/start"
+    assert expanded_url == "https://example.com/inter/hop"
+
+
+def test_location_with_leading_double_backslash(monkeypatch):
+    """Location con dos barras invertidas iniciales resuelve a host y ruta en http(s)."""
+    recorded_calls = []
+
+    def mock_head(url, timeout=3, **kwargs):
+        recorded_calls.append(url)
+        if url == "http://bit.ly/x":
+            loc = chr(92) * 2 + "host.cc" + chr(92) + "login"
+            return (301, loc)
+        return (200, None)
+
+    monkeypatch.setattr(sandbox, "_head_request", mock_head)
+
+    expanded_url, chain, error = sandbox._expand_url("http://bit.ly/x")
+
+    assert error is None
+    assert expanded_url == "http://host.cc/login"
+    assert recorded_calls == ["http://bit.ly/x", "http://host.cc/login"]
+
+
+def test_location_with_scheme_and_double_backslash(monkeypatch):
+    """Location con 'https:<2 barras invertidas>host...' sigue funcionando correctamente."""
+    recorded_calls = []
+
+    def mock_head(url, timeout=3, **kwargs):
+        recorded_calls.append(url)
+        if url == "http://bit.ly/scheme":
+            loc = "https:" + chr(92) * 2 + "host.cc" + chr(92) + "login"
+            return (301, loc)
+        return (200, None)
+
+    monkeypatch.setattr(sandbox, "_head_request", mock_head)
+
+    expanded_url, chain, error = sandbox._expand_url("http://bit.ly/scheme")
+
+    assert error is None
+    assert expanded_url == "https://host.cc/login"
+    assert recorded_calls == ["http://bit.ly/scheme", "https://host.cc/login"]
+
+
+def test_location_backslash_in_query_preserved(monkeypatch):
+    """La barra invertida en la query de Location no se toca ni se reemplaza."""
+    recorded_calls = []
+
+    def mock_head(url, timeout=3, **kwargs):
+        recorded_calls.append(url)
+        if url == "http://bit.ly/query":
+            loc = chr(92) * 2 + "host.cc" + chr(92) + "login?param=a" + chr(92) + "b"
+            return (301, loc)
+        return (200, None)
+
+    monkeypatch.setattr(sandbox, "_head_request", mock_head)
+
+    expanded_url, chain, error = sandbox._expand_url("http://bit.ly/query")
+
+    assert error is None
+    assert expanded_url == "http://host.cc/login?param=a" + chr(92) + "b"
+    assert recorded_calls == [
+        "http://bit.ly/query",
+        "http://host.cc/login?param=a" + chr(92) + "b",
+    ]
+
+
+def test_blacklisted_hops_caps_hop_length_to_max_url_len(monkeypatch):
+    """Verifica que _blacklisted_hops recorte el salto a MAX_URL_LEN antes de extraer el dominio."""
+    recorded_lengths = []
+    real_extract = sandbox._extract_domain
+
+    def spy_extract(raw: str) -> str:
+        recorded_lengths.append(len(raw))
+        return real_extract(raw)
+
+    monkeypatch.setattr(sandbox, "_extract_domain", spy_extract)
+
+    overlong_hop = "https://malicioso.org/" + ("a" * (sandbox.MAX_URL_LEN + 10000))
+    hops = sandbox._blacklisted_hops([overlong_hop], frozenset({"malicioso.org"}))
+
+    assert len(recorded_lengths) == 1
+    assert recorded_lengths[0] <= sandbox.MAX_URL_LEN
+    assert recorded_lengths[0] == sandbox.MAX_URL_LEN
+    assert hops == ["malicioso.org"]

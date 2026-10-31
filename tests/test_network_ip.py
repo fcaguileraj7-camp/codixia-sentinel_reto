@@ -56,10 +56,11 @@ def test_resolve_public_ip_rejected_literals(ip_literal):
         "2001:0:808:808::3f57:fefe",  # servidor público (8.8.8.8), cliente privado (192.168.1.1)
         "2001:0:ac10:1::fefe:fefe",  # servidor privado (172.16.0.1), cliente público (1.1.1.1)
         "2001:0:101:101::f5f5:f5f5",  # servidor público (1.1.1.1), cliente privado (10.10.10.10)
+        "2001:0:808:808::f7f7:f7f7",  # servidor público (8.8.8.8), cliente público (8.8.8.8)
     ],
 )
 def test_resolve_public_ip_teredo_private_embedded(teredo_literal):
-    """Rechaza direcciones Teredo cuando el servidor o el cliente embebido es una IPv4 privada."""
+    """Teredo (2001::/32) se rechaza entero, tanto con IPs privadas como con servidor y cliente públicos (fail-closed)."""
     assert sandbox._resolve_public_ip(teredo_literal) is None
 
 
@@ -145,6 +146,7 @@ def test_resolve_public_ip_resolution_errors(monkeypatch, scenario):
         ("2002:0808:0808::", False),
         ("2001:0:a00:1::f7f7:f7f7", False),
         ("2001:0:808:808::3f57:fefe", False),
+        ("2001:0:808:808::f7f7:f7f7", False),
     ],
 )
 def test_is_public_ip_direct_instances(ip_str, expected):
