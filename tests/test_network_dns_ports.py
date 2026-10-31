@@ -1,6 +1,6 @@
 """
 Pruebas para capa de red, DNS y puertos en UrlSandbox.
-Cubre especificaciones N1, N2, N5 y eliminaci\u00f3n de _is_public_host.
+Cubre el conteo de DNS, los puertos, el cierre de sockets y la eliminación de _is_public_host.
 """
 
 import socket
@@ -12,8 +12,8 @@ from src.tools.url_sandbox import _head_request as real_head_request
 
 def test_single_dns_resolution_per_hop(monkeypatch):
     """
-    T1: Verifica que cada salto de redirecci\u00f3n realice exactamente una sola
-    resoluci\u00f3n DNS (socket.getaddrinfo).
+    Verifica que cada salto de redirección realice exactamente una sola
+    resolución DNS (socket.getaddrinfo).
     """
     monkeypatch.setattr(sandbox, "_head_request", real_head_request)
     dns_calls = []
@@ -23,7 +23,7 @@ def test_single_dns_resolution_per_hop(monkeypatch):
         return [(socket.AF_INET, socket.SOCK_STREAM, 6, "", ("93.184.216.34", 0))]
 
     def _fake_create_connection(address, timeout=None):
-        raise OSError("fallo de conexi\u00f3n simulado")
+        raise OSError("fallo de conexión simulado")
 
     monkeypatch.setattr(sandbox.socket, "getaddrinfo", _fake_getaddrinfo)
     monkeypatch.setattr(sandbox.socket, "create_connection", _fake_create_connection)
@@ -36,8 +36,8 @@ def test_single_dns_resolution_per_hop(monkeypatch):
 
 def test_explicit_and_implicit_ports(monkeypatch):
     """
-    T2: Verifica que _head_request asigne siempre puerto expl\u00edcito a http.client:
-    80 para HTTP, 443 para HTTPS, o el puerto num\u00e9rico presente en la URL.
+    Verifica que _head_request asigne siempre puerto explícito a http.client:
+    80 para HTTP, 443 para HTTPS, o el puerto numérico presente en la URL.
     """
     monkeypatch.setattr(sandbox, "_head_request", real_head_request)
     monkeypatch.setattr(sandbox, "_resolve_public_ip", lambda host: "2606:4700::22")
@@ -46,21 +46,21 @@ def test_explicit_and_implicit_ports(monkeypatch):
 
     def _fake_create_connection(address, timeout=None):
         recorded.append(address)
-        raise OSError("intercepci\u00f3n de conexi\u00f3n")
+        raise OSError("intercepción de conexión")
 
     monkeypatch.setattr(sandbox.socket, "create_connection", _fake_create_connection)
 
-    # HTTP con puerto impl\u00edcito -> 80 (no toma :22 del final de la IPv6)
+    # HTTP con puerto implícito -> 80 (no toma :22 del final de la IPv6)
     with pytest.raises(OSError):
         sandbox._head_request("http://[2606:4700::22]/x")
     assert recorded[-1] == ("2606:4700::22", 80)
 
-    # HTTPS con puerto impl\u00edcito -> 443
+    # HTTPS con puerto implícito -> 443
     with pytest.raises(OSError):
         sandbox._head_request("https://[2606:4700::22]/x")
     assert recorded[-1] == ("2606:4700::22", 443)
 
-    # HTTP con puerto expl\u00edcito 8080 -> 8080
+    # HTTP con puerto explícito 8080 -> 8080
     with pytest.raises(OSError):
         sandbox._head_request("http://[2606:4700::22]:8080/x")
     assert recorded[-1] == ("2606:4700::22", 8080)
@@ -72,7 +72,7 @@ def test_explicit_and_implicit_ports(monkeypatch):
 
 
 class _CloseTrackingSocket:
-    """Socket simulado para registrar llamadas al m\u00e9todo close."""
+    """Socket simulado para registrar llamadas al método close."""
 
     def __init__(self):
         self.closed = False
@@ -83,15 +83,15 @@ class _CloseTrackingSocket:
         self.close_count += 1
 
     def sendall(self, *args, **kwargs):
-        raise OSError("fallo de env\u00edo HTTP")
+        raise OSError("fallo de envío HTTP")
 
     def send(self, *args, **kwargs):
-        raise OSError("fallo de env\u00edo HTTP")
+        raise OSError("fallo de envío HTTP")
 
 
 def test_head_request_closes_socket_on_ssl_error(monkeypatch):
     """
-    T5 (HTTPS): Verifica que si wrap_socket lanza una excepci\u00f3n, el socket TCP
+    (HTTPS) Verifica que si wrap_socket lanza una excepción, el socket TCP
     se cierre antes de relanzar el error.
     """
     monkeypatch.setattr(sandbox, "_head_request", real_head_request)
@@ -114,7 +114,7 @@ def test_head_request_closes_socket_on_ssl_error(monkeypatch):
 
 def test_head_request_closes_socket_on_http_error(monkeypatch):
     """
-    T5 (HTTP): Verifica que en la rama HTTP, ante errores de transmisi\u00f3n,
+    (HTTP) Verifica que en la rama HTTP, ante errores de transmisión,
     el socket se cierre adecuadamente en el bloque finally.
     """
     monkeypatch.setattr(sandbox, "_head_request", real_head_request)
@@ -132,6 +132,6 @@ def test_head_request_closes_socket_on_http_error(monkeypatch):
 
 def test_is_public_host_eliminated():
     """
-    T8: Verifica que la funci\u00f3n _is_public_host haya sido eliminada de url_sandbox.
+    Verifica que la función _is_public_host haya sido eliminada de url_sandbox.
     """
     assert not hasattr(sandbox, "_is_public_host")

@@ -1,5 +1,5 @@
 """
-Pruebas de regresión para las correcciones de revisión de red (F1, F3, F4, F5).
+Pruebas de regresión para las correcciones de revisión de red (bucles de redirección, ;params, cierre de la respuesta y punto final).
 Reto Agente 2026 - SentinelGuard AI · Equipo Codixia
 """
 
@@ -36,7 +36,7 @@ class FakeSocket:
 
 
 # ============================================================================
-# F1: Detección de saltos intermedios en bucles de redirección
+# Detección de saltos intermedios en bucles de redirección
 # ============================================================================
 
 def test_f1_redirect_loop_aba_detects_blacklisted_intermediate(monkeypatch):
@@ -140,7 +140,7 @@ def test_f1_repeated_blacklisted_hop_counted_only_once(monkeypatch):
 
 
 # ============================================================================
-# F3: Preservación de parámetros de matriz (;params) en HEAD request
+# Preservación de parámetros de matriz (;params) en HEAD request
 # ============================================================================
 
 def test_f3_head_request_preserves_matrix_parameters(monkeypatch):
@@ -158,7 +158,7 @@ def test_f3_head_request_preserves_matrix_parameters(monkeypatch):
 
 
 # ============================================================================
-# F4: Cierre explícito de la respuesta (resp.close()) antes de conn.close()
+# Cierre explícito de la respuesta (resp.close()) antes de conn.close()
 # ============================================================================
 
 def test_f4_head_request_closes_response_on_success(monkeypatch):
@@ -245,7 +245,7 @@ def test_f4_head_request_closes_response_when_getheader_raises(monkeypatch):
 
 
 # ============================================================================
-# F5: Normalización de punto final (.rstrip('.')) en saltos de lista negra
+# Normalización de punto final (.rstrip('.')) en saltos de lista negra
 # ============================================================================
 
 def test_f5_blacklisted_hops_trailing_dot_deduplication():

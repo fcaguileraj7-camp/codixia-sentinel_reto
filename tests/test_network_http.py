@@ -1,5 +1,5 @@
 """
-Pruebas de red y HTTP para UrlSandbox (T4 no ASCII y T6 presupuesto de tiempo).
+Pruebas de red y HTTP para UrlSandbox (rutas no ASCII y presupuesto de tiempo).
 Reto Agente 2026 - SentinelGuard AI - Equipo Codixia
 """
 
@@ -45,7 +45,7 @@ def test_head_request_non_ascii_path_and_query(monkeypatch: pytest.MonkeyPatch) 
     monkeypatch.setattr(sandbox.socket, "create_connection", lambda address, timeout=None: fake_sock)
     monkeypatch.setattr(sandbox, "_head_request", real_head_request)
 
-    status, location = sandbox._head_request("http://example.com/ni\u00f1o?q=\u00e1")
+    status, location = sandbox._head_request("http://example.com/niño?q=á")
 
     assert status == 200
     assert location is None
