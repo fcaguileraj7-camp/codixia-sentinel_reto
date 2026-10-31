@@ -13,7 +13,7 @@ import src.tools.url_sandbox as sandbox
 from src.tools.url_sandbox import (
     analyze_url,
     _head_request as real_head_request,
-    _is_public_host as real_is_public_host,
+    _resolve_public_ip,
 )
 
 def test_analyze_official_url():
@@ -153,20 +153,23 @@ def test_non_shortener_never_does_network(monkeypatch):
     assert res["expansion_error"] is None
 
 def test_ssrf_blocks_private_redirect_target(monkeypatch):
-    monkeypatch.setattr(sandbox, "_is_public_host", real_is_public_host)
-    monkeypatch.setattr(sandbox, "_head_request", _fake_head({
-        "https://8.8.8.8/x": (301, "http://127.0.0.1/admin"),
-    }))
+    def _fake_head(url, timeout=3):
+        if url == "https://8.8.8.8/x":
+            return (301, "http://127.0.0.1/admin")
+        if url == "http://127.0.0.1/admin":
+            raise PermissionError("Host no p\u00fablico bloqueado (protecci\u00f3n SSRF)")
+        return (200, None)
+    monkeypatch.setattr(sandbox, "_head_request", _fake_head)
     start, chain, err = sandbox._expand_url("https://8.8.8.8/x")
     assert "SSRF" in err
     assert chain == ["https://8.8.8.8/x", "http://127.0.0.1/admin"]
 
 def test_is_public_host_literals():
-    assert real_is_public_host("127.0.0.1") is False
-    assert real_is_public_host("192.168.1.10") is False
-    assert real_is_public_host("10.0.0.5") is False
-    assert real_is_public_host("169.254.169.254") is False
-    assert real_is_public_host("8.8.8.8") is True
+    assert _resolve_public_ip("127.0.0.1") is None
+    assert _resolve_public_ip("192.168.1.10") is None
+    assert _resolve_public_ip("10.0.0.5") is None
+    assert _resolve_public_ip("169.254.169.254") is None
+    assert _resolve_public_ip("8.8.8.8") == "8.8.8.8"
 
 def test_expand_rejects_non_http_scheme():
     _, _, err = sandbox._expand_url("file:///etc/passwd")

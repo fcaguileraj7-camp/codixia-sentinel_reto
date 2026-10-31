@@ -13,4 +13,3 @@ def _block_real_network(monkeypatch):
     def _no_network(*args, **kwargs):
         raise OSError("red bloqueada en tests")
     monkeypatch.setattr("src.tools.url_sandbox._head_request", _no_network)
-    monkeypatch.setattr("src.tools.url_sandbox._is_public_host", lambda host: True)

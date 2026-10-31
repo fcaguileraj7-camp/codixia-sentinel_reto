@@ -14,7 +14,7 @@ import time
 import unicodedata
 from functools import lru_cache
 from pathlib import Path
-from urllib.parse import unquote, urljoin, urlparse
+from urllib.parse import quote, unquote, urljoin, urlparse
 from typing import Dict, Any, List, Optional, Tuple
 
 SUSPICIOUS_TLDS = {".xyz", ".top", ".cc", ".ru", ".tk", ".ml", ".ga", ".cf", ".gq", ".live"}
@@ -125,10 +125,40 @@ def _detect_brand(domain: str):
                 return brand
     return None
 
+# Redes IPv6 que `is_global` no siempre descarta y que pueden esconder una IPv4 interna:
+# site-local (obsoleto), IPv4-compatible (::a.b.c.d) y los prefijos NAT64 completos.
+_IPV6_SITE_LOCAL = ipaddress.ip_network("fec0::/10")
+_IPV6_IPV4_COMPATIBLE = ipaddress.ip_network("::/96")
+_IPV6_NAT64 = (ipaddress.ip_network("64:ff9b::/96"), ipaddress.ip_network("64:ff9b:1::/48"))
+
+
+def _is_public_ip(ip) -> bool:
+    """
+    Indica si `ip` (un ipaddress.ip_address) es una dirección pública de unicast.
+    No es pública si no es global, si es multicast, o si es IPv6 site-local (fec0::/10),
+    IPv4-compatible (::/96) o NAT64 (64:ff9b::/96 y 64:ff9b:1::/48; el prefijo entero se
+    rechaza, sin mirar la IPv4 embebida). Una IPv6 que lleve una IPv4 embebida
+    (IPv4-mapped, 6to4, Teredo con su servidor y su cliente) solo es pública si esa IPv4 lo es.
+    """
+    if not ip.is_global or ip.is_multicast:
+        return False
+    if ip.version == 4:
+        return True
+    if ip in _IPV6_SITE_LOCAL or ip in _IPV6_IPV4_COMPATIBLE or any(ip in net for net in _IPV6_NAT64):
+        return False
+    embedded = [ip.ipv4_mapped, ip.sixtofour]
+    if ip.teredo is not None:
+        embedded.extend(ip.teredo)
+    return all(_is_public_ip(v4) for v4 in embedded if v4 is not None)
+
+
 def _resolve_public_ip(host: str) -> Optional[str]:
     """
-    Resuelve `host` una sola vez. Devuelve la IP si TODAS las direcciones son públicas;
-    None si alguna es privada, loopback, link-local o reservada (anti-SSRF), o si no resuelve.
+    Resuelve `host` una sola vez y es el ÚNICO validador anti-SSRF: la IP que devuelve es la
+    que luego se fija para conectar (no hay una segunda resolución DNS que pueda cambiar).
+    Devuelve la IP (la primera) si TODAS las direcciones resueltas cumplen _is_public_ip; None si
+    alguna es privada, loopback, link-local, multicast, reservada, site-local o NAT64/IPv4
+    embebida no pública, o si el host no resuelve. getaddrinfo no tiene timeout propio.
     """
     try:
         infos = socket.getaddrinfo(host, None)
@@ -137,13 +167,9 @@ def _resolve_public_ip(host: str) -> Optional[str]:
     if not infos:
         return None
     ips = [info[4][0].split("%")[0] for info in infos]
-    if not all(ipaddress.ip_address(ip).is_global for ip in ips):
+    if not all(_is_public_ip(ipaddress.ip_address(ip)) for ip in ips):
         return None
     return ips[0]
-
-
-def _is_public_host(host: str) -> bool:
-    return _resolve_public_ip(host) is not None
 
 
 class _PinnedHTTPConnection(http.client.HTTPConnection):
@@ -154,6 +180,7 @@ class _PinnedHTTPConnection(http.client.HTTPConnection):
         self._pinned_ip = ip
 
     def connect(self):
+        # create_connection cierra su propio socket si falla, y la asignación no puede fallar
         self.sock = socket.create_connection((self._pinned_ip, self.port), self.timeout)
 
 
@@ -166,21 +193,39 @@ class _PinnedHTTPSConnection(http.client.HTTPSConnection):
 
     def connect(self):
         sock = socket.create_connection((self._pinned_ip, self.port), self.timeout)
-        self.sock = self._context.wrap_socket(sock, server_hostname=self.host)
+        try:
+            self.sock = self._context.wrap_socket(sock, server_hostname=self.host)
+        except BaseException:
+            # fallo de handshake TLS (o similar): no dejar el socket TCP abierto
+            sock.close()
+            raise
+
+
+_PATH_SAFE = "/%:@!$&'()*+,;=-._~"
+_QUERY_SAFE = "/?%:@!$&'()*+,;=-._~"
 
 
 def _head_request(url: str, timeout: float = EXPAND_TIMEOUT) -> Tuple[int, Optional[str]]:
-    """Una sola petición HEAD sin seguir redirecciones. Devuelve (status, cabecera Location)."""
+    """
+    Una sola petición HEAD sin seguir redirecciones. Devuelve (status, cabecera Location).
+    Resuelve el host UNA vez (_resolve_public_ip) y conecta a esa IP validada; si el host no
+    es público lanza PermissionError antes de abrir ningún socket. El puerto siempre es
+    explícito (el de la URL, o 80/443 según el esquema): sin él, http.client toma el último
+    grupo de una IPv6 sin corchetes como puerto. La ruta y la query se codifican en
+    porcentaje (UTF-8; los %XX existentes no se re-escapan) porque http.client exige ASCII.
+    `timeout` es por operación de socket (conexión, handshake, lectura), no el total.
+    """
     parsed = urlparse(url)
     ip = _resolve_public_ip(parsed.hostname)
     if ip is None:
         raise PermissionError("Host no público bloqueado (protección SSRF)")
     conn_cls = _PinnedHTTPSConnection if parsed.scheme == "https" else _PinnedHTTPConnection
-    conn = conn_cls(parsed.hostname, ip, port=parsed.port, timeout=timeout)
+    port = parsed.port if parsed.port is not None else (443 if parsed.scheme == "https" else 80)
+    conn = conn_cls(parsed.hostname, ip, port=port, timeout=timeout)
     try:
-        path = parsed.path or "/"
+        path = quote(parsed.path or "/", safe=_PATH_SAFE)
         if parsed.query:
-            path += f"?{parsed.query}"
+            path += "?" + quote(parsed.query, safe=_QUERY_SAFE)
         conn.request("HEAD", path, headers={"User-Agent": "SentinelGuard-UrlSandbox/1.0"})
         resp = conn.getresponse()
         return resp.status, resp.getheader("Location")
@@ -192,31 +237,52 @@ def _expand_url(url: str) -> Tuple[str, List[str], Optional[str]]:
     """
     Desenrolla redirecciones con HEAD manual (máx. MAX_REDIRECTS saltos).
     Devuelve (url_final, cadena_de_saltos, error). Nunca lanza excepciones.
+
+    Cada salto hace UNA sola resolución DNS: la validación anti-SSRF vive en _head_request, que
+    resuelve, valida y fija la IP; si el host no es público lanza PermissionError y aquí se
+    informa como bloqueo SSRF. La cabecera Location se une con urljoin y se normaliza igual que
+    la entrada (_normalize_url), de modo que "https://a.com\\@b.com/" se lee como en un
+    navegador (host a.com).
+
+    Presupuesto de tiempo (EXPAND_BUDGET): se comprueba antes de cada salto y también después de
+    cada HEAD que pida seguir una redirección. A cada HEAD se le pasa un timeout de
+    min(EXPAND_TIMEOUT, tiempo restante), con un mínimo de 0.1 s. No es un límite duro: el
+    timeout es por operación de socket (conexión, handshake, lectura) y la resolución DNS
+    (getaddrinfo) no tiene timeout propio, así que un servidor o un DNS lentos pueden exceder
+    el presupuesto.
     """
     chain = [url]
     current = url
     deadline = time.monotonic() + EXPAND_BUDGET
+    budget_error = f"Presupuesto de tiempo agotado (>{EXPAND_BUDGET}s)"
     try:
         for _ in range(MAX_REDIRECTS + 1):
-            if time.monotonic() > deadline:
-                return current, chain, f"Presupuesto de tiempo agotado (>{EXPAND_BUDGET}s)"
+            remaining = deadline - time.monotonic()
+            if remaining < 0:
+                return current, chain, budget_error
             parsed = urlparse(current)
             if parsed.scheme not in ("http", "https") or not parsed.hostname:
                 return current, chain, "Esquema o host no permitido"
             if parsed.port is not None and parsed.port not in ALLOWED_PORTS:
                 return current, chain, f"Puerto no permitido ({parsed.port})"
-            if not _is_public_host(parsed.hostname):
-                return current, chain, "Host no público bloqueado (protección SSRF)"
-            status, location = _head_request(current)
+            status, location = _head_request(current, timeout=max(0.1, min(EXPAND_TIMEOUT, remaining)))
             if status not in (301, 302, 303, 307, 308) or not location:
                 return current, chain, None
             if len(chain) > MAX_REDIRECTS:
                 break
+            if time.monotonic() > deadline:
+                return current, chain, budget_error
             current = urljoin(current, location)
+            # solo http/https: normalizar otro esquema (mailto:x@y) lo volvería http://mailto:x@y
+            if urlparse(current).scheme in ("http", "https"):
+                current = _normalize_url(current)
             if current in chain:
                 return current, chain, "Bucle de redirecciones"
             chain.append(current)
         return current, chain, f"Demasiadas redirecciones (>{MAX_REDIRECTS})"
+    except PermissionError:
+        # _head_request lo lanza cuando el host (o su resolución) no es público
+        return current, chain, "Host no público bloqueado (protección SSRF)"
     except Exception as e:
         return current, chain, f"No se pudo expandir el enlace: {type(e).__name__}"
 
@@ -479,6 +545,19 @@ def _is_blacklisted(domain: str, blacklist: frozenset) -> bool:
     return any(".".join(labels[i:]) in blacklist for i in range(len(labels) - 1))
 
 
+def _blacklisted_hops(chain: List[str], blacklist: frozenset) -> List[str]:
+    """
+    Dominios de los saltos INTERMEDIOS de `chain` (chain[1:-1]; el inicial y el final ya se
+    analizan por separado) que están en `blacklist`, sin repetir y en orden de aparición.
+    """
+    hops: List[str] = []
+    for hop in chain[1:-1]:
+        domain = _extract_domain(hop)
+        if _is_blacklisted(domain, blacklist) and domain not in hops:
+            hops.append(domain)
+    return hops
+
+
 def analyze_url(raw_url: str, expand: bool = True, blacklist: Optional[frozenset] = None) -> Dict[str, Any]:
     """
     Inspecciona una URL sospechosa y calcula su nivel de riesgo.
@@ -492,10 +571,15 @@ def analyze_url(raw_url: str, expand: bool = True, blacklist: Optional[frozenset
     - Detección de acortadores públicos (SHORTENERS); se hace siempre, con o sin `expand`.
     - Desenrollado de los acortadores detectados (solo si `expand` es True) con peticiones
       HEAD, sin seguir redirecciones automáticamente (cada salto se valida a mano). Incluye
-      protección SSRF: la IP del destino se valida como pública y se fija para la conexión,
-      solo se permiten los puertos de ALLOWED_PORTS, y la expansión se corta si se supera
-      el presupuesto de tiempo, comprobado antes de cada salto. El destino real se vuelve
-      a analizar sin expandir de nuevo.
+      protección SSRF: cada salto hace una sola resolución DNS, la IP del destino se valida
+      como pública (se rechazan privadas, loopback, link-local, multicast, site-local y las
+      NAT64 o IPv4 embebidas no públicas) y se fija para la conexión, solo se permiten los
+      puertos de ALLOWED_PORTS (el puerto siempre se envía explícito), y la expansión se corta
+      si se supera el presupuesto de tiempo (EXPAND_BUDGET), comprobado antes y después de cada
+      HEAD y pasado como timeout al HEAD; no es un límite duro, porque el timeout es por
+      operación de socket y el DNS (getaddrinfo) no tiene timeout propio. El destino real se
+      vuelve a analizar sin expandir de nuevo, y los saltos intermedios de la cadena también
+      se consultan en la lista negra local (el inicial y el final ya se analizan).
     - Detección de typosquatting bancario contra entidades financieras colombianas,
       mediante normalización leetspeak y distancia de edición.
 
@@ -549,8 +633,8 @@ def analyze_url(raw_url: str, expand: bool = True, blacklist: Optional[frozenset
           entrada no era texto).
         - domain: dominio analizado, ya canonicalizado como se describe arriba.
         - is_suspicious_tld / is_shortener / is_typosquatting: indicadores booleanos.
-        - is_blacklisted: True si el dominio, o el destino de un acortador desenrollado,
-          está en la lista negra.
+        - is_blacklisted: True si el dominio, el destino de un acortador desenrollado o
+          alguno de sus saltos intermedios está en la lista negra.
         - impersonated_brand: entidad suplantada, o None.
         - risk_score: puntaje de riesgo entre 0 y 100.
         - verdict: "SEGURO", "SOSPECHOSO", "MALICIOSO" o "NO_ANALIZADO".
@@ -713,6 +797,11 @@ def _analyze_url(raw_url: str, expand: bool, blacklist: Optional[frozenset]) -> 
             if final["is_typosquatting"]:
                 is_typosquatting = True
                 impersonated_brand = final["impersonated_brand"]
+            # el inicial y el final ya puntuaron arriba: aquí solo los saltos del medio
+            for hop in _blacklisted_hops(redirect_chain, blacklist):
+                if hop not in (domain, final["domain"]):
+                    is_blacklisted, risk_score = True, risk_score + 100
+                    findings.append(f"Salto intermedio en lista negra local ({hop})")
 
     # 4. Veredicto
     if risk_score >= 60:
