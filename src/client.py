@@ -138,6 +138,7 @@ class GrokClient:
                 "action": "SCHEDULE_CHECKIN",
                 "response_to_user": "Acompañamiento iniciado para el vehículo. Tu ruta y placa quedan registradas. Te escribiré en 10 minutos para confirmar que todo va bien."
             }, ensure_ascii=False)
+
         elif any(w in audit_lower for w in ["bloqueada", "bancolombia", "nequi", "urgente", "alerta", "pague", "frente urbano", "herido", "accidente", "hospital", "secuestr", "simit", "fotomulta", "comparendo", "multa", "infraccion", "infracción"]):
             return json.dumps({
                 "mode": "threat_inspection",
@@ -154,3 +155,55 @@ class GrokClient:
                 "action": "INFORMATIVE_ONLY",
                 "response_to_user": "Dictamen: No se detectaron indicios de amenaza o estafa en el mensaje recibido. Recuerda no compartir claves ni códigos si te los solicitan más adelante."
             }, ensure_ascii=False)
+
+    def vision_completion(
+        self,
+        messages: list[dict],
+        model: str = GROK_MODEL,
+        temperature: float = 0.0,
+        max_tokens: int = 300
+    ) -> str:
+        """Envía una solicitud multimodal solo en modo real; nunca simula visión."""
+        if not self.live_mode or not self.client:
+            raise RuntimeError("Grok Vision requiere un cliente configurado en modo en vivo.")
+
+        try:
+            response = self.client.chat.completions.create(
+                model=model,
+                messages=messages,
+                temperature=temperature,
+                max_tokens=max_tokens,
+            )
+        except Exception:
+            self.last_source = "unavailable"
+            self.last_simulated = False
+            raise
+
+        usage = getattr(response, "usage", None)
+        prompt_tokens = getattr(usage, "prompt_tokens", 0) or 0
+        completion_tokens = getattr(usage, "completion_tokens", 0) or 0
+        total_tokens = getattr(usage, "total_tokens", 0) or (
+            prompt_tokens + completion_tokens
+        )
+        estimated_cost = (prompt_tokens * 0.000002) + (completion_tokens * 0.000010)
+        self.last_usage = {
+            "prompt_tokens": prompt_tokens,
+            "completion_tokens": completion_tokens,
+            "total_tokens": total_tokens,
+            "estimated_cost_usd": round(estimated_cost, 6),
+            "mode": "live_api"
+        }
+        self.last_source = "grok_4.7"
+        self.last_simulated = False
+
+        if usage:
+            logger.info(
+                f"[dim cyan]📊 Consumo de Tokens: {total_tokens} "
+                f"(Prompt: {prompt_tokens}, Completions: {completion_tokens}) | "
+                f"Costo estimado: ${estimated_cost:.5f} USD[/dim cyan]"
+            )
+
+        content = response.choices[0].message.content
+        if not isinstance(content, str) or not content.strip():
+            raise ValueError("Grok Vision devolvió una respuesta vacía o no textual.")
+        return content
