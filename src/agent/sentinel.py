@@ -12,13 +12,19 @@ from src.tools.emergency_escalator import escalate_emergency
 from src.tools.vision_parser import parse_receipt_image
 from src.utils.logger import logger
 
-def _is_physical_route_request(text: str, has_active_trip: bool = False) -> bool:
+def _is_physical_route_request(
+    text: str,
+    metadata: Optional[Dict[str, Any]] = None,
+    has_active_trip: bool = False
+) -> bool:
     """
     Determina con alta precisión pericial si el mensaje corresponde a una solicitud
     de acompañamiento físico en ruta (taxi/transporte) o a una auditoría de ciberseguridad.
     Evita falsos positivos con mensajes de trámites/estafas que mencionan 'placas' o 'vehículos'.
     """
-    t = text.lower()
+    metadata = metadata or {}
+    audio_transcript = str(metadata.get("audio_transcript") or metadata.get("transcript") or "")
+    t = f"{text} {audio_transcript}".lower()
 
     # Capa 1: Filtro de exclusión de fraude digital y trámites
     # Si el mensaje habla de comparendos, multas, entidades financieras o cobros, es Escudo Digital.
@@ -30,20 +36,20 @@ def _is_physical_route_request(text: str, has_active_trip: bool = False) -> bool
     if any(ind in t for ind in fraud_indicators):
         return False
 
-    # Si hay un viaje activo en memoria, palabras de seguimiento, desvío o pánico en cabina se canalizan en modo ruta
+    # Si hay un viaje activo en memoria, el seguimiento en curso se canaliza en modo ruta
     if has_active_trip:
-        trip_followup_terms = [
-            "desvió", "desvio", "trocha", "conductor", "ruta", "frena", "para", "apaga",
-            "miedo", "panico", "pánico", "auxilio", "ayuda", "llegué", "llegue", "bien", "ok"
-        ]
-        if any(term in t for term in trip_followup_terms):
-            return True
+        return True
+
+    # Si vienen metadatos explícitos de viaje
+    if metadata.get("plate") and metadata.get("destination"):
+        return True
 
     # Capa 2: Términos explícitos de abordaje, transporte o auxilio en ruta
     transport_terms = [
-        "taxi", "uber", "didi", "indriver", "cabify",
+        "taxi", "uber", "didi", "indriver", "cabify", "trayecto",
         "voy en", "me subí", "me subi", "abordé", "aborde", "inicio viaje", "inicio trayecto",
-        "trocha oscura", "se desvió", "se desvio", "conductor no responde", "pánico", "panico"
+        "trocha oscura", "se desvió", "se desvio", "conductor no responde", "pánico", "panico",
+        "auxilio", "ayuda", "desvío", "desvio"
     ]
     if any(term in t for term in transport_terms):
         return True
@@ -89,6 +95,8 @@ class SentinelAgent:
 
         tool_results = {}
         active_trip = self.memory.get_active_trip(session_id)
+        transcript = None
+        audio_eval = None
 
         # 0. Inspección multimodal de comprobantes/imágenes (VisionParser - Requisito Hito 2)
         image_path = metadata.get("image_path")
@@ -108,18 +116,94 @@ class SentinelAgent:
                 }
 
         # 1. Ejecución resiliente de herramientas según el contexto (Tolerancia a fallos S2 y Memoria S3)
-        is_route_mode = _is_physical_route_request(user_input, has_active_trip=(active_trip is not None))
+        is_route_mode = _is_physical_route_request(user_input, metadata=metadata, has_active_trip=(active_trip is not None))
         if is_route_mode:
             # Modo acompañamiento físico: RouteCompanion
             plate = metadata.get("plate") or (active_trip.get("vehicle_plate") if active_trip else "ABC123")
             dest = metadata.get("destination") or (active_trip.get("destination") if active_trip else "Destino particular")
 
-            is_panic = any(w in user_input.lower() for w in [
-                "desvió", "desvio", "trocha", "panico", "pánico", "auxilio",
-                "miedo", "no para", "no frena", "apaga", "secuestr", "peligro"
-            ])
+            # 1.1 Evaluación de transcripción de audio / mensaje del pasajero (Hito S3 - Integración Nicolle)
+            transcript = metadata.get("audio_transcript") or metadata.get("transcript") or user_input
+            expected_safe_word = (
+                metadata.get("expected_safe_word")
+                or metadata.get("safe_word")
+                or (active_trip.get("safe_word") if active_trip else None)
+            )
 
-            if active_trip and is_panic:
+            if isinstance(transcript, str) and transcript.strip():
+                try:
+                    audio_eval = evaluate_trip_audio_response(
+                        transcript=transcript.strip(),
+                        expected_safe_word=expected_safe_word
+                    )
+                    tool_results["audio_eval"] = audio_eval
+                    logger.info(f"[blue]⚡ Tool ejecutada: evaluate_trip_audio_response -> {audio_eval.get('status')}[/blue]")
+                except Exception as e:
+                    logger.warning(f"[yellow]⚠ Falla en tool evaluate_trip_audio_response ({e}). Continuando con fallback.[/yellow]")
+                    audio_eval = {
+                        "status": "error",
+                        "is_safe": False,
+                        "escalation_required": False,
+                        "reason": str(e),
+                        "error": str(e)
+                    }
+                    tool_results["audio_eval"] = audio_eval
+            else:
+                audio_eval = {
+                    "status": "normal",
+                    "is_safe": True,
+                    "escalation_required": False,
+                    "reason": "Sin transcripción provista; evaluación omitida."
+                }
+                tool_results["audio_eval"] = audio_eval
+
+            # 1.2 Inspección de amenazas (consumo del detector para señales de riesgo o coacción)
+            threat_input = transcript if (isinstance(transcript, str) and transcript.strip()) else user_input
+            try:
+                threat_data = inspect_threat(threat_input)
+                tool_results["threat"] = threat_data
+                logger.info(f"[blue]⚡ Tool ejecutada: inspect_threat (taxi) -> Nivel {threat_data.get('threat_level')}, Score {threat_data.get('risk_score')}[/blue]")
+            except Exception as e:
+                logger.warning(f"[yellow]⚠ Falla en tool inspect_threat ({e}). Continuando con fallback.[/yellow]")
+                threat_data = {
+                    "status": "error",
+                    "threat_level": "MEDIO",
+                    "risk_score": 50,
+                    "error": str(e)
+                }
+                tool_results["threat"] = threat_data
+
+            is_panic = (
+                audio_eval.get("escalation_required", False)
+                or audio_eval.get("status") == "alert"
+                or threat_data.get("threat_level") in ["ALTO", "CRÍTICO"]
+                or any(w in user_input.lower() for w in [
+                    "desvió", "desvio", "trocha", "panico", "pánico", "auxilio",
+                    "miedo", "no para", "no frena", "apaga", "secuestr", "peligro",
+                    "ayuda", "socorro", "arma", "emergencia"
+                ])
+                or any(w in str(transcript).lower() for w in [
+                    "desvió", "desvio", "trocha", "panico", "pánico", "auxilio",
+                    "miedo", "no para", "no frena", "apaga", "secuestr", "peligro",
+                    "ayuda", "socorro", "arma", "emergencia"
+                ])
+            )
+
+            if not active_trip:
+                try:
+                    tool_results["route"] = register_trip(plate=plate, destination=dest)
+                    logger.info(f"[blue]⚡ Tool ejecutada: register_trip -> {tool_results['route'].get('trip_id')}[/blue]")
+                except Exception as e:
+                    logger.warning(f"[yellow]⚠ Falla en tool register_trip ({e}). Continuando con fallback.[/yellow]")
+                    tool_results["route"] = {"status": "error", "error": str(e), "monitoring_active": False}
+
+                if expected_safe_word and isinstance(tool_results.get("route"), dict):
+                    tool_results["route"]["safe_word"] = expected_safe_word
+
+                if is_panic and tool_results.get("route", {}).get("status") == "active":
+                    tool_results["route"]["event"] = "PANIC_REPORTED"
+                    tool_results["route"]["panic_signal"] = True
+            elif is_panic:
                 tool_results["route"] = {
                     **active_trip,
                     "event": "PANIC_REPORTED",
@@ -127,13 +211,12 @@ class SentinelAgent:
                     "monitoring_active": True
                 }
                 logger.info(f"[red]⚡ Alerta de pánico detectada en viaje activo: {active_trip.get('trip_id')}[/red]")
-            elif not active_trip:
-                try:
-                    tool_results["route"] = register_trip(plate=plate, destination=dest)
-                    logger.info(f"[blue]⚡ Tool ejecutada: register_trip -> {tool_results['route'].get('trip_id')}[/blue]")
-                except Exception as e:
-                    logger.warning(f"[yellow]⚠ Falla en tool register_trip ({e}). Continuando con fallback.[/yellow]")
-                    tool_results["route"] = {"status": "error", "error": str(e), "monitoring_active": False}
+            elif audio_eval.get("status") == "checkin_pending":
+                tool_results["route"] = {
+                    **active_trip,
+                    "event": "CHECKIN_PENDING",
+                    "monitoring_active": True
+                }
             else:
                 # Viaje en curso, check-in ordinario
                 tool_results["route"] = {
@@ -236,6 +319,44 @@ class SentinelAgent:
                 )
             }
 
+        # 4.1 Propagación y reconciliación de score y nivel de amenaza (Requisito Hito S3)
+        if decision.get("analysis_available", True):
+            if is_route_mode:
+                decision["mode"] = "route_companion"
+                if is_panic or (audio_eval and (audio_eval.get("escalation_required") or audio_eval.get("status") == "alert")):
+                    decision["risk_level"] = "CRÍTICO"
+                    decision["action"] = "TRIGGER_ALARM"
+                    decision["risk_score"] = 100
+                    decision["threat_level"] = "CRÍTICO"
+                elif audio_eval and audio_eval.get("status") == "checkin_pending":
+                    t_score = tool_results.get("threat", {}).get("risk_score", 0)
+                    decision["risk_score"] = max(50, t_score)
+                    decision["threat_level"] = "ALTO" if decision["risk_score"] >= 60 else "MEDIO"
+                    if decision.get("risk_level") not in ["ALTO", "CRÍTICO"]:
+                        decision["risk_level"] = decision["threat_level"]
+                    if decision.get("action") not in ["TRIGGER_ALARM", "REQUEST_CONFIRMATION"]:
+                        decision["action"] = "REQUEST_CONFIRMATION"
+                else:
+                    t_score = tool_results.get("threat", {}).get("risk_score", 0)
+                    t_level = tool_results.get("threat", {}).get("threat_level", decision.get("risk_level", "BAJO"))
+                    decision.setdefault("risk_score", t_score)
+                    decision.setdefault("threat_level", t_level)
+                    decision.setdefault("risk_level", decision.get("threat_level", "BAJO"))
+            else:
+                # Modo digital: propagar score y nivel calculados por ThreatInspector y UrlSandbox
+                threat_info = tool_results.get("threat", {})
+                t_score = threat_info.get("risk_score", 0) if isinstance(threat_info, dict) else 0
+                for sb in tool_results.get("url_sandbox", []):
+                    if isinstance(sb, dict) and sb.get("risk_score", 0) > t_score:
+                        t_score = sb.get("risk_score", 0)
+                decision.setdefault("risk_score", t_score)
+                decision.setdefault(
+                    "threat_level",
+                    threat_info.get("threat_level", decision.get("risk_level", "BAJO"))
+                    if isinstance(threat_info, dict)
+                    else decision.get("risk_level", "BAJO")
+                )
+
         # 5. Ejecución autónoma de escalada si el riesgo es CRÍTICO o ALTO
         escalation_result = None
         police_report = None
@@ -245,13 +366,18 @@ class SentinelAgent:
             decision.get("risk_level") in ["ALTO", "CRÍTICO"] or decision.get("action") == "TRIGGER_ALARM"
         ):
             logger.warning(f"[red]🚨 Activando protocolo de escalada: Riesgo {decision.get('risk_level')}[/red]")
-            incident_type = "PHYSICAL_RISK" if decision.get("mode") == "route_companion" else "DIGITAL_FRAUD"
+            incident_type = "PHYSICAL_RISK" if (is_route_mode or decision.get("mode") == "route_companion") else "DIGITAL_FRAUD"
             
             # Escalada SOS general
             try:
                 escalation_result = escalate_emergency(
                     incident_type=incident_type,
-                    evidence_payload={"input": user_input, "decision": decision, "tools": tool_results}
+                    evidence_payload={
+                        "input": user_input,
+                        "transcript": transcript if is_route_mode else None,
+                        "decision": decision,
+                        "tools": tool_results
+                    }
                 )
             except Exception as e:
                 logger.warning(f"[yellow]⚠ Falla en escalate_emergency ({e})[/yellow]")

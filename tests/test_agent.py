@@ -126,3 +126,53 @@ def test_sentinel_routing_simit_not_confused_with_taxi():
     assert "route" not in res["tool_results"]
     assert res["police_report"] is not None
     assert "CAI-COL-" in res["police_report"]["report_id"]
+
+# ==============================================================================
+# 5. Pruebas de Integración de Flujo de Taxi y Audio (Hito S3 - Integración Nicolle)
+# ==============================================================================
+
+def test_sentinel_taxi_flow_with_panic_audio_evaluation():
+    """
+    Verifica que en modo taxi se ejecute evaluate_trip_audio_response y el detector de amenazas,
+    se propague risk_score=100 y threat_level=CRÍTICO, y se active escalada PHYSICAL_RISK.
+    """
+    agent = SentinelAgent()
+    res = agent.process_message(
+        "¡Auxilio! El taxista se desvió por una trocha oscura y no me deja bajar",
+        metadata={"plate": "WDY452", "destination": "Centro"}
+    )
+    assert res["status"] == "success"
+    assert "audio_eval" in res["tool_results"]
+    assert res["tool_results"]["audio_eval"]["status"] == "alert"
+    assert res["tool_results"]["audio_eval"]["escalation_required"] is True
+    assert "threat" in res["tool_results"]
+
+    # Propagación de score y niveles
+    assert res["decision"]["risk_level"] == "CRÍTICO"
+    assert res["decision"]["threat_level"] == "CRÍTICO"
+    assert res["decision"]["risk_score"] == 100
+    assert res["decision"]["action"] == "TRIGGER_ALARM"
+
+    # Escalada de emergencia física
+    assert res["escalation"] is not None
+    assert res["escalation"]["incident_type"] == "PHYSICAL_RISK"
+    assert res["escalation"]["status"] == "escalated"
+    assert res["police_report"] is None  # CAI Virtual solo aplica a fraude digital
+
+def test_sentinel_taxi_flow_normal_audio_response():
+    """
+    Verifica que un reporte normal en taxi mantenga status normal,
+    risk_level BAJO, risk_score 0 y sin escalada de emergencia.
+    """
+    agent = SentinelAgent()
+    res = agent.process_message(
+        "Todo va bien, vamos por la avenida 30",
+        metadata={"plate": "WDY452", "destination": "Centro"}
+    )
+    assert res["status"] == "success"
+    assert "audio_eval" in res["tool_results"]
+    assert res["tool_results"]["audio_eval"]["status"] == "normal"
+    assert res["tool_results"]["audio_eval"]["is_safe"] is True
+    assert res["decision"]["risk_level"] == "BAJO"
+    assert res["decision"]["risk_score"] == 0
+    assert res["escalation"] is None

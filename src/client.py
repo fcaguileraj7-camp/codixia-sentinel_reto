@@ -133,19 +133,44 @@ class GrokClient:
         last_message_lower = last_message.lower()
 
         # Detección de pánico o desvío crítico en taxi (Escenario Físico Multi-Turno)
-        if any(w in audit_lower for w in ["desvio", "desvió", "panico", "pánico", "trocha", "miedo", "no para", "no frena", "auxilio", "peligro"]):
+        is_route_context = "SOLICITUD DE ACOMPAÑAMIENTO FÍSICO EN RUTA:" in last_message
+        has_route_panic = (
+            any(w in audit_lower for w in [
+                "desvio", "desvió", "panico", "pánico", "trocha", "miedo",
+                "no para", "no frena", "auxilio", "peligro", "ayuda", "socorro",
+                "secuestr", "arma", "emergencia"
+            ])
+            or '"status": "alert"' in last_message
+            or '"escalation_required": true' in last_message.lower()
+            or '"event": "panic_reported"' in last_message.lower()
+        )
+        if has_route_panic and (is_route_context or any(w in audit_lower for w in ["desvio", "desvió", "panico", "pánico", "trocha", "miedo", "no para", "no frena", "auxilio", "peligro"])):
             return json.dumps({
                 "mode": "route_companion",
                 "risk_level": "CRÍTICO",
+                "risk_score": 100,
+                "threat_level": "CRÍTICO",
                 "reasoning": "El usuario reporta situación de peligro, coacción o desvío anómalo en su ruta de transporte. Se activa alarma SOS y protocolo de escalada inmediata.",
                 "action": "TRIGGER_ALARM",
                 "response_to_user": "🚨 ALERTA DE EMERGENCIA ACTIVADA: Hemos detectado una situación de riesgo crítico en tu trayecto. Notificando de inmediato a tus contactos de emergencia y cuerpos de seguridad con la matrícula del vehículo."
             }, ensure_ascii=False)
-        elif "taxi" in audit_lower or "trayecto" in audit_lower:
+        elif is_route_context and ('"status": "checkin_pending"' in last_message or '"event": "checkin_pending"' in last_message.lower()):
+            return json.dumps({
+                "mode": "route_companion",
+                "risk_level": "MEDIO",
+                "risk_score": 50,
+                "threat_level": "MEDIO",
+                "reasoning": "Respuesta de check-in recibida pero no coincide con la palabra de seguridad esperada. Se requiere verificación preventiva.",
+                "action": "REQUEST_CONFIRMATION",
+                "response_to_user": "⚠️ Alerta preventiva: Tu respuesta no confirmó la palabra clave de seguridad esperada. Por favor confírmanos si te encuentras seguro en el trayecto."
+            }, ensure_ascii=False)
+        elif is_route_context or "taxi" in audit_lower or "trayecto" in audit_lower:
             return json.dumps({
                 "mode": "route_companion",
                 "risk_level": "BAJO",
-                "reasoning": "El usuario inicia trayecto en taxi. Se activan temporizadores de check-in preventivo a 10 minutos.",
+                "risk_score": 0,
+                "threat_level": "BAJO",
+                "reasoning": "El usuario inicia o continúa trayecto en taxi. Se activan temporizadores de check-in preventivo a 10 minutos.",
                 "action": "SCHEDULE_CHECKIN",
                 "response_to_user": "Acompañamiento iniciado para el vehículo. Tu ruta y placa quedan registradas. Te escribiré en 10 minutos para confirmar que todo va bien."
             }, ensure_ascii=False)
