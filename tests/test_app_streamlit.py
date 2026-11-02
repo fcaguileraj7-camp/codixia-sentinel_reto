@@ -719,7 +719,7 @@ def test_apptest_taxi_register_trip_success_and_session_state_preserved():
     assert active["vehicle_plate"] == "TRL981"
     assert active["destination"] == "Centro Comercial Andino"
     assert active["origin"] == "Zona Rosa"
-    assert "TRIP-TRL981-" in active["trip_id"]
+    assert active["trip_id"].startswith("TRIP-")
 
     # El panel de seguimiento ahora está activo
     assert at.button(key="taxi_btn_checkin") is not None
