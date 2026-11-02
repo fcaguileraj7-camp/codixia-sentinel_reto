@@ -18,6 +18,15 @@ from src.agent.sentinel import SentinelAgent
 from src.tools.threat_inspector import inspect_threat
 from src.tools.url_sandbox import analyze_url
 from src.tools.police_reporter import generate_police_report
+from src.tools.route_companion import (
+    register_trip,
+    get_trip_status,
+    confirm_checkin,
+    detect_overdue_checkins,
+    finalize_trip,
+    evaluate_trip_audio_response,
+)
+from src.tools.emergency_escalator import escalate_emergency
 from src.utils.logger import logger
 
 def sanitize_error_message(raw_error: any) -> str:
@@ -91,12 +100,27 @@ if "selected_sample" not in st.session_state:
 if "selected_phone" not in st.session_state:
     st.session_state["selected_phone"] = st.session_state["sender_phone_text"]
 
+# Variables de estado de sesión para Acompañamiento en Taxi (Rol 5 - Hito S3)
+if "taxi_active_trip" not in st.session_state:
+    st.session_state["taxi_active_trip"] = None
+if "taxi_sos_result" not in st.session_state:
+    st.session_state["taxi_sos_result"] = None
+if "taxi_eval_result" not in st.session_state:
+    st.session_state["taxi_eval_result"] = None
+if "taxi_last_completed_trip" not in st.session_state:
+    st.session_state["taxi_last_completed_trip"] = None
+if "taxi_sim_text_input" not in st.session_state:
+    st.session_state["taxi_sim_text_input"] = ""
+if "taxi_overdue_list" not in st.session_state:
+    st.session_state["taxi_overdue_list"] = None
+
 # Instancia del orquestador del agente
 agent = SentinelAgent()
 
 # Pestañas principales de navegación
-tab1, tab2 = st.tabs([
+tab1, tab2, tab3 = st.tabs([
     "Analizador de Mensajes & Enlaces",
+    "🚕 Acompañamiento en Taxi",
     "Denuncias para CAI Virtual"
 ])
 
@@ -327,9 +351,354 @@ with tab1:
                 st.info("ℹ️ **Reporte policial no disponible:** No se generó expediente para el CAI Virtual en este ciclo. La evaluación de amenazas previa se conserva.")
 
 # =============================================================================
-# TAB 2: EXPEDIENTE POLICIAL (CAI VIRTUAL)
+# TAB 2: ACOMPAÑAMIENTO EN TAXI (RUTAS SEGURAS & MONITOREO PREVENTIVO)
 # =============================================================================
 with tab2:
+    st.write("## 🚕 Acompañamiento Físico en Taxi & Monitoreo Preventivo")
+    st.caption(
+        "Monitoreo de seguridad ciudadana para desplazamientos y viajes en taxi: "
+        "registro del vehículo, control de check-ins periódicos y activación de protocolos disuasorios ante situaciones de peligro."
+    )
+
+    active_trip = st.session_state.get("taxi_active_trip")
+    last_completed = st.session_state.get("taxi_last_completed_trip")
+
+    # A. REGISTRO DE VIAJE (Visible si no hay viaje activo en curso)
+    if active_trip is None:
+        if last_completed:
+            st.info(
+                f"ℹ️ **Último viaje finalizado:** Radicado `{last_completed.get('trip_id')}` "
+                f"— Motivo: `{last_completed.get('completion_reason', 'completado')}` a las `{last_completed.get('completed_at', 'reciente')}`."
+            )
+
+        st.write("### 📝 Registro de Nuevo Viaje")
+        col_reg1, col_reg2 = st.columns(2)
+        with col_reg1:
+            taxi_plate = st.text_input(
+                "Placa del vehículo:",
+                key="taxi_plate_input",
+                placeholder="Ej: WDY-452 o TRL981",
+                help="Matrícula del vehículo. Debe contener letras y números (3 a 12 caracteres)."
+            )
+            taxi_origin = st.text_input(
+                "Lugar de origen (opcional):",
+                key="taxi_origin_input",
+                placeholder="Ej: Zona Rosa / Calle 85",
+                help="Punto o barrio de partida del trayecto."
+            )
+        with col_reg2:
+            taxi_destination = st.text_input(
+                "Destino previsto:",
+                key="taxi_destination_input",
+                placeholder="Ej: Centro Comercial Andino / Calle 100",
+                help="Punto de llegada o destino final del viaje."
+            )
+            taxi_interval = st.number_input(
+                "Intervalo de check-in (minutos):",
+                min_value=1,
+                max_value=120,
+                value=10,
+                step=1,
+                key="taxi_interval_input",
+                help="Frecuencia con la que se solicitará confirmación de normalidad al pasajero."
+            )
+
+        btn_register = st.button("🚖 Iniciar acompañamiento", type="primary", use_container_width=True, key="taxi_btn_register")
+        if btn_register:
+            plate_clean = taxi_plate.strip() if taxi_plate else ""
+            dest_clean = taxi_destination.strip() if taxi_destination else ""
+            orig_clean = taxi_origin.strip() if taxi_origin else None
+
+            if not plate_clean:
+                st.warning("⚠️ La placa del vehículo es obligatoria.")
+            elif not dest_clean:
+                st.warning("⚠️ El destino del viaje es obligatorio.")
+            else:
+                try:
+                    trip_payload = register_trip(
+                        plate=plate_clean,
+                        destination=dest_clean,
+                        origin=orig_clean,
+                        checkin_interval_minutes=int(taxi_interval)
+                    )
+                    st.session_state["taxi_active_trip"] = trip_payload
+                    st.session_state["taxi_sos_result"] = None
+                    st.session_state["taxi_eval_result"] = None
+                    st.session_state["taxi_last_completed_trip"] = None
+                    if hasattr(agent, "memory") and agent.memory:
+                        agent.memory.set_active_trip("default", trip_payload)
+                    st.success(f"✅ Acompañamiento iniciado exitosamente. Radicado del viaje: `{trip_payload['trip_id']}`")
+                    st.rerun()
+                except (ValueError, TypeError) as val_err:
+                    st.error(f"⚠️ Error de validación: {val_err}")
+                except Exception as exc:
+                    logger.error(f"Falla inesperada al registrar viaje: {exc}", exc_info=True)
+                    st.error(f"❌ Error al iniciar acompañamiento: {sanitize_error_message(str(exc))}")
+
+    # B. PANEL DE SEGUIMIENTO (Visible cuando existe un viaje activo)
+    else:
+        trip_id = active_trip.get("trip_id", "")
+        status_raw = str(active_trip.get("status", "active")).upper()
+        plate_val = active_trip.get("vehicle_plate", "")
+        dest_val = active_trip.get("destination", "")
+        orig_val = active_trip.get("origin") or "No especificado"
+        started_val = active_trip.get("started_at", "")
+        interval_val = active_trip.get("checkin_interval_minutes", 10)
+        checkin_count = active_trip.get("checkin_count", 0)
+        next_checkin = active_trip.get("next_checkin_scheduled") or "No programado"
+
+        st.markdown(
+            f"""
+            <div style="background: var(--sg-fog-green); border: 1px solid var(--sg-soft-border); border-radius: 10px; padding: 18px 22px; margin-bottom: 20px;">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; flex-wrap: wrap; gap: 8px;">
+                    <span style="font-size: 1.15rem; font-weight: 700; color: var(--sg-title-dark);">🚕 Panel de Monitoreo de Viaje Activo</span>
+                    <span style="background: var(--sg-digital-sage); color: var(--sg-cyber-forest); font-weight: 700; font-size: 0.8rem; padding: 4px 14px; border-radius: 20px;">
+                        ESTADO: {status_raw}
+                    </span>
+                </div>
+                <div style="font-size: 0.86rem; color: #314C3E; line-height: 1.7;">
+                    <strong>Identificador del Viaje:</strong> <code>{trip_id}</code><br>
+                    <strong>Vehículo (Placa):</strong> <code>{plate_val}</code> &nbsp;|&nbsp; 
+                    <strong>Origen:</strong> {orig_val} &nbsp;|&nbsp; 
+                    <strong>Destino:</strong> {dest_val}<br>
+                    <strong>Hora de inicio:</strong> {started_val} &nbsp;|&nbsp; 
+                    <strong>Intervalo programado:</strong> Cada {interval_val} minutos<br>
+                    <strong>Check-ins completados:</strong> <code>{checkin_count}</code> &nbsp;|&nbsp; 
+                    <strong>Próximo check-in:</strong> <code>{next_checkin}</code>
+                </div>
+            </div>
+            """,
+            unsafe_allow_html=True
+        )
+
+        col_act1, col_act2, col_act3, col_act4 = st.columns(4)
+        with col_act1:
+            btn_refresh = st.button("🔄 Actualizar estado", use_container_width=True, key="taxi_btn_refresh")
+        with col_act2:
+            btn_checkin = st.button("✅ Confirmar que estoy bien", use_container_width=True, key="taxi_btn_checkin")
+        with col_act3:
+            btn_finalize = st.button("🏁 Finalizar viaje", use_container_width=True, key="taxi_btn_finalize")
+        with col_act4:
+            btn_overdue = st.button("⏱️ Revisar check-ins pendientes", use_container_width=True, key="taxi_btn_overdue")
+
+        if btn_refresh:
+            status_res = get_trip_status(trip_id)
+            if status_res.get("status") == "error":
+                st.error(f"❌ Viaje no encontrado en el motor de monitoreo: {status_res.get('error')}")
+            else:
+                st.session_state["taxi_active_trip"] = status_res
+                st.success("🔄 Estado del viaje actualizado en tiempo real.")
+
+        if btn_checkin:
+            checkin_res = confirm_checkin(trip_id)
+            if checkin_res.get("status") == "success":
+                active_trip["checkin_count"] = checkin_res.get("checkin_count", checkin_count + 1)
+                active_trip["last_checkin_at"] = checkin_res.get("last_checkin_at")
+                active_trip["next_checkin_scheduled"] = checkin_res.get("next_checkin_scheduled")
+                st.session_state["taxi_active_trip"] = active_trip
+                st.success(
+                    f"✅ Check-in #{checkin_res.get('checkin_count')} confirmado exitosamente. "
+                    f"Próxima verificación: `{checkin_res.get('next_checkin_scheduled')}`"
+                )
+            else:
+                st.error(f"❌ No fue posible registrar el check-in: {checkin_res.get('error')}")
+
+        if btn_finalize:
+            final_res = finalize_trip(trip_id, reason="completado_por_usuario")
+            if final_res.get("status") == "completed":
+                st.session_state["taxi_last_completed_trip"] = final_res
+                st.session_state["taxi_active_trip"] = None
+                st.session_state["taxi_eval_result"] = None
+                if hasattr(agent, "memory") and agent.memory:
+                    agent.memory.clear_active_trip("default")
+                st.success(f"🏁 Viaje `{trip_id}` finalizado correctamente. Acompañamiento cerrado sin incidentes.")
+                st.rerun()
+            else:
+                st.error(f"❌ No se pudo finalizar el viaje: {final_res.get('error')}")
+
+        if btn_overdue:
+            try:
+                overdue_ids = detect_overdue_checkins()
+                st.session_state["taxi_overdue_list"] = overdue_ids
+                if overdue_ids:
+                    st.warning(f"⚠️ Se detectaron {len(overdue_ids)} viaje(s) con check-in vencido: {', '.join(overdue_ids)}")
+                else:
+                    st.info("ℹ️ No hay check-ins vencidos en este momento. Todos los viajes activos están al día.")
+            except Exception as e:
+                st.error(f"❌ Error al consultar check-ins vencidos: {e}")
+
+    # C. SIMULADOR DE ESCENARIOS (Análisis de respuestas / transcripciones)
+    st.write("---")
+    st.write("### 🎭 Simulación de situaciones durante el viaje")
+    st.caption(
+        "Evalúa respuestas textuales o transcripciones de audio del pasajero contra el detector de señales de auxilio, "
+        "palabras de pánico (`PANIC_KEYWORDS`) y desviaciones de ruta del módulo `RouteCompanion`."
+    )
+
+    col_sim_btn1, col_sim_btn2 = st.columns(2)
+    with col_sim_btn1:
+        btn_sim_safe = st.button("🟢 Simular situación segura", use_container_width=True, key="taxi_btn_sim_safe")
+    with col_sim_btn2:
+        btn_sim_danger = st.button("🔴 Simular situación de peligro", use_container_width=True, key="taxi_btn_sim_danger")
+
+    if btn_sim_safe:
+        st.session_state["taxi_sim_text_input"] = "Todo va bien, el conductor va por la ruta principal hacia mi destino."
+        try:
+            eval_res = evaluate_trip_audio_response(st.session_state["taxi_sim_text_input"])
+            st.session_state["taxi_eval_result"] = eval_res
+        except Exception as e:
+            st.error(f"❌ Error al evaluar respuesta: {e}")
+
+    if btn_sim_danger:
+        st.session_state["taxi_sim_text_input"] = "Ayuda por favor, el conductor tomó un desvío extraño y no me deja bajar del taxi."
+        try:
+            eval_res = evaluate_trip_audio_response(st.session_state["taxi_sim_text_input"])
+            st.session_state["taxi_eval_result"] = eval_res
+        except Exception as e:
+            st.error(f"❌ Error al evaluar respuesta: {e}")
+
+    sim_text = st.text_area(
+        "Respuesta o transcripción del pasajero para inspección:",
+        key="taxi_sim_text_input",
+        height=85,
+        placeholder="Escriba o pegue la transcripción del mensaje de voz o texto del pasajero...",
+        help="Inspección semántica de estrés y auxilio. (Nota: analiza texto/transcripciones; no procesa señales de micrófono en vivo)."
+    )
+
+    btn_eval_manual = st.button("🔍 Analizar respuesta", type="primary", use_container_width=True, key="taxi_btn_analyze_response")
+    if btn_eval_manual:
+        clean_eval_input = sim_text.strip() if sim_text else ""
+        if not clean_eval_input:
+            st.warning("⚠️ Debe introducir un mensaje o presionar una de las opciones de simulación.")
+        else:
+            try:
+                eval_res = evaluate_trip_audio_response(clean_eval_input)
+                st.session_state["taxi_eval_result"] = eval_res
+            except (ValueError, TypeError) as e:
+                st.error(f"⚠️ Error de validación: {e}")
+            except Exception as e:
+                st.error(f"❌ Fallo técnico al evaluar respuesta: {sanitize_error_message(str(e))}")
+
+    # Visualización del veredicto del simulador
+    eval_result = st.session_state.get("taxi_eval_result")
+    if eval_result:
+        status_eval = eval_result.get("status")
+        is_safe = eval_result.get("is_safe")
+        escalation_req = eval_result.get("escalation_required")
+        reason_txt = eval_result.get("reason", "")
+
+        if status_eval == "normal":
+            st.success(f"✅ **Estado: NORMAL (Seguro)** — {reason_txt}")
+        elif status_eval == "checkin_pending":
+            st.warning(f"⚠️ **Estado: CONFIRMACIÓN PENDIENTE** — {reason_txt}")
+        elif status_eval == "alert":
+            st.error(f"🚨 **Estado: ALERTA DE RIESGO FÍSICO** — {reason_txt}")
+            if escalation_req:
+                st.warning("⚠️ **Escalamiento Requerido:** Se identificaron indicadores de peligro inminente. Se recomienda accionar el Protocolo SOS a continuación.")
+
+    # D. PROTOCOLO DE EMERGENCIA SOS
+    st.write("---")
+    st.write("### 🚨 Protocolo de emergencia SOS")
+    st.caption(
+        "Preparación local de alertas disuasorias y expediente preventivo para protección del pasajero ante situaciones críticas."
+    )
+
+    btn_sos = st.button("🆘 ACTIVAR PROTOCOLO SOS", type="primary", use_container_width=True, key="taxi_btn_sos")
+    if btn_sos:
+        if active_trip is None:
+            st.warning("⚠️ Se requiere un viaje activo registrado para activar el protocolo de emergencia SOS.")
+        else:
+            evidence = {
+                "vehicle_plate": active_trip.get("vehicle_plate"),
+                "destination": active_trip.get("destination"),
+                "trip_id": active_trip.get("trip_id"),
+            }
+            if active_trip.get("origin"):
+                evidence["origin"] = active_trip.get("origin")
+                evidence["last_known_location"] = active_trip.get("origin")
+            if eval_result and eval_result.get("status") == "alert":
+                evidence["evaluation_reason"] = eval_result.get("reason")
+
+            contacts_notified = ["Contacto de Confianza", "Línea 123 (Simulada)"]
+            try:
+                sos_res = escalate_emergency(
+                    incident_type="PHYSICAL_RISK",
+                    evidence_payload=evidence,
+                    contacts=contacts_notified
+                )
+                st.session_state["taxi_sos_result"] = sos_res
+            except (ValueError, TypeError) as val_err:
+                st.error(f"⚠️ Error al preparar escalada de emergencia: {val_err}")
+            except Exception as exc:
+                logger.error(f"Falla en escalate_emergency: {exc}", exc_info=True)
+                st.error(f"❌ Error interno en protocolo SOS: {sanitize_error_message(str(exc))}")
+
+    # Visualización del resultado del Protocolo SOS
+    sos_data = st.session_state.get("taxi_sos_result")
+    if sos_data:
+        sos_status = sos_data.get("status", "escalated")
+        alert_id = sos_data.get("alert_id", "DESCONOCIDO")
+        severity = sos_data.get("severity", "CRITICAL")
+        contacts_list = sos_data.get("contacts_notified", [])
+        deterrent_script = sos_data.get("deterrent_audio_script", "")
+        alert_msg = sos_data.get("alert_message", "")
+        incident_rep = sos_data.get("incident_report", {})
+
+        plate_show = sos_data.get("vehicle_plate") or (active_trip.get("vehicle_plate") if active_trip else "No registrada")
+        dest_show = sos_data.get("destination") or (active_trip.get("destination") if active_trip else "No informado")
+        loc_show = sos_data.get("last_known_location") or (active_trip.get("origin") if active_trip else None)
+
+        st.markdown(
+            f"""
+            <div style="background: rgba(244, 217, 216, 0.45); border: 2px solid #8D3335; border-radius: 10px; padding: 18px 22px; margin-top: 14px;">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; flex-wrap: wrap; gap: 8px;">
+                    <span style="font-size: 1.15rem; font-weight: 800; color: #8D3335;">🚨 EXPEDIENTE DE EMERGENCIA LOCAL PREPARADO</span>
+                    <span style="background: #8D3335; color: white; font-weight: 700; font-size: 0.8rem; padding: 4px 14px; border-radius: 12px;">
+                        SEVERIDAD: {severity}
+                    </span>
+                </div>
+                <p style="font-size: 0.84rem; color: #5B1C1D; margin-bottom: 8px;">
+                    🛡️ <strong>Garantía de Transparencia:</strong> Escalada preventiva preparada en entorno local. No se generan comunicaciones telefónicas reales a autoridades sin autorización expresa.
+                </p>
+                <div style="font-size: 0.85rem; line-height: 1.7; color: #351213;">
+                    <strong>Estado de la Alerta:</strong> <code>{sos_status}</code> ({'Alerta preventiva registrada' if sos_status == 'escalated' else 'Alerta idéntica previa consolidada / Duplicada'})<br>
+                    <strong>Identificador de Alerta:</strong> <code>{alert_id}</code><br>
+                    <strong>Vehículo (Placa):</strong> <code>{plate_show}</code> &nbsp;|&nbsp; 
+                    <strong>Destino:</strong> {dest_show}<br>
+                    <strong>Última ubicación conocida:</strong> {loc_show or 'No disponible (no se simulan coordenadas ficticias)'}<br>
+                    <strong>Contactos asignados para despacho:</strong> {', '.join(contacts_list) if contacts_list else 'Ninguno'}
+                </div>
+            </div>
+            """,
+            unsafe_allow_html=True
+        )
+
+        if alert_msg:
+            st.error(f"📢 **Despacho Preventivo:** {alert_msg}")
+
+        if deterrent_script:
+            st.markdown(
+                f"""
+                <div style="background: var(--sg-warm-ivory); border-left: 4px solid var(--sg-forest-green); padding: 14px 18px; border-radius: 4px; margin: 14px 0;">
+                    <span style="font-size: 0.8rem; font-weight: 700; color: var(--sg-forest-green); text-transform: uppercase;">
+                        🔊 Guión de Audio Disuasorio para Altavoz:
+                    </span>
+                    <p style="font-size: 0.95rem; font-style: italic; color: var(--sg-title-dark); margin: 6px 0 0 0;">
+                        "{deterrent_script}"
+                    </p>
+                </div>
+                """,
+                unsafe_allow_html=True
+            )
+
+        if incident_rep and isinstance(incident_rep, dict):
+            with st.expander("📋 Ver Expediente Técnico del Incidente (JSON)"):
+                st.json(incident_rep)
+
+# =============================================================================
+# TAB 3: EXPEDIENTE POLICIAL (CAI VIRTUAL)
+# =============================================================================
+with tab3:
     st.write("## Generador de Denuncias para CAI Virtual de Policía:")
     st.write("Compila formalmente la evidencia técnica lista para radicación judicial ante la Policía Nacional de Colombia.")
     

@@ -659,4 +659,154 @@ def test_apptest_retry_analysis_after_error():
     assert any("Análisis reintentado con éxito" in m for m in markdown_texts)
 
 
+# =============================================================================
+# PRUEBAS DEL HITO S3: MÓDULO DE ACOMPAÑAMIENTO EN TAXI (ROL 5)
+# =============================================================================
+
+def test_apptest_taxi_tab_rendered_without_breaking_existing_tabs():
+    """1. La aplicación presenta la pestaña de Acompañamiento en Taxi sin romper el Escudo Digital ni CAI Virtual."""
+    at = AppTest.from_file(APP_PATH, default_timeout=30)
+    at.run()
+    assert len(at.exception) == 0
+
+    # Escudo Digital intacto
+    assert at.text_area(key="user_input_text") is not None
+    assert at.button(key="btn_analyze_main") is not None
+
+    # Módulo de taxi presente en el árbol de renderizado
+    assert at.text_input(key="taxi_plate_input") is not None
+    assert at.text_input(key="taxi_destination_input") is not None
+    assert at.button(key="taxi_btn_register") is not None
+
+
+def test_apptest_taxi_validation_errors_handled_gracefully():
+    """10. Errores de validación (placa vacía, destino vacío, placa inválida) no interrumpen la app y muestran avisos."""
+    at = AppTest.from_file(APP_PATH, default_timeout=30)
+    at.run()
+
+    # 1. Intento sin placa
+    at.button(key="taxi_btn_register").click().run()
+    assert len(at.exception) == 0
+    assert any("La placa del vehículo es obligatoria" in w.value for w in at.warning)
+
+    # 2. Intento con placa pero sin destino
+    at.text_input(key="taxi_plate_input").input("WDY-452").run()
+    at.button(key="taxi_btn_register").click().run()
+    assert len(at.exception) == 0
+    assert any("El destino del viaje es obligatorio" in w.value for w in at.warning)
+
+    # 3. Intento con formato de placa inválido (sin números o caracteres no válidos)
+    at.text_input(key="taxi_destination_input").input("Destino Centro").run()
+    at.text_input(key="taxi_plate_input").input("INVALID").run()
+    at.button(key="taxi_btn_register").click().run()
+    assert len(at.exception) == 0
+    assert any("Error de validación" in e.value for e in at.error)
+
+
+def test_apptest_taxi_register_trip_success_and_session_state_preserved():
+    """2 y 3. El formulario registra correctamente un viaje y los datos se conservan en st.session_state."""
+    at = AppTest.from_file(APP_PATH, default_timeout=30)
+    at.run()
+
+    at.text_input(key="taxi_plate_input").input("TRL-981")
+    at.text_input(key="taxi_destination_input").input("Centro Comercial Andino")
+    at.text_input(key="taxi_origin_input").input("Zona Rosa")
+    at.button(key="taxi_btn_register").click().run()
+
+    assert len(at.exception) == 0
+    assert at.session_state["taxi_active_trip"] is not None
+    active = at.session_state["taxi_active_trip"]
+    assert active["vehicle_plate"] == "TRL981"
+    assert active["destination"] == "Centro Comercial Andino"
+    assert active["origin"] == "Zona Rosa"
+    assert "TRIP-TRL981-" in active["trip_id"]
+
+    # El panel de seguimiento ahora está activo
+    assert at.button(key="taxi_btn_checkin") is not None
+    assert at.button(key="taxi_btn_refresh") is not None
+    assert at.button(key="taxi_btn_finalize") is not None
+
+
+def test_apptest_taxi_checkin_and_refresh_flow():
+    """4 y 5. El check-in actualiza el contador y la actualización de estado refleja los datos del backend."""
+    at = AppTest.from_file(APP_PATH, default_timeout=30)
+    at.run()
+
+    # Iniciar viaje
+    at.text_input(key="taxi_plate_input").input("WDY-452")
+    at.text_input(key="taxi_destination_input").input("Calle 100 con 15")
+    at.button(key="taxi_btn_register").click().run()
+
+    trip_id = at.session_state["taxi_active_trip"]["trip_id"]
+
+    # Ejecutar check-in
+    at.button(key="taxi_btn_checkin").click().run()
+    assert len(at.exception) == 0
+    assert at.session_state["taxi_active_trip"]["checkin_count"] == 1
+    assert any("Check-in #1 confirmado" in s.value for s in at.success)
+
+    # Actualizar estado desde el backend
+    at.button(key="taxi_btn_refresh").click().run()
+    assert len(at.exception) == 0
+    assert at.session_state["taxi_active_trip"]["trip_id"] == trip_id
+    assert any("Estado del viaje actualizado" in s.value for s in at.success)
+
+
+def test_apptest_taxi_scenario_simulation_safe_and_panic():
+    """6 y 7. Evaluación de respuesta segura muestra veredicto normal y frase de peligro muestra alerta."""
+    at = AppTest.from_file(APP_PATH, default_timeout=30)
+    at.run()
+
+    # Simular situación segura
+    at.button(key="taxi_btn_sim_safe").click().run()
+    assert len(at.exception) == 0
+    assert at.session_state["taxi_eval_result"] is not None
+    assert at.session_state["taxi_eval_result"]["status"] == "normal"
+    assert at.session_state["taxi_eval_result"]["is_safe"] is True
+    assert any("NORMAL (Seguro)" in s.value for s in at.success)
+
+    # Simular situación de peligro
+    at.button(key="taxi_btn_sim_danger").click().run()
+    assert len(at.exception) == 0
+    assert at.session_state["taxi_eval_result"] is not None
+    assert at.session_state["taxi_eval_result"]["status"] == "alert"
+    assert at.session_state["taxi_eval_result"]["escalation_required"] is True
+    assert any("ALERTA DE RIESGO FÍSICO" in e.value for e in at.error)
+
+
+def test_apptest_taxi_sos_protocol_and_finalize_trip():
+    """8 y 9. El protocolo SOS presenta el resultado de escalate_emergency() y finalizar el viaje regresa al registro."""
+    at = AppTest.from_file(APP_PATH, default_timeout=30)
+    at.run()
+
+    # Iniciar viaje
+    at.text_input(key="taxi_plate_input").input("SOS-789")
+    at.text_input(key="taxi_destination_input").input("Aeropuerto El Dorado")
+    at.text_input(key="taxi_origin_input").input("Chapinero")
+    at.button(key="taxi_btn_register").click().run()
+
+    trip_id = at.session_state["taxi_active_trip"]["trip_id"]
+
+    # Activar protocolo SOS
+    at.button(key="taxi_btn_sos").click().run()
+    assert len(at.exception) == 0
+    sos_data = at.session_state["taxi_sos_result"]
+    assert sos_data is not None
+    assert sos_data["status"] in ["escalated", "duplicate"]
+    assert sos_data["incident_type"] == "PHYSICAL_RISK"
+    assert sos_data["severity"] == "CRITICAL"
+    assert "Aviso de seguridad:" in sos_data["deterrent_audio_script"]
+    assert "ALERTA DE EMERGENCIA" in sos_data["alert_message"]
+
+    # Finalizar viaje
+    at.button(key="taxi_btn_finalize").click().run()
+    assert len(at.exception) == 0
+    assert at.session_state["taxi_active_trip"] is None
+    assert at.session_state["taxi_last_completed_trip"]["trip_id"] == trip_id
+
+    # Comprobar que regresó al formulario de registro de viaje
+    assert at.button(key="taxi_btn_register") is not None
+
+
+
 
