@@ -414,3 +414,41 @@ def test_physical_panic_message_is_not_classified_as_digital_fraud():
     result = inspect_threat(message)
     assert result["threat_level"] == "BAJO"
     assert "urgencia_artificial" not in result["detected_vectors"]
+
+
+# ==============================================================================
+# Hito S3 - Detección de estrés, pánico y coacción del pasajero en taxi
+# ==============================================================================
+
+def test_passenger_stress_without_clear_danger_is_low():
+    message = "Estoy un poco nervioso por el trafico, pero todo va bien."
+    result = inspect_threat(message)
+    assert result["status"] == "success"
+    assert result["threat_level"] == "BAJO"
+    assert 0 <= result["risk_score"] <= 100
+
+
+def test_passenger_panic_request_is_not_digital_fraud():
+    message = "Taxi placa ABC-123, auxilio, tengo miedo, el conductor se desvio por una trocha oscura."
+    result = inspect_threat(message)
+    assert result["status"] == "success"
+    assert result["threat_level"] == "BAJO"
+    assert "urgencia_artificial" not in result["detected_vectors"]
+    assert 0 <= result["risk_score"] <= 100
+
+
+def test_passenger_coercion_context_is_not_classified_as_digital_fraud():
+    message = "Voy en taxi, el conductor me amenaza y no me deja salir, auxilio."
+    result = inspect_threat(message)
+    assert result["status"] == "success"
+    assert result["threat_level"] == "BAJO"
+    assert "urgencia_artificial" not in result["detected_vectors"]
+    assert 0 <= result["risk_score"] <= 100
+
+
+def test_passenger_ambiguous_message_remains_ambiguous():
+    message = "Hola, todo normal por ahora."
+    result = inspect_threat(message)
+    assert result["status"] == "success"
+    assert result["is_ambiguous"] is True
+    assert 0 <= result["risk_score"] <= 100
