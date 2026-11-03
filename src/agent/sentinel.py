@@ -289,15 +289,15 @@ class SentinelAgent:
         logger.info("[magenta]🧠 Consultando núcleo de razonamiento Grok 4.7...[/magenta]")
         status = "success"
         try:
-            raw_response = self.client.chat_completion(messages)
+            raw_response = self.client.chat_completion(messages, max_tokens=700)
 
             # 4. Parseo y Validación de la decisión JSON
             json_start = raw_response.find("{")
             json_end = raw_response.rfind("}") + 1
-            if json_start != -1 and json_end != -1:
+            if json_start != -1 and json_end > json_start:
                 decision = json.loads(raw_response[json_start:json_end])
             else:
-                decision = json.loads(raw_response)
+                decision = json.loads(raw_response.strip())
 
             if not isinstance(decision, dict):
                 raise ValueError("La respuesta del modelo no contiene un objeto JSON válido.")
