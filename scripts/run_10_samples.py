@@ -1,5 +1,5 @@
 """
-Arnés de Validación y Ejecución de 10 Casos Reales
+Arnés de Validación y Ejecución Documentada de 10 Casos de Prueba
 Hito S2: Herramientas Reales y Documentación de Ejecuciones
 Reto Agente 2026 - Platica.mx × Campuslands · Equipo Codixia
 """
@@ -30,7 +30,7 @@ from src.config import GROK_MODEL, RETO_BASE_URL, is_configured
 
 console = Console()
 
-# 10 casos reales diseñados para poner a prueba todas las herramientas
+# 10 escenarios diseñados para poner a prueba las herramientas.
 SAMPLES_S2 = [
     {
         "id": "EXEC-01",
@@ -106,12 +106,13 @@ SAMPLES_S2 = [
 
 def run_all():
     is_live = is_configured() and os.getenv("GROK_MODE", "mock").lower() in ["live", "real", "production"]
+    run_id = datetime.now().strftime("%Y%m%dT%H%M%S%f")
     console.print(Panel.fit(
         "[bold cyan]🛡️ ARNÉS DE EJECUCIÓN DOCUMENTADA — HITO S2[/bold cyan]\n"
-        "[italic]10 Casos Reales con Herramientas, Tolerancia a Fallos y Telemetría[/italic]\n\n"
+        "[italic]10 casos de prueba con herramientas, tolerancia a fallos y telemetría[/italic]\n\n"
         f"• Gateway: [yellow]{RETO_BASE_URL}[/yellow]\n"
         f"• Modelo: [magenta]{GROK_MODEL}[/magenta]\n"
-        f"• Estado: {'[bold green]MODO REAL CONECTADO A GROK 4.7 (Platica)[/bold green]' if is_live else '[bold yellow]MODO SIMULACIÓN LOCAL BLINDADO ($0.00 USD)[/bold yellow]'}",
+        f"• Modo solicitado: {'[bold green]EN VIVO (la llamada aún debe verificarse por caso)[/bold green]' if is_live else '[bold yellow]SIMULACIÓN LOCAL ($0.00 USD)[/bold yellow]'}",
         border_style="green"
     ))
 
@@ -121,6 +122,9 @@ def run_all():
     results = []
     total_tokens = 0
     total_cost_usd = 0.0
+    verified_usage_cases = 0
+    unverifiable_usage_case_ids = []
+    successful_agent_cases = 0
 
     table = Table(title="📊 Resumen de las 10 Ejecuciones Reales (Hito S2)", border_style="cyan")
     table.add_column("ID", style="bold white", width=8)
@@ -140,6 +144,8 @@ def run_all():
         try:
             res = agent.process_message(case["input"], metadata=case.get("metadata", {}))
             duration = round(time.time() - start_time, 2)
+            if res.get("status") == "success":
+                successful_agent_cases += 1
             
             decision = res.get("decision", {})
             risk_level = decision.get("risk_level", "DESCONOCIDO")
@@ -151,11 +157,24 @@ def run_all():
                 tools_used.append("emergency_escalator")
 
             telemetry = res.get("telemetry", {})
-            tokens = telemetry.get("total_tokens", 0)
-            cost_usd = telemetry.get("estimated_cost_usd", 0.0)
-
-            total_tokens += tokens
-            total_cost_usd += cost_usd
+            usage_is_verifiable = (
+                telemetry.get("mode") == "live_api"
+                and telemetry.get("execution_status") == "provider_success"
+                and telemetry.get("usage_available") is True
+                and telemetry.get("usage_consistent") is not False
+                and isinstance(telemetry.get("total_tokens"), int)
+                and isinstance(telemetry.get("estimated_cost_usd"), (int, float))
+            )
+            if usage_is_verifiable:
+                tokens = telemetry["total_tokens"]
+                cost_usd = telemetry["estimated_cost_usd"]
+                total_tokens += tokens
+                total_cost_usd += cost_usd
+                verified_usage_cases += 1
+            else:
+                tokens = None
+                cost_usd = None
+                unverifiable_usage_case_ids.append(case["id"])
 
             # Color según riesgo
             risk_color = "red" if risk_level in ["CRÍTICO", "ALTO"] else ("yellow" if risk_level == "MEDIO" else "green")
@@ -166,8 +185,8 @@ def run_all():
                 f"[{risk_color}]{risk_level}[/{risk_color}]",
                 action,
                 ", ".join(tools_used),
-                str(tokens),
-                f"${cost_usd:.5f}",
+                str(tokens) if tokens is not None else "N/D",
+                f"${cost_usd:.5f}" if cost_usd is not None else "N/D",
                 f"{duration}s"
             )
 
@@ -175,6 +194,15 @@ def run_all():
                 "id": case["id"],
                 "title": case["title"],
                 "timestamp": datetime.now().isoformat(),
+                "status": res.get("status", "unknown"),
+                "execution_mode_requested": "live" if is_live else "simulated",
+                "simulated": res.get("simulated"),
+                "analysis_source": res.get("analysis_source", "unknown"),
+                "provider_execution_status": telemetry.get("execution_status", "unknown"),
+                "usage_verifiable": usage_is_verifiable,
+                "requested_model": GROK_MODEL,
+                "provider_model": telemetry.get("provider_model"),
+                "provider_response_id": telemetry.get("provider_response_id"),
                 "input": case["input"],
                 "metadata": case["metadata"],
                 "duration_seconds": duration,
@@ -194,48 +222,91 @@ def run_all():
             results.append({
                 "id": case["id"],
                 "title": case["title"],
+                "timestamp": datetime.now().isoformat(),
                 "status": "error",
+                "execution_mode_requested": "live" if is_live else "simulated",
+                "usage_verifiable": False,
+                "requested_model": GROK_MODEL,
                 "error": str(e)
             })
+            unverifiable_usage_case_ids.append(case["id"])
 
     console.print("\n")
     console.print(table)
 
     # Estadísticas Consolidadas
+    average_verified_cost = (
+        total_cost_usd / verified_usage_cases if verified_usage_cases else None
+    )
+    agent_success_rate = (
+        successful_agent_cases / len(results) * 100 if results else 0.0
+    )
+    verified_cost_display = (
+        f"${total_cost_usd:.5f} USD" if verified_usage_cases else "N/D"
+    )
+    verified_tokens_display = (
+        f"{total_tokens:,}" if verified_usage_cases else "N/D"
+    )
     console.print(Panel(
-        f"• Total Casos Procesados: [bold white]{len(results)}/10[/bold white]\n"
-        f"• Tokens Totales Consumidos: [bold cyan]{total_tokens:,}[/bold cyan]\n"
-        f"• Costo Total Acumulado: [bold green]${total_cost_usd:.5f} USD[/bold green]\n"
-        f"• Costo Promedio por Tarea: [bold green]${(total_cost_usd/len(results) if results else 0):.5f} USD[/bold green]\n"
-        f"• Tasa de Éxito: [bold green]100%[/bold green] (0 caídas / tolerancia a fallos)",
+        f"• Casos Procesados: [bold white]{len(results)}/10[/bold white]\n"
+        f"• Casos con respuesta y uso del proveedor: [bold cyan]{verified_usage_cases}[/bold cyan]\n"
+        f"• Casos sin uso verificable: [bold yellow]{len(unverifiable_usage_case_ids)}[/bold yellow]\n"
+        f"• Tokens reportados en casos verificables: [bold cyan]{verified_tokens_display}[/bold cyan]\n"
+        f"• Costo estimado en casos verificables: [bold green]{verified_cost_display}[/bold green]\n"
+        f"• Promedio estimado por caso verificable: [bold green]{f'${average_verified_cost:.5f} USD' if average_verified_cost is not None else 'N/D'}[/bold green]\n"
+        f"• Éxito del procesamiento del agente: [bold green]{agent_success_rate:.1f}%[/bold green]",
         title="📈 Estadísticas Consolidadas de la Ejecución",
         border_style="green"
     ))
 
-    # Guardar bitácora en JSON
-    json_path = os.path.join("logs", "s2_10_executions.json")
+    # Keep historical execution files intact; every new run gets a unique filename.
+    json_path = os.path.join("logs", f"s2_10_executions_{run_id}.json")
     with open(json_path, "w", encoding="utf-8") as f:
         json.dump({
             "generated_at": datetime.now().isoformat(),
-            "model": GROK_MODEL,
+            "run_id": run_id,
+            "execution_mode_requested": "live" if is_live else "simulated",
+            "requested_model": GROK_MODEL,
             "gateway": RETO_BASE_URL,
             "total_cases": len(results),
-            "total_tokens": total_tokens,
-            "total_cost_usd": total_cost_usd,
-            "average_cost_usd": round(total_cost_usd / len(results), 6) if results else 0.0,
+            "successful_agent_cases": successful_agent_cases,
+            "verified_usage_cases": verified_usage_cases,
+            "unverifiable_usage_case_ids": unverifiable_usage_case_ids,
+            "total_tokens_with_verifiable_usage": total_tokens if verified_usage_cases else None,
+            "total_estimated_cost_usd_with_verifiable_usage": (
+                round(total_cost_usd, 6) if verified_usage_cases else None
+            ),
+            "average_estimated_cost_usd_per_case_with_verifiable_usage": (
+                round(average_verified_cost, 6) if average_verified_cost is not None else None
+            ),
             "executions": results
         }, f, ensure_ascii=False, indent=2)
     console.print(f"[green]✓ Bitácora JSON guardada en:[/green] {json_path}")
 
     # Guardar informe ejecutivo en Markdown
-    md_path = os.path.join("logs", "s2_10_executions.md")
+    md_path = os.path.join("logs", f"s2_10_executions_{run_id}.md")
     with open(md_path, "w", encoding="utf-8") as f:
-        f.write("# 📋 Bitácora Oficial de 10 Ejecuciones Reales — Hito S2\n")
+        f.write("# 📋 Bitácora de 10 Ejecuciones Documentadas — Hito S2\n")
         f.write("### SentinelGuard AI · Reto Agente 2026 (Platica.mx × Campuslands)\n")
+        f.write(f"* **ID de ejecución:** `{run_id}`\n")
+        f.write(f"* **Modo solicitado:** `{'live' if is_live else 'simulated'}`\n")
         f.write(f"* **Fecha de Ejecución:** {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n")
-        f.write(f"* **Modelo:** `{GROK_MODEL}` vía `{RETO_BASE_URL}`\n")
+        f.write(f"* **Modelo solicitado:** `{GROK_MODEL}` vía `{RETO_BASE_URL}`\n")
+        f.write(
+            "* **Tarifas:** tasas codificadas en el cliente; requieren verificación "
+            "contra la tarifa del proveedor para la fecha.\n"
+        )
         f.write(f"* **Equipo:** Equipo Codixia\n")
-        f.write(f"* **Total Tokens:** {total_tokens:,} | **Costo Total:** ${total_cost_usd:.5f} USD | **Promedio/Tarea:** ${total_cost_usd/len(results):.5f} USD\n\n")
+        f.write(f"* **Casos con uso verificable del proveedor:** {verified_usage_cases}/{len(results)}\n")
+        f.write(
+            f"* **Tokens de esos casos:** {verified_tokens_display} | "
+            f"**Costo estimado:** {verified_cost_display}"
+        )
+        f.write(
+            f" | **Promedio por caso verificable:** ${average_verified_cost:.5f} USD\n\n"
+            if average_verified_cost is not None
+            else " | **Promedio por caso verificable:** N/D\n\n"
+        )
         f.write("---\n\n")
         f.write("## 📊 Tabla Resumen de Ejecuciones\n\n")
         f.write("| ID | Escenario de Prueba | Riesgo | Acción Decidida | Tools Activadas | Radicado CAI | Costo (USD) | Latencia |\n")
@@ -243,12 +314,28 @@ def run_all():
         for r in results:
             tools_str = ", ".join(f"`{t}`" for t in r.get("tools_invoked", []))
             cai_str = f"`{r.get('police_report_id')}`" if r.get('police_report_id') else "N/A"
-            cost_str = f"${r.get('telemetry', {}).get('estimated_cost_usd', 0.0):.5f}"
+            cost = r.get("telemetry", {}).get("estimated_cost_usd")
+            cost_str = (
+                f"${cost:.5f}"
+                if r.get("usage_verifiable") and isinstance(cost, (int, float))
+                else "N/D"
+            )
             f.write(f"| **{r['id']}** | {r['title']} | **{r['risk_level']}** | `{r['action']}` | {tools_str} | {cai_str} | {cost_str} | {r.get('duration_seconds', 0)}s |\n")
         f.write("\n---\n\n")
         f.write("## 📝 Detalle Caso a Caso\n\n")
         for r in results:
             f.write(f"### {r['id']} · {r['title']}\n")
+            f.write(
+                f"- **Estado:** `{r.get('status', 'unknown')}` | "
+                f"**Modo solicitado:** `{r.get('execution_mode_requested', 'unknown')}` | "
+                f"**Origen:** `{r.get('analysis_source', 'unknown')}` | "
+                f"**Estado del proveedor:** `{r.get('provider_execution_status', 'unknown')}`\n"
+            )
+            f.write(
+                f"- **Modelo solicitado/proveedor:** `{r.get('requested_model', 'unknown')}` / "
+                f"`{r.get('provider_model') or 'N/D'}` | "
+                f"**Respuesta proveedor:** `{r.get('provider_response_id') or 'N/D'}`\n"
+            )
             f.write(f"- **Entrada recibida:** *\"{r['input']}\"*\n")
             f.write(f"- **Veredicto Grok 4.7:** {r['reasoning']}\n")
             f.write(f"- **Respuesta al Usuario:** *\"{r['response_to_user']}\"*\n")

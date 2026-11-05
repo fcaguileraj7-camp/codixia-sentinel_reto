@@ -50,15 +50,29 @@ def test_minimal_live_connection():
         )
         elapsed = round(time.time() - start_time, 2)
         usage = getattr(client, "last_usage", {})
+        if getattr(client, "last_simulated", True):
+            console.print(
+                "[bold red]❌ La respuesta provino del fallback local; "
+                "no se verificó una conexión real con Grok.[/bold red]"
+            )
+            return False
+
+        cost = usage.get("estimated_cost_usd")
+        cost_display = (
+            f"${cost:.6f} USD"
+            if isinstance(cost, (int, float))
+            else "N/D: el proveedor no devolvió uso verificable"
+        )
         
         console.print(Panel(
             f"• [bold green]✓ Conexión Exitosa con Grok 4.7[/bold green]\n"
             f"• Respuesta recibida: [bold white]\"{response.strip()}\"[/bold white]\n"
             f"• Latencia: [magenta]{elapsed}s[/magenta]\n"
-            f"• Tokens de Prompt: [cyan]{usage.get('prompt_tokens', 0)}[/cyan]\n"
-            f"• Tokens de Respuesta: [cyan]{usage.get('completion_tokens', 0)}[/cyan]\n"
-            f"• Tokens Totales: [cyan]{usage.get('total_tokens', 0)}[/cyan]\n"
-            f"• Costo Incurrido: [bold green]${usage.get('estimated_cost_usd', 0.0):.6f} USD[/bold green]",
+            f"• Tokens de Prompt: [cyan]{usage.get('prompt_tokens') if usage.get('prompt_tokens') is not None else 'N/D'}[/cyan]\n"
+            f"• Tokens de Respuesta: [cyan]{usage.get('completion_tokens') if usage.get('completion_tokens') is not None else 'N/D'}[/cyan]\n"
+            f"• Tokens Totales: [cyan]{usage.get('total_tokens') if usage.get('total_tokens') is not None else 'N/D'}[/cyan]\n"
+            f"• Costo estimado: [bold green]{cost_display}[/bold green]\n"
+            f"• Estado del uso: [yellow]{usage.get('execution_status', 'desconocido')}[/yellow]",
             title="🎯 Resultado de Verificación",
             border_style="green"
         ))
