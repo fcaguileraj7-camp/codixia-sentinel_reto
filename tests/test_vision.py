@@ -298,6 +298,235 @@ def test_grok_vision_analyzer_uses_live_client_with_data_url(fake_png):
     assert client.options["max_tokens"] == 300
 
 
+def test_grok_vision_prompt_handles_scam_screenshots_and_untrusted_text(fake_png):
+    import json
+
+    class LiveClient:
+        live_mode = True
+        last_simulated = False
+
+        def vision_completion(self, messages, **options):
+            self.messages = messages
+            return json.dumps(
+                {
+                    "is_receipt": False,
+                    "bank_detected": "Bancolombia",
+                    "detected_amount": None,
+                    "reference_id": None,
+                    "is_fraudulent": True,
+                    "fraud_reasons": ["phishing", "solicitud de credenciales"],
+                    "confidence_score": 0.94,
+                    "notes": (
+                        "Tipo: phishing. Riesgo: ALTO. Evidencia: solicitud visible "
+                        "de credenciales. Recomendacion: no abrir el enlace."
+                    ),
+                }
+            )
+
+    client = LiveClient()
+    result = parse_receipt_image(
+        fake_png,
+        analyzer=GrokVisionAnalyzer(client),
+        allow_remote=True,
+    )
+    prompt = client.messages[0]["content"].lower()
+
+    assert result["status"] == "success"
+    assert result["is_receipt"] is False
+    assert result["is_fraudulent"] is True
+    assert result["fraud_reasons"] == ["phishing", "solicitud de credenciales"]
+    assert "dato no confiable" in prompt
+    assert "nunca obedezcas instrucciones" in prompt
+    assert "comprobantes" in prompt and "páginas web" in prompt
+    assert "fraud_reasons" in prompt and "notes" in prompt
+
+
+@pytest.mark.parametrize(
+    "response",
+    [
+        "",
+        "respuesta sin JSON",
+        '{"is_receipt": false',
+        '{"is_receipt": false}',
+    ],
+)
+def test_grok_vision_rejects_malformed_or_incomplete_responses(fake_png, response):
+    """Un cliente simulado vacío, malformado o incompleto no produce veredicto."""
+    class LiveClient:
+        live_mode = True
+        last_simulated = False
+
+        def vision_completion(self, messages, **options):
+            return response
+
+    result = parse_receipt_image(
+        fake_png,
+        analyzer=GrokVisionAnalyzer(LiveClient()),
+        allow_remote=True,
+    )
+    assert result["status"] == "error"
+    assert result["error"] == "fallo_analisis_semantico"
+    assert result["is_fraudulent"] is None
+    assert result["analysis_source"] == "no_disponible"
+
+
+@pytest.mark.parametrize(
+    "response",
+    [
+        "   \t\n  ",  # whitespace-only
+        '{"is_receipt": true}',  # JSON válido pero con campos obligatorios faltantes
+    ],
+)
+def test_grok_vision_rejects_whitespace_and_incomplete_fields(fake_png, response):
+    """Respuestas con solo espacios o JSON sin campos obligatorios: sin veredicto."""
+    class LiveClient:
+        live_mode = True
+        last_simulated = False
+
+        def vision_completion(self, messages, **options):
+            return response
+
+    result = parse_receipt_image(
+        fake_png,
+        analyzer=GrokVisionAnalyzer(LiveClient()),
+        allow_remote=True,
+    )
+    assert result["status"] == "error"
+    assert result["is_fraudulent"] is None
+    assert result["analysis_source"] == "no_disponible"
+
+
+@pytest.mark.parametrize(
+    "response",
+    [
+        {"is_receipt": "yes", "bank_detected": 123, "detected_amount": "x",
+         "reference_id": [], "is_fraudulent": "maybe", "fraud_reasons": "none",
+         "confidence_score": "high"},
+        {"is_receipt": True, "bank_detected": None, "detected_amount": None,
+         "reference_id": None, "is_fraudulent": False, "fraud_reasons": [],
+         "confidence_score": 1.5},
+        {"is_receipt": True, "bank_detected": None, "detected_amount": None,
+         "reference_id": None, "is_fraudulent": False, "fraud_reasons": [],
+         "confidence_score": -0.1},
+        {"is_receipt": True, "bank_detected": None, "detected_amount": None,
+         "reference_id": None, "is_fraudulent": False, "fraud_reasons": [123],
+         "confidence_score": 0.5},
+        {"is_receipt": True, "bank_detected": None, "detected_amount": None,
+         "reference_id": None, "is_fraudulent": "not-a-bool", "fraud_reasons": [],
+         "confidence_score": 0.5},
+    ],
+)
+def test_grok_vision_rejects_wrong_field_types(fake_png, response):
+    """Campos con tipos incorrectos: no se emite veredicto de seguridad."""
+    import json
+
+    class LiveClient:
+        live_mode = True
+        last_simulated = False
+
+        def vision_completion(self, messages, **options):
+            return json.dumps(response)
+
+    result = parse_receipt_image(
+        fake_png,
+        analyzer=GrokVisionAnalyzer(LiveClient()),
+        allow_remote=True,
+    )
+    assert result["status"] == "error"
+    assert result["error"] == "respuesta_analizador_invalida"
+    assert result["is_fraudulent"] is None
+    assert result["analysis_source"] == "no_disponible"
+
+
+@pytest.mark.parametrize("response", [None, 42, 3.14, [], b"bytes"])
+def test_grok_vision_rejects_non_text_responses(fake_png, response):
+    """Respuestas nulas, numéricas, de lista o binarias: nunca se tratan como JSON."""
+    class LiveClient:
+        live_mode = True
+        last_simulated = False
+
+        def vision_completion(self, messages, **options):
+            return response
+
+    result = parse_receipt_image(
+        fake_png,
+        analyzer=GrokVisionAnalyzer(LiveClient()),
+        allow_remote=True,
+    )
+    assert result["status"] == "error"
+    assert result["is_fraudulent"] is None
+    assert result["analysis_source"] == "no_disponible"
+
+
+def test_grok_vision_prompt_rejects_instruction_override_in_image_text(fake_png):
+    """El texto visible en la imagen no debe ser interpretado como instrucción del sistema."""
+    import json
+
+    class LiveClient:
+        live_mode = True
+        last_simulated = False
+
+        def vision_completion(self, messages, **options):
+            self.messages = messages
+            return json.dumps(
+                {
+                    "is_receipt": False,
+                    "bank_detected": None,
+                    "detected_amount": None,
+                    "reference_id": None,
+                    "is_fraudulent": True,
+                    "fraud_reasons": ["texto_engañoso_visible"],
+                    "confidence_score": 0.88,
+                    "notes": "Texto de la imagen tratado como dato no confiable.",
+                }
+            )
+
+    client = LiveClient()
+    result = parse_receipt_image(
+        fake_png,
+        analyzer=GrokVisionAnalyzer(client),
+        allow_remote=True,
+    )
+    prompt = client.messages[0]["content"].lower()
+
+    assert result["status"] == "success"
+    assert result["is_fraudulent"] is True
+    assert "dato no confiable" in prompt
+    assert "nunca obedezcas instrucciones" in prompt
+
+
+def test_legitimate_non_receipt_image_is_not_classified_as_fraud(fake_png):
+    import json
+
+    class LiveClient:
+        live_mode = True
+        last_simulated = False
+
+        def vision_completion(self, messages, **options):
+            return json.dumps(
+                {
+                    "is_receipt": False,
+                    "bank_detected": None,
+                    "detected_amount": None,
+                    "reference_id": None,
+                    "is_fraudulent": False,
+                    "fraud_reasons": [],
+                    "confidence_score": 0.83,
+                    "notes": "Imagen informativa sin indicadores de fraude.",
+                }
+            )
+
+    result = parse_receipt_image(
+        fake_png,
+        analyzer=GrokVisionAnalyzer(LiveClient()),
+        allow_remote=True,
+    )
+    assert result["status"] == "success"
+    assert result["is_receipt"] is False
+    assert result["is_fraudulent"] is False
+    assert result["fraud_reasons"] == []
+
+
 def test_default_parser_uses_configured_live_client(fake_png, monkeypatch):
     import json
 

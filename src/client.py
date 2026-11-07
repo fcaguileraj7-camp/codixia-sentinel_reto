@@ -251,6 +251,7 @@ class GrokClient:
                 "action": "SCHEDULE_CHECKIN",
                 "response_to_user": "Acompañamiento iniciado para el vehículo. Tu ruta y placa quedan registradas. Te escribiré en 10 minutos para confirmar que todo va bien."
             }, ensure_ascii=False)
+
         # Seguimiento multi-turno a fraude previo
         elif ("alerta previa en curso" in last_message_lower or "riesgo crítico" in last_message_lower) and any(w in audit_lower for w in ["debo", "hago", "respondo", "llaman", "consigno", "codigo", "código", "clave", "consignar", "responder", "número", "numero"]):
             return json.dumps({
@@ -276,22 +277,24 @@ class GrokClient:
                 "action": "INFORMATIVE_ONLY",
                 "response_to_user": "Dictamen: No se detectaron indicios de amenaza o estafa en el mensaje recibido. Recuerda no compartir claves ni códigos si te los solicitan más adelante."
             }, ensure_ascii=False)
-
     def vision_completion(
         self,
         messages: list[dict],
         model: str = GROK_MODEL,
-        temperature: float = 0.2,
-        max_tokens: int = 500,
+        temperature: float = 0.0,
+        max_tokens: int = 300,
     ) -> str:
         """
-        Ejecuta solicitud multimodal a Grok Vision controlando el consumo de tokens.
-        A diferencia de chat_completion, vision_completion requiere explícitamente modo en vivo;
-        en modo simulado o mock se rehúsa a ejecutarse para evitar falsos positivos de red.
-        Si la API del proveedor falla, propaga la excepción directamente sin fallback silencioso.
+        Ejecuta una solicitud multimodal a Grok Vision exclusivamente
+        en modo real, con monitoreo de tokens y costos.
+
+        No permite fallback simulado para evitar falsos positivos
+        en el análisis de imágenes.
         """
         if not getattr(self, "live_mode", False) or not getattr(self, "client", None):
-            raise RuntimeError("El cliente GrokClient requiere modo en vivo explícito para vision_completion.")
+            raise RuntimeError(
+                "Grok Vision requiere un cliente configurado en modo en vivo."
+            )
 
         try:
             response = self.client.chat.completions.create(
@@ -301,31 +304,109 @@ class GrokClient:
                 max_tokens=max_tokens,
             )
 
-            # Monitoreo de Tokens y Cálculo de Costo
-            if hasattr(response, "usage") and response.usage:
-                p_tokens = getattr(response.usage, "prompt_tokens", 0) or 0
-                c_tokens = getattr(response.usage, "completion_tokens", 0) or 0
-                t_tokens = getattr(response.usage, "total_tokens", 0) or (p_tokens + c_tokens)
-                estimated_cost = (p_tokens * 0.000002) + (c_tokens * 0.000010)
-                self.last_usage = {
-                    "prompt_tokens": p_tokens,
-                    "completion_tokens": c_tokens,
-                    "total_tokens": t_tokens,
-                    "estimated_cost_usd": round(estimated_cost, 6),
-                    "mode": "live_api"
-                }
+            usage = getattr(response, "usage", None)
+
+            prompt_tokens = getattr(usage, "prompt_tokens", None)
+            completion_tokens = getattr(usage, "completion_tokens", None)
+            provider_total_tokens = getattr(usage, "total_tokens", None)
+
+            has_token_counts = all(
+                isinstance(value, int)
+                and not isinstance(value, bool)
+                and value >= 0
+                for value in (prompt_tokens, completion_tokens)
+            )
+
+            has_provider_total = (
+                isinstance(provider_total_tokens, int)
+                and not isinstance(provider_total_tokens, bool)
+                and provider_total_tokens >= 0
+            )
+
+            if has_token_counts:
+                total_tokens = (
+                    provider_total_tokens
+                    if has_provider_total
+                    else prompt_tokens + completion_tokens
+                )
+
+                estimated_cost = (
+                    prompt_tokens * INPUT_TOKEN_RATE_USD
+                    + completion_tokens * OUTPUT_TOKEN_RATE_USD
+                )
+
+                usage_consistent = (
+                    provider_total_tokens == prompt_tokens + completion_tokens
+                    if has_provider_total
+                    else None
+                )
             else:
-                self.last_usage = {
-                    "prompt_tokens": 0,
-                    "completion_tokens": 0,
-                    "total_tokens": 0,
-                    "estimated_cost_usd": 0.0,
-                    "mode": "live_api"
-                }
+                total_tokens = None
+                estimated_cost = None
+                usage_consistent = None
+
+            usage_available = usage is not None and has_token_counts
+
+            self.last_usage = {
+                "prompt_tokens": prompt_tokens if has_token_counts else None,
+                "completion_tokens": completion_tokens if has_token_counts else None,
+                "total_tokens": total_tokens,
+                "provider_total_tokens": (
+                    provider_total_tokens if has_provider_total else None
+                ),
+                "total_tokens_source": (
+                    "provider" if has_provider_total
+                    else "sum_of_prompt_and_completion" if has_token_counts
+                    else None
+                ),
+                "usage_consistent": usage_consistent,
+                "usage_available": usage_available,
+                "estimated_cost_usd": (
+                    round(estimated_cost, 6)
+                    if estimated_cost is not None
+                    else None
+                ),
+                "pricing_basis": (
+                    "hard-coded rates; verify against provider tariff for execution date"
+                    if usage_available
+                    else None
+                ),
+                "input_token_rate_usd": (
+                    INPUT_TOKEN_RATE_USD if usage_available else None
+                ),
+                "output_token_rate_usd": (
+                    OUTPUT_TOKEN_RATE_USD if usage_available else None
+                ),
+                "mode": "live_api",
+                "execution_status": (
+                    "provider_success"
+                    if usage_available
+                    else "provider_usage_missing_or_invalid"
+                ),
+                "requested_model": model,
+                "provider_model": getattr(response, "model", None),
+                "provider_response_id": getattr(response, "id", None),
+            }
 
             self.last_source = "grok_vision"
             self.last_simulated = False
-            return response.choices[0].message.content or ""
+
+            content = response.choices[0].message.content
+
+            if not isinstance(content, str) or not content.strip():
+                raise ValueError(
+                    "Grok Vision devolvió una respuesta vacía o no textual."
+                )
+
+            if usage_available:
+                logger.info(
+                    f"[dim cyan]Consumo de tokens: {total_tokens} "
+                    f"(Prompt: {prompt_tokens}, Completion: {completion_tokens}) | "
+                    f"Costo estimado: ${estimated_cost:.5f} USD[/dim cyan]"
+                )
+
+            return content
+
         except Exception:
             self.last_source = "unavailable"
             self.last_simulated = False

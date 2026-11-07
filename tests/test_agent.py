@@ -1,3 +1,4 @@
+
 """
 Pruebas de Integración para SentinelAgent Core y Blindaje de Presupuesto
 Hito S2: Arquitectura Resiliente, Herramientas Reales y Tolerancia a Fallos
@@ -16,12 +17,14 @@ PNG_1x1 = (
     b"\x00\x00\x05\x00\x01\r\n-\xb4\x00\x00\x00\x00IEND\xaeB`\x82"
 )
 
+
 def test_sentinel_process_legitimate():
     agent = SentinelAgent()
     res = agent.process_message("Hola mamá, ¿cómo estás? Ya voy saliendo del trabajo.")
     assert res["status"] == "success"
     assert "decision" in res
     assert res["decision"]["risk_level"] in ["BAJO", "MEDIO"]
+
 
 def test_sentinel_process_phishing():
     agent = SentinelAgent()
@@ -30,13 +33,14 @@ def test_sentinel_process_phishing():
     assert "decision" in res
     assert res["decision"]["risk_level"] in ["ALTO", "CRÍTICO"]
 
+
 # ==============================================================================
 # 1. Pruebas de Integración de VisionParser (Requisito 1)
 # ==============================================================================
 
 def test_sentinel_process_with_image_metadata(tmp_path):
     """Verifica que VisionParser se invoque cuando metadata['image_path'] está presente."""
-    # Crear archivo temporal simulado de comprobante válido
+    # Crear archivo temporal simulado de comprobante válido.
     dummy_image = tmp_path / "comprobante_nequi_test.png"
     dummy_image.write_bytes(PNG_1x1)
 
@@ -51,6 +55,8 @@ def test_sentinel_process_with_image_metadata(tmp_path):
     assert res["tool_results"]["vision"]["status"] == "success"
     assert res["tool_results"]["vision"]["is_receipt"] is True
     assert "Nequi" in res["tool_results"]["vision"]["bank_detected"]
+    assert res["tool_results"]["vision"]["analysis_source"] == "simulado_local"
+
 
 def test_sentinel_process_without_image_backward_compatibility():
     """Confirma que la ausencia de image_path mantiene el comportamiento actual sin fallos."""
@@ -58,6 +64,7 @@ def test_sentinel_process_without_image_backward_compatibility():
     res = agent.process_message("Mensaje ordinario sin comprobantes adjuntos")
     assert res["status"] == "success"
     assert "vision" not in res["tool_results"]
+
 
 # ==============================================================================
 # 2. Pruebas de Manejo de Fallos sin Falsos Veredictos (Requisito 2)
@@ -77,6 +84,7 @@ def test_sentinel_handles_invalid_json_without_dummy_verdict():
     assert res["police_report"] is None
     assert res["escalation"] is None
 
+
 def test_sentinel_handles_client_exception_gracefully():
     """Verifica que excepciones de red o timeout generen 'NO_ANALIZADO' explícito."""
     mock_client = MagicMock(spec=GrokClient)
@@ -90,6 +98,7 @@ def test_sentinel_handles_client_exception_gracefully():
     assert res["decision"]["analysis_available"] is False
     assert res["decision"]["risk_level"] == "NO_ANALIZADO"
     assert res["police_report"] is None
+
 
 # ==============================================================================
 # 3. Pruebas de Blindaje Estructural de Presupuesto (Requisito 3)
@@ -105,6 +114,7 @@ def test_grok_client_default_operates_in_local_simulated_mode():
     assert isinstance(response, str)
     assert client.last_usage["estimated_cost_usd"] == 0.0
     assert client.last_usage["mode"] == "simulated_local"
+
 
 # ==============================================================================
 # 4. Pruebas de Enrutamiento Preciso (Prevención de Falsos Negativos SIMIT/Placas)
@@ -126,6 +136,7 @@ def test_sentinel_routing_simit_not_confused_with_taxi():
     assert "route" not in res["tool_results"]
     assert res["police_report"] is not None
     assert "CAI-COL-" in res["police_report"]["report_id"]
+
 
 # ==============================================================================
 # 5. Pruebas de Integración de Flujo de Taxi y Audio (Hito S3 - Integración Nicolle)
@@ -158,6 +169,7 @@ def test_sentinel_taxi_flow_with_panic_audio_evaluation():
     assert res["escalation"]["incident_type"] == "PHYSICAL_RISK"
     assert res["escalation"]["status"] == "escalated"
     assert res["police_report"] is None  # CAI Virtual solo aplica a fraude digital
+
 
 def test_sentinel_taxi_flow_normal_audio_response():
     """
