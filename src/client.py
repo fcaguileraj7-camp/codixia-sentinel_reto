@@ -1,3 +1,4 @@
+import time
 import json
 from openai import OpenAI
 from src.config import RETO_API_KEY, RETO_BASE_URL, GROK_MODEL, is_configured, is_live_mode_enabled
@@ -81,88 +82,97 @@ class GrokClient:
         provider_error_type = None
         # Modo Real (solo si fue activado explícitamente)
         if self.live_mode and self.client:
-            try:
-                response = self.client.chat.completions.create(
-                    model=model,
-                    messages=messages,
-                    temperature=temperature,
-                    max_tokens=max_tokens,
-                )
+            max_retries = 3
+            for attempt in range(max_retries):
+                try:
+                    response = self.client.chat.completions.create(
+                        model=model,
+                        messages=messages,
+                        temperature=temperature,
+                        max_tokens=max_tokens,
+                    )
                 
-                usage = getattr(response, "usage", None)
-                prompt_tokens = getattr(usage, "prompt_tokens", None)
-                completion_tokens = getattr(usage, "completion_tokens", None)
-                provider_total_tokens = getattr(usage, "total_tokens", None)
-                has_token_counts = all(
-                    isinstance(value, int) and not isinstance(value, bool) and value >= 0
-                    for value in (prompt_tokens, completion_tokens)
-                )
-                has_provider_total = (
-                    isinstance(provider_total_tokens, int)
-                    and not isinstance(provider_total_tokens, bool)
-                    and provider_total_tokens >= 0
-                )
-
-                if has_token_counts:
-                    total_tokens = (
-                        provider_total_tokens
-                        if has_provider_total
-                        else prompt_tokens + completion_tokens
+                    usage = getattr(response, "usage", None)
+                    prompt_tokens = getattr(usage, "prompt_tokens", None)
+                    completion_tokens = getattr(usage, "completion_tokens", None)
+                    provider_total_tokens = getattr(usage, "total_tokens", None)
+                    has_token_counts = all(
+                        isinstance(value, int) and not isinstance(value, bool) and value >= 0
+                        for value in (prompt_tokens, completion_tokens)
                     )
-                    estimated_cost = (
-                        prompt_tokens * INPUT_TOKEN_RATE_USD
-                        + completion_tokens * OUTPUT_TOKEN_RATE_USD
+                    has_provider_total = (
+                        isinstance(provider_total_tokens, int)
+                        and not isinstance(provider_total_tokens, bool)
+                        and provider_total_tokens >= 0
                     )
-                    usage_consistent = (
-                        provider_total_tokens == prompt_tokens + completion_tokens
-                        if has_provider_total
-                        else None
-                    )
-                    logger.info(
-                        f"[dim cyan]📊 Consumo de Tokens: {total_tokens} (Prompt: {prompt_tokens}, Completions: {completion_tokens}) | "
-                        f"Costo estimado: ${estimated_cost:.5f} USD[/dim cyan]"
-                    )
-                else:
-                    total_tokens = None
-                    estimated_cost = None
-                    usage_consistent = None
-
-                usage_available = usage is not None and has_token_counts
-                self.last_usage = {
-                    "prompt_tokens": prompt_tokens if has_token_counts else None,
-                    "completion_tokens": completion_tokens if has_token_counts else None,
-                    "total_tokens": total_tokens,
-                    "provider_total_tokens": provider_total_tokens if has_provider_total else None,
-                    "total_tokens_source": (
-                        "provider" if has_provider_total
-                        else "sum_of_prompt_and_completion" if has_token_counts
-                        else None
-                    ),
-                    "usage_consistent": usage_consistent,
-                    "usage_available": usage_available,
-                    "estimated_cost_usd": round(estimated_cost, 6) if estimated_cost is not None else None,
-                    "pricing_basis": (
-                        "hard-coded rates; verify against provider tariff for execution date"
-                        if usage_available
-                        else None
-                    ),
-                    "input_token_rate_usd": INPUT_TOKEN_RATE_USD if usage_available else None,
-                    "output_token_rate_usd": OUTPUT_TOKEN_RATE_USD if usage_available else None,
-                    "mode": "live_api",
-                    "execution_status": (
-                        "provider_success" if usage_available else "provider_usage_missing_or_invalid"
-                    ),
-                    "requested_model": model,
-                    "provider_model": getattr(response, "model", None),
-                    "provider_response_id": getattr(response, "id", None),
-                }
-                
-                self.last_source = "grok_4.7"
-                self.last_simulated = False
-                return response.choices[0].message.content or ""
-            except Exception as e:
-                provider_error_type = type(e).__name__
-                logger.warning(f"[yellow]⚠ Falla en API de Grok ({e}). Activando fallback local resiliente.[/yellow]")
+    
+                    if has_token_counts:
+                        total_tokens = (
+                            provider_total_tokens
+                            if has_provider_total
+                            else prompt_tokens + completion_tokens
+                        )
+                        estimated_cost = (
+                            prompt_tokens * INPUT_TOKEN_RATE_USD
+                            + completion_tokens * OUTPUT_TOKEN_RATE_USD
+                        )
+                        usage_consistent = (
+                            provider_total_tokens == prompt_tokens + completion_tokens
+                            if has_provider_total
+                            else None
+                        )
+                        logger.info(
+                            f"[dim cyan]📊 Consumo de Tokens: {total_tokens} (Prompt: {prompt_tokens}, Completions: {completion_tokens}) | "
+                            f"Costo estimado: ${estimated_cost:.5f} USD[/dim cyan]"
+                        )
+                    else:
+                        total_tokens = None
+                        estimated_cost = None
+                        usage_consistent = None
+    
+                    usage_available = usage is not None and has_token_counts
+                    self.last_usage = {
+                        "prompt_tokens": prompt_tokens if has_token_counts else None,
+                        "completion_tokens": completion_tokens if has_token_counts else None,
+                        "total_tokens": total_tokens,
+                        "provider_total_tokens": provider_total_tokens if has_provider_total else None,
+                        "total_tokens_source": (
+                            "provider" if has_provider_total
+                            else "sum_of_prompt_and_completion" if has_token_counts
+                            else None
+                        ),
+                        "usage_consistent": usage_consistent,
+                        "usage_available": usage_available,
+                        "estimated_cost_usd": round(estimated_cost, 6) if estimated_cost is not None else None,
+                        "pricing_basis": (
+                            "hard-coded rates; verify against provider tariff for execution date"
+                            if usage_available
+                            else None
+                        ),
+                        "input_token_rate_usd": INPUT_TOKEN_RATE_USD if usage_available else None,
+                        "output_token_rate_usd": OUTPUT_TOKEN_RATE_USD if usage_available else None,
+                        "mode": "live_api",
+                        "execution_status": (
+                            "provider_success" if usage_available else "provider_usage_missing_or_invalid"
+                        ),
+                        "requested_model": model,
+                        "provider_model": getattr(response, "model", None),
+                        "provider_response_id": getattr(response, "id", None),
+                    }
+                    
+                    self.last_source = "grok_4.7"
+                    self.last_simulated = False
+                    return response.choices[0].message.content or ""
+                except Exception as e:
+                    provider_error_type = type(e).__name__
+                    err_str = str(e)
+                    if any(code in err_str for code in ["503", "capacity_unavailable", "429", "rate_limit"]) and attempt < max_retries - 1:
+                        sleep_s = (attempt + 1) * 3
+                        logger.warning(f"[yellow]⚠ Capacidad temporalmente ocupada en pasarela ({e}). Reintentando en {sleep_s}s (intento {attempt+1}/{max_retries})...[/yellow]")
+                        time.sleep(sleep_s)
+                        continue
+                    logger.warning(f"[yellow]⚠ Falla en API de Grok ({e}). Activando fallback local resiliente.[/yellow]")
+                    break
 
         # Fallback de simulación determinista para pruebas locales (Gasto $0.00 USD)
         self.last_source = "simulated"
