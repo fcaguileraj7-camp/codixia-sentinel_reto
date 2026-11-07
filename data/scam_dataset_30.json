@@ -193,10 +193,10 @@
   },
   {
     "id": "CASE-025",
-    "category": "ACOMPANAMIENTO_FISICO_PANICO",
+    "category": "FALSO_SECUESTRO_EXPRESS",
     "expected_verdict": "CRÍTICO",
-    "text": "Voy en el taxi placa TRL-981 hacia Suba, pero el conductor se desvió por una trocha oscura, apagó las luces y no me responde. Es urgente, auxilio inmediato por favor.",
-    "entity_target": "Seguridad Transporte / Taxi",
+    "text": "Tenemos a su hijo retenido en una camioneta. No cuelgue ni intente llamar a la policía o le pegamos un tiro. Consigne de inmediato 5 millones por Nequi o Daviplata si lo quiere volver a ver con vida.",
+    "entity_target": "Familiar / Emergencia Falsa",
     "has_malicious_url": false
   },
   {
@@ -211,8 +211,8 @@
     "id": "CASE-027",
     "category": "LEGITIMO_CONTROL",
     "expected_verdict": "BAJO",
-    "text": "Acabo de abordar el taxi de placas WDY-452 saliendo de la oficina en Chapinero hacia mi casa en Cedritos. Inicio recorrido tranquilo, les aviso apenas llegue.",
-    "entity_target": "Seguridad Transporte / Taxi",
+    "text": "Hola familia, ya voy saliendo de la oficina hacia la casa en Cedritos. El tráfico está normal, les aviso apenas llegue para cenar.",
+    "entity_target": "Familiar",
     "has_malicious_url": false
   },
   {
@@ -241,82 +241,82 @@
   },
   {
     "id": "CASE-031",
-    "category": "ACOMPANAMIENTO_FISICO_PANICO",
+    "category": "FALSO_COMPROBANTE_NEQUI",
     "expected_verdict": "CRÍTICO",
-    "text": "Voy en el taxi placa VKA-782 hacia el Parque de la 93, pero el conductor tomó un desvío hacia los cerros orientales por una vía destapada y cerrada. No me responde por qué cambió la ruta, tengo miedo.",
-    "entity_target": "Seguridad Transporte / Taxi",
+    "text": "Ya le transferí los .000 por Nequi y le mandé el comprobante. Envíe el producto inmediatamente o transfiera la plata de regreso a este Nequi o lo denuncio ante la fiscalía por robo.",
+    "entity_target": "NEQUI",
     "has_malicious_url": false
   },
   {
     "id": "CASE-032",
-    "category": "ACOMPANAMIENTO_FISICO_PANICO",
+    "category": "PHISHING_BANCOLOMBIA",
     "expected_verdict": "CRÍTICO",
-    "text": "Abordé el taxi de placas UET-319 en el centro de Medellín hacia Poblado, pero se desvió por un callejón industrial oscuro y solitario. El conductor apagó el radio y va mirando sospechosamente por el retrovisor. Auxilio por favor.",
-    "entity_target": "Seguridad Transporte / Taxi",
-    "has_malicious_url": false
+    "text": "BANCOLOMBIA: Detectamos movimientos inusuales en su cuenta. Para evitar el bloqueo definitivo, valide su identidad ahora en https://bancolombia-validacion.example/cliente. Ingrese usuario, clave y código de seguridad. Tiene 15 minutos para completar el proceso.",
+    "entity_target": "BANCOLOMBIA",
+    "has_malicious_url": true
   },
   {
     "id": "CASE-033",
-    "category": "ACOMPANAMIENTO_FISICO_PANICO",
+    "category": "ESTAFA_INVERSION_CRIPTOMONEDAS",
     "expected_verdict": "CRÍTICO",
-    "text": "Estoy en el taxi placa TSX-540 rumbo a Salitre, pero el chofer insiste agresivamente en llevarme a otra dirección para recoger a alguien más y puso los seguros. No me deja bajar, es una situación de peligro.",
-    "entity_target": "Seguridad Transporte / Taxi",
+    "text": "Tenemos un sistema privado de inversión en criptomonedas. Invierte .000 y recibirás .000.000 en cinco días. La rentabilidad está garantizada. Si consignas hoy te activo un cupo VIP. No necesitas experiencia y puedes retirar cuando quieras.",
+    "entity_target": "PLATAFORMA_DE_CRIPTOMONEDAS",
     "has_malicious_url": false
   },
   {
     "id": "CASE-034",
-    "category": "ACOMPANAMIENTO_FISICO_PANICO",
+    "category": "FALSO_SOPORTE_TECNICO",
     "expected_verdict": "CRÍTICO",
-    "text": "Sigo en el taxi con placa RHO-612 hacia Ciudad Salitre. El conductor va hablando por teléfono en código diciendo que ya tiene el paquete listo y frena en esquinas oscuras. Ayuda por favor, tengo miedo, estoy en peligro.",
-    "entity_target": "Seguridad Transporte / Taxi",
+    "text": "Le hablamos del departamento de seguridad de su banco. Detectamos actividad inusual y su cuenta está bloqueada temporalmente. Para desbloquearla, comparta el código de seguridad que aparece en pantalla inmediatamente.",
+    "entity_target": "ENTIDAD_BANCARIA",
     "has_malicious_url": false
   },
   {
     "id": "CASE-035",
-    "category": "ACOMPANAMIENTO_FISICO_PANICO",
+    "category": "FRAUDE_QR_PAGO",
     "expected_verdict": "CRÍTICO",
-    "text": "El conductor del taxi placa WBD-890 hacia Floridablanca se puso violento, me amenazó con que no me va a dejar salir si no le entrego todo el dinero y aceleró por una trocha. Alerta de auxilio urgente.",
-    "entity_target": "Seguridad Transporte / Taxi",
-    "has_malicious_url": false
+    "text": "Para recibir el pago de .000 escanea este código QR o ingresa a https://pasarela-pse-segura.top/liberar-pago. Valide su cuenta bancaria e ingrese el código de seguridad SMS inmediatamente para autorizar el desembolso.",
+    "entity_target": "PASARELA_DE_PAGOS",
+    "has_malicious_url": true
   },
   {
     "id": "CASE-036",
-    "category": "ACOMPANAMIENTO_FISICO_CONTROL",
-    "expected_verdict": "BAJO",
-    "text": "Inicio viaje en el taxi placa SPK-415 desde Unicentro hacia mi apartamento en Santa Bárbara. Conductor amable, todo en orden y avanzando por la carrera 15 sin novedades.",
-    "entity_target": "Seguridad Transporte / Taxi",
+    "category": "FALSA_OFERTA_LABORAL",
+    "expected_verdict": "ALTO",
+    "text": "Felicitaciones, tu perfil fue seleccionado para trabajar desde casa. Ganarás .000 diarios sin experiencia. Solo debes pagar .000 por la activación de tu usuario y el kit de capacitación. Tenemos pocos cupos y debes transferir hoy para asegurar tu contratación.",
+    "entity_target": "FALSA_EMPRESA_EMPLEADORA",
     "has_malicious_url": false
   },
   {
     "id": "CASE-037",
-    "category": "ACOMPANAMIENTO_FISICO_CONTROL",
-    "expected_verdict": "BAJO",
-    "text": "Voy en el taxi de placas TKN-204 camino a la Universidad Javeriana. El taxista me avisó que la Séptima está cerrada por obras y tomó la Circunvalar para evitar el trancón. Trayecto normal y tranquilo.",
-    "entity_target": "Seguridad Transporte / Taxi",
-    "has_malicious_url": false
+    "category": "FRAUDE_COMPRAVENTA_DIGITAL",
+    "expected_verdict": "CRÍTICO",
+    "text": "Ya compré tu consola y el pago está protegido. Para liberar los fondos entra de inmediato a https://mercadolibre-proteccion-pago.site/liberar y confirme sus credenciales con su clave dinámica y código SMS.",
+    "entity_target": "PLATAFORMA_DE_COMPRAVENTA",
+    "has_malicious_url": true
   },
   {
     "id": "CASE-038",
-    "category": "ACOMPANAMIENTO_FISICO_CONTROL",
-    "expected_verdict": "BAJO",
-    "text": "Reporte de check-in: sigo en el taxi placa SKZ-901 hacia el aeropuerto El Dorado. Vamos por la Avenida Calle 26 pasando la Avenida Boyacá. Todo normal, tiempo estimado 15 minutos.",
-    "entity_target": "Seguridad Transporte / Taxi",
+    "category": "SUPLANTACION_OPERADOR_SIM",
+    "expected_verdict": "CRÍTICO",
+    "text": "Claro Seguridad: Detectamos una solicitud urgente de duplicado de SIM y su línea está bloqueada preventivamente. Para cancelar el trámite y desbloquear su línea, comparta de inmediato el código de seguridad recibido por SMS.",
+    "entity_target": "OPERADOR_MOVIL",
     "has_malicious_url": false
   },
   {
     "id": "CASE-039",
-    "category": "ACOMPANAMIENTO_FISICO_CONTROL",
-    "expected_verdict": "BAJO",
-    "text": "Acabo de llegar a mi casa sano y salvo en el taxi placa TJV-650. Ya me bajé en la portería y pagué la carrera. Doy por terminado el acompañamiento, muchas gracias.",
-    "entity_target": "Seguridad Transporte / Taxi",
-    "has_malicious_url": false
+    "category": "FALSO_REEMBOLSO_DIAN",
+    "expected_verdict": "CRÍTICO",
+    "text": "DIAN - Notificación de devolución. Usted tiene un saldo a favor de .280.000 pendiente de reembolso. Para recibirlo hoy, actualice sus datos personales y bancarios en https://devolucion-dian.example/consulta. Si no completa el formulario en las próximas 24 horas perderá el beneficio.",
+    "entity_target": "DIAN",
+    "has_malicious_url": true
   },
   {
     "id": "CASE-040",
-    "category": "ACOMPANAMIENTO_FISICO_PANICO",
+    "category": "EXTORSION_DIGITAL",
     "expected_verdict": "CRÍTICO",
-    "text": "Voy en el taxi placa UPU-731 hacia Bosa San José. El carro se detuvo en una zona desolada sin iluminación, el conductor no habla y parece estar esperando a otros hombres en la esquina. Auxilio por favor, tengo miedo.",
-    "entity_target": "Seguridad Transporte / Taxi",
+    "text": "Tengo tus fotos y conversaciones privadas. Si no me transfieres .500.000 en la próxima hora las voy a enviar a todos tus contactos y familiares. No intentes denunciar ni bloquearme porque ya tengo tus datos. Te enviaré una prueba de que tengo acceso a tu información si no pagas.",
+    "entity_target": "DESCONOCIDO",
     "has_malicious_url": false
   }
 ]

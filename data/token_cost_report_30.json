@@ -1,24 +1,29 @@
 {
   "report_metadata": {
     "report_name": "token_cost_report_30.json",
-    "generated_at": "2026-11-03T21:10:37.093926+00:00",
-    "dataset_source": "data/scam_dataset_30.json (CASE-001 a CASE-030)",
-    "scope_description": "Subconjunto de los primeros 30 casos evaluados en vivo contra Grok 4.7",
-    "execution_mode": "live_gateway_grok_4.7",
-    "real_api_calls_made": 30,
-    "real_api_cost_usd": 0.25476,
-    "estimation_method": "direct_telemetry_response_usage_openai_sdk",
-    "gateway": "https://api.reto.pltk.mx/v1",
-    "model": "grok-4.7"
+    "generated_at": "2026-11-07T16:12:58.006232+00:00",
+    "dataset_source": "data/scam_dataset_30.json",
+    "scope_description": "30 registros originales del dataset histórico (CASE-001 a CASE-030: 29 casos de auditoría digital y 1 control legítimo de transporte)",
+    "execution_mode": "offline_deterministic_benchmark",
+    "real_api_calls_made": 0,
+    "real_api_cost_usd": 0.0,
+    "estimation_method": "heuristic_lexical_character_ratio_4.0",
+    "pricing_policy": {
+      "prompt_rate_per_1m_tokens_usd": 2.0,
+      "completion_rate_per_1m_tokens_usd": 10.0
+    },
+    "tariff_status": "CONFIGURED_UNVERIFIED"
   },
   "summary_metrics": {
     "total_cases_evaluated": 30,
     "successful_evaluations": 30,
     "failed_evaluations": 0,
-    "verdict_matches": 29,
-    "accuracy_percentage": 96.67,
-    "total_tokens": 99910,
-    "total_real_cost_usd": 0.25476
+    "total_prompt_tokens": 34302,
+    "total_completion_tokens": 3185,
+    "total_tokens": 37487,
+    "total_estimated_cost_usd": 0.100454,
+    "average_tokens_per_case": 1249.57,
+    "average_cost_usd_per_case": 0.003348
   },
   "case_evaluations": [
     {
@@ -87,15 +92,10 @@
       "actual_action": "BLOCK_AND_REPORT",
       "status": "success",
       "error_message": null,
-      "prompt_tokens": 2716,
-      "completion_tokens": 406,
-      "total_tokens": 3419,
-      "real_cost_usd": 0.009492,
-      "latency_ms": 10994.66,
-      "analysis_source": "grok_4.7",
-      "escalation_triggered": true,
-      "police_report_generated": true,
-      "reasoning_snippet": "El texto auditado no es una oferta laboral real de Amazon. Combina tres señales clásicas de estafa por adelanto: (1) ceb..."
+      "prompt_tokens": 1346,
+      "completion_tokens": 91,
+      "total_tokens": 1437,
+      "estimated_cost_usd": 0.003602
     },
     {
       "case_id": "CASE-005",
@@ -372,15 +372,10 @@
       "actual_action": "BLOCK_AND_REPORT",
       "status": "success",
       "error_message": null,
-      "prompt_tokens": 2779,
-      "completion_tokens": 351,
-      "total_tokens": 3509,
-      "real_cost_usd": 0.009068,
-      "latency_ms": 11709.79,
-      "analysis_source": "grok_4.7",
-      "escalation_triggered": true,
-      "police_report_generated": true,
-      "reasoning_snippet": "El texto simula una citación y una orden de captura de la Fiscalía General de la Nación para generar miedo y forzar una ..."
+      "prompt_tokens": 1432,
+      "completion_tokens": 124,
+      "total_tokens": 1556,
+      "estimated_cost_usd": 0.004104
     },
     {
       "case_id": "CASE-020",
@@ -467,15 +462,10 @@
       "actual_action": "BLOCK_AND_REPORT",
       "status": "success",
       "error_message": null,
-      "prompt_tokens": 2777,
-      "completion_tokens": 347,
-      "total_tokens": 3448,
-      "real_cost_usd": 0.009024,
-      "latency_ms": 9309.21,
-      "analysis_source": "grok_4.7",
-      "escalation_triggered": true,
-      "police_report_generated": true,
-      "reasoning_snippet": "El mensaje simula una notificación oficial de Tarjeta Éxito Tuya combinando embargo preventivo, bloqueo por compras en m..."
+      "prompt_tokens": 1424,
+      "completion_tokens": 124,
+      "total_tokens": 1548,
+      "estimated_cost_usd": 0.004088
     },
     {
       "case_id": "CASE-025",
