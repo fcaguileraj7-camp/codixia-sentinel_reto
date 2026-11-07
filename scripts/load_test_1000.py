@@ -67,16 +67,18 @@ def init_csv_if_missing(csv_path: Path):
             ])
 
 
-def load_existing_bitacora(json_path: Path) -> List[Dict[str, Any]]:
-    """Carga los registros ya procesados para soporte de reanudación automática."""
+def load_existing_bitacora(json_path: Path):
+    """Carga los registros y tiempo previo para soporte de reanudación automática."""
     if json_path.exists():
         try:
             with open(json_path, "r", encoding="utf-8") as f:
                 data = json.load(f)
-                return data.get("tasks", [])
+                tasks = data.get("tasks", [])
+                prev_time = data.get("metadata", {}).get("elapsed_time_sec", 0.0)
+                return tasks, prev_time
         except Exception:
-            return []
-    return []
+            return [], 0.0
+    return [], 0.0
 
 
 def append_csv_record(csv_path: Path, record: Dict[str, Any], max_retries: int = 5):
@@ -170,7 +172,7 @@ def run_load_test(
     # 2. Reanudación automática
     DATA_DIR.mkdir(parents=True, exist_ok=True)
     init_csv_if_missing(BITACORA_CSV)
-    completed_records = load_existing_bitacora(BITACORA_JSON) if resume else []
+    completed_records, previous_elapsed_sec = load_existing_bitacora(BITACORA_JSON) if resume else ([], 0.0)
     completed_ids = {r["task_id"] for r in completed_records}
 
     tasks_to_run = [t for t in all_tasks if t["task_id"] not in completed_ids]
@@ -274,7 +276,7 @@ def run_load_test(
         append_csv_record(BITACORA_CSV, record)
 
         # Estadísticas acumuladas
-        elapsed_total = time.time() - start_time
+        elapsed_total = previous_elapsed_sec + (time.time() - start_time)
         remaining_tasks = len(all_tasks) - len(completed_records)
         avg_latency = sum(r.get("latency_sec", 0) for r in completed_records) / len(completed_records)
 
