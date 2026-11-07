@@ -268,3 +268,26 @@ def test_route_handler_does_not_depend_on_sentinel_module():
     assert res["status"] == "success"
     assert res["tool_results"]["route"]["status"] == "error"
     assert "Falla de registro" in res["tool_results"]["route"]["error"]
+
+
+
+def test_injected_route_handler_shares_agent_memory():
+    """Un handler inyectado adopta la memoria del agente (o la aporta si el agente no trae una)."""
+    from src.agent.memory import ConversationMemory
+    from src.agent.route_handler import RouteCompanionHandler
+
+    handler = RouteCompanionHandler()
+    agent = SentinelAgent(route_handler=handler)
+    assert agent.memory is handler.memory
+
+    own_memory = ConversationMemory()
+    agent_with_memory = SentinelAgent(memory=own_memory, route_handler=RouteCompanionHandler())
+    assert agent_with_memory.route_handler.memory is own_memory
+
+    agent.process_message(
+        "Voy en taxi placa TRL981 hacia Chapinero",
+        metadata={"plate": "TRL981", "destination": "Chapinero"},
+        session_id="injected_handler_test"
+    )
+    res = agent.process_message("todo bien, sigo en camino", session_id="injected_handler_test")
+    assert res["decision"]["mode"] == "route_companion"

@@ -46,11 +46,19 @@ class SentinelAgent:
             self.client = client
         else:
             self.client = GrokClient(use_real_api=use_real_api)
-        self.memory = memory if memory is not None else ConversationMemory()
-        self.route_handler = route_handler if route_handler is not None else RouteCompanionHandler(
-            client=self.client,
-            memory=self.memory
-        )
+        if memory is not None:
+            self.memory = memory
+        elif route_handler is not None:
+            self.memory = route_handler.memory
+        else:
+            self.memory = ConversationMemory()
+        if route_handler is not None:
+            # el agente y su handler comparten siempre la misma memoria: el viaje que registra
+            # el handler es el que consulta process_message para decidir el modo ruta
+            route_handler.memory = self.memory
+            self.route_handler = route_handler
+        else:
+            self.route_handler = RouteCompanionHandler(client=self.client, memory=self.memory)
 
     def process_cyber_audit(
         self,
