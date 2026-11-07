@@ -91,9 +91,9 @@ Las habilidades técnicas desarrolladas en las Semanas 1 y 2 se reutilizan direc
   - [x] Lista negra local `data/url_blacklist.json`, sembrada con los dominios de `scam_dataset_30.json` (cada entrada lleva su `origin`). `analyze_url` la consulta y marca `is_blacklisted`; con `blacklist=frozenset()` se mide solo la heurística.
     - [ ] Pendiente: ampliarla con reportes oficiales (por ejemplo, de la Policía Cibernética). Hoy la fuente es el dataset del equipo, no un reporte oficial.
   - [x] Telemetría de red en `analyze_url`: `telemetry.latency_ms` y `telemetry.expansion_ms` (la telemetría vive en `url_sandbox`; el módulo de taxi `route_companion.py` es lógica local sin peticiones de red).
-  - [ ] Optimización de latencias de conexión (una sola resolución DNS por salto de redirección; irá en un PR aparte).
+  - [x] Optimización de latencias de conexión: una sola resolución DNS por salto de redirección (PR #7).
 - **Semana 4 (Hito S4 · Oct 26 - Nov 1):**
-  - [ ] Implementar caché en memoria (`@lru_cache`) para responder consultas repetidas en <1 ms en la prueba de carga.
+  - [x] Caché en memoria de `analyze_url` (LRU con TTL, en lugar de `@lru_cache` para no cachear fallos de red ni compartir dicts mutables). Medido con la red simulada en `scripts/bench_sandbox_cache.py`: un acierto tarda del orden de 0,01 ms y el ciclo de la prueba de carga acierta el 96 %. El dataset no tiene acortadores, así que la mejora allí es pequeña; la gana más con acortadores reales.
 - **Cierre Final (Noviembre):**
   - [ ] Elaborar los diagramas de arquitectura de red y ciberseguridad para la presentación.
 
