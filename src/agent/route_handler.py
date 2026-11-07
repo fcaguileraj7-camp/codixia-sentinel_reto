@@ -8,7 +8,6 @@ la estricta separación de responsabilidades entre Escudo Digital y Seguridad F�
 
 import json
 import re
-import sys
 from typing import Dict, Any, Optional
 
 from src.client import GrokClient
@@ -16,27 +15,8 @@ from src.agent.prompts import SENTINEL_SYSTEM_PROMPT
 from src.agent.memory import ConversationMemory
 from src.tools.threat_inspector import inspect_threat
 from src.tools.emergency_escalator import escalate_emergency
-from src.tools.route_companion import (
-    register_trip as _tool_register_trip,
-    evaluate_trip_audio_response as _tool_evaluate_trip_audio_response,
-)
+from src.tools.route_companion import register_trip, evaluate_trip_audio_response
 from src.utils.logger import logger
-
-
-def _get_evaluate_trip_audio_response():
-    """Permite resolver dinámicamente evaluate_trip_audio_response si fue mockeado en tests."""
-    sentinel_mod = sys.modules.get("src.agent.sentinel")
-    if sentinel_mod and hasattr(sentinel_mod, "evaluate_trip_audio_response"):
-        return getattr(sentinel_mod, "evaluate_trip_audio_response")
-    return _tool_evaluate_trip_audio_response
-
-
-def _get_register_trip():
-    """Permite resolver dinámicamente register_trip si fue mockeado en tests."""
-    sentinel_mod = sys.modules.get("src.agent.sentinel")
-    if sentinel_mod and hasattr(sentinel_mod, "register_trip"):
-        return getattr(sentinel_mod, "register_trip")
-    return _tool_register_trip
 
 
 def _is_physical_route_request(
@@ -98,24 +78,22 @@ class RouteCompanionHandler:
         client: Optional[GrokClient] = None,
         memory: Optional[ConversationMemory] = None
     ):
-        self.client = client or GrokClient()
-        self.memory = memory or ConversationMemory()
+        self.client = client if client is not None else GrokClient()
+        self.memory = memory if memory is not None else ConversationMemory()
 
     def process_route_message(
         self,
         user_input: str,
         metadata: Optional[Dict[str, Any]] = None,
         session_id: str = "default",
-        memory: Optional[ConversationMemory] = None,
-        client: Optional[GrokClient] = None,
     ) -> Dict[str, Any]:
         """
         Ejecuta el pipeline exclusivo de acompañamiento físico en ruta:
         Evaluación de Audio/Texto -> Registro/Check-in -> Razonamiento Grok -> Escalada SOS (PHYSICAL_RISK).
         """
         metadata = metadata or {}
-        mem = memory or self.memory
-        cli = client or self.client
+        mem = self.memory
+        cli = self.client
 
         logger.info(f"[cyan]→ [RouteCompanion] Procesando solicitud física (Sesión: {session_id}):[/cyan] {user_input[:80]}...")
 
@@ -133,12 +111,9 @@ class RouteCompanionHandler:
             or (active_trip.get("safe_word") if active_trip else None)
         )
 
-        eval_trip_audio_fn = _get_evaluate_trip_audio_response()
-        register_trip_fn = _get_register_trip()
-
         if isinstance(transcript, str) and transcript.strip():
             try:
-                audio_eval = eval_trip_audio_fn(
+                audio_eval = evaluate_trip_audio_response(
                     transcript=transcript.strip(),
                     expected_safe_word=expected_safe_word
                 )
@@ -198,7 +173,7 @@ class RouteCompanionHandler:
         # 3. Registro o actualización del estado del viaje
         if not active_trip:
             try:
-                tool_results["route"] = register_trip_fn(plate=plate, destination=dest)
+                tool_results["route"] = register_trip(plate=plate, destination=dest)
                 logger.info(f"[blue]⚡ Tool ejecutada: register_trip -> {tool_results['route'].get('trip_id')}[/blue]")
             except Exception as e:
                 logger.warning(f"[yellow]⚠ Falla en tool register_trip ({e}). Continuando con fallback.[/yellow]")

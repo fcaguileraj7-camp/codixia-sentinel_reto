@@ -25,10 +25,6 @@ from src.tools.url_sandbox import analyze_url
 from src.tools.police_reporter import generate_police_report
 from src.tools.emergency_escalator import escalate_emergency
 from src.tools.vision_parser import parse_receipt_image
-from src.tools.route_companion import (
-    register_trip,
-    evaluate_trip_audio_response,
-)
 from src.utils.logger import logger
 
 
@@ -51,7 +47,7 @@ class SentinelAgent:
         else:
             self.client = GrokClient(use_real_api=use_real_api)
         self.memory = memory if memory is not None else ConversationMemory()
-        self.route_handler = route_handler or RouteCompanionHandler(
+        self.route_handler = route_handler if route_handler is not None else RouteCompanionHandler(
             client=self.client,
             memory=self.memory
         )
@@ -278,9 +274,7 @@ class SentinelAgent:
             return self.route_handler.process_route_message(
                 user_input=user_input,
                 metadata=metadata,
-                session_id=session_id,
-                memory=self.memory,
-                client=self.client
+                session_id=session_id
             )
 
         return self.process_cyber_audit(
