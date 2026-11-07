@@ -220,6 +220,35 @@ def test_credential_request_with_urgency_and_account_suspension_is_critical():
     assert result["threat_level"] == "CRÍTICO"
 
 
+def test_bank_impersonation_requesting_credentials_is_detected():
+    message = (
+        "Bancolombia informa: detectamos actividad inusual. Para proteger su "
+        "cuenta, confirme su clave y comparta el código OTP inmediatamente."
+    )
+    result = inspect_threat(message)
+    assert "falsa_autoridad_bancaria" in result["detected_vectors"]
+    assert "solicitud_credenciales" in result["detected_vectors"]
+    assert result["threat_level"] in ("ALTO", "CRÍTICO")
+
+
+def test_request_to_provide_otp_is_detected():
+    result = inspect_threat(
+        "Un asesor del banco le pide que comparta el código OTP recibido por SMS."
+    )
+    assert "solicitud_credenciales" in result["detected_vectors"]
+    assert result["threat_level"] == "MEDIO"
+
+
+def test_private_photo_extortion_and_transfer_demand_is_critical():
+    result = inspect_threat(
+        "Tengo tus fotos y conversaciones privadas. Si no me transfieres "
+        "500000 en una hora las voy a enviar a tus contactos y familiares."
+    )
+    assert "sextorsion" in result["detected_vectors"]
+    assert "solicitud_dinero" in result["detected_vectors"]
+    assert result["threat_level"] == "CRÍTICO"
+
+
 def test_armed_false_service_extortion_is_critical():
     message = (
         "La zona está rodeada por el frente armado y tenemos interceptadas sus "
@@ -250,6 +279,25 @@ def test_empty_input_does_not_yield_confident_verdict():
     assert result["detected_vectors"] == []
 
 
+def test_very_long_neutral_message_is_processed_without_crashing():
+    """Un millón de caracteres neutrales o de amenaza debe procesarse sin excepción."""
+    message = "mensaje neutral " * 62_500
+    assert len(message) >= 1_000_000
+    result = inspect_threat(message)
+    assert result["status"] == "success"
+    assert result["detected_vectors"] == []
+    assert result["is_ambiguous"] is True
+
+
+def test_very_long_threat_message_is_processed_without_crashing():
+    message = "urgente cuenta bloqueada " * 40_000
+    assert len(message) >= 1_000_000
+    result = inspect_threat(message)
+    assert result["status"] == "success"
+    assert "amenaza_bloqueo" in result["detected_vectors"]
+    assert result["threat_level"] in ("MEDIO", "ALTO", "CRÍTICO")
+
+
 # ---------------------------------------------------------------------------
 # Entradas malformadas
 # ---------------------------------------------------------------------------
@@ -278,6 +326,98 @@ def test_control_characters_do_not_crash():
     result = inspect_threat(message)
     assert result["status"] == "success"
     assert "amenaza_bloqueo" in result["detected_vectors"]
+
+
+# ---------------------------------------------------------------------------
+# Robustez adicional S4: espacios, emojis puros, saltos de línea, Unicode y patrones repetidos
+# ---------------------------------------------------------------------------
+
+def test_whitespace_only_text_does_not_crash():
+    """Texto compuesto únicamente por espacios, tabs y saltos de línea."""
+    message = "   \t\n  \r\n\t  "
+    result = inspect_threat(message)
+    assert result["status"] == "success"
+    assert result["detected_vectors"] == []
+    assert result["is_ambiguous"] is True
+
+
+def test_emoji_only_message_does_not_crash():
+    """Solo emojis, sin texto: no debe producir falso positivo ni excepción."""
+    message = "🎉" * 8000 + "🔥" * 8000
+    result = inspect_threat(message)
+    assert result["status"] == "success"
+    assert result["detected_vectors"] == []
+    assert result["threat_level"] == "BAJO"
+
+
+def test_emojis_at_start_middle_and_end_with_threat():
+    """Emojis al inicio, en medio y al final mezclados con una amenaza real."""
+    message = (
+        "🎉🎉🎉 Bancolombia: su cuenta ha sido bloqueada 🚨 "
+        "ingrese urgente a http://banc0lombia.cc 🔥🔥"
+    )
+    result = inspect_threat(message)
+    assert result["status"] == "success"
+    assert "amenaza_bloqueo" in result["detected_vectors"]
+    assert "urgencia_artificial" in result["detected_vectors"]
+    assert "dominio_enganoso" in result["detected_vectors"]
+    assert len(result["suspicious_urls"]) > 0
+
+
+def test_emojis_mixed_with_urgency_and_special_chars():
+    """Emojis mezclados con indicadores de urgencia y caracteres especiales."""
+    message = "🚨 ¡URGENTE! 🚨 Su cuenta fue suspendida ⛔ ingrese de inmediato 💰"
+    result = inspect_threat(message)
+    assert result["status"] == "success"
+    assert "urgencia_artificial" in result["detected_vectors"]
+    assert "amenaza_bloqueo" in result["detected_vectors"]
+
+
+def test_newlines_and_tabs_with_threat():
+    """Saltos de línea y tabulaciones mezclados con texto de amenaza."""
+    message = "Hola\n\tBancolombia: su cuenta está bloqueada\n\tUrgente, ingrese a http://banc0lombia.cc"
+    result = inspect_threat(message)
+    assert result["status"] == "success"
+    assert "amenaza_bloqueo" in result["detected_vectors"]
+    assert "urgencia_artificial" in result["detected_vectors"]
+    assert len(result["suspicious_urls"]) > 0
+
+
+def test_unicode_accents_and_special_chars():
+    """Texto con acentos, caracteres Unicode y signos de puntuación variados."""
+    message = (
+        "Bancolombia informa: su cuenta ha sido bloqueada. ¡Último aviso! "
+        "InGRESE de inmediato a https://banc0lombia-seguridad.cc para evitar la suspensión."
+    )
+    result = inspect_threat(message)
+    assert result["status"] == "success"
+    assert "amenaza_bloqueo" in result["detected_vectors"]
+    assert "falsa_autoridad_bancaria" in result["detected_vectors"]
+    assert "dominio_enganoso" in result["detected_vectors"]
+
+
+def test_repeated_pattern_does_not_crash():
+    """Patrón repetido a gran escala no debe romper el análisis ni colgar."""
+    message = "urgente cuenta bloqueada " * 25_000
+    assert len(message) >= 500_000
+    result = inspect_threat(message)
+    assert result["status"] == "success"
+    assert "amenaza_bloqueo" in result["detected_vectors"]
+    assert "urgencia_artificial" in result["detected_vectors"]
+    assert result["threat_level"] in ("MEDIO", "ALTO", "CRÍTICO")
+
+
+def test_very_long_mixed_emoji_and_threat():
+    """Combinación masiva de emojis + texto de amenaza (sin colisión ni timeout)."""
+    emoji_block = "🎉" * 4000
+    message = (
+        emoji_block + " Bancolombia: su cuenta ha sido bloqueada. "
+        "Urgente ingrese a http://banc0lombia.cc " + emoji_block
+    )
+    result = inspect_threat(message)
+    assert result["status"] == "success"
+    assert "amenaza_bloqueo" in result["detected_vectors"]
+    assert "urgencia_artificial" in result["detected_vectors"]
 
 
 # ---------------------------------------------------------------------------
@@ -447,4 +587,3 @@ def test_passenger_ambiguous_message_remains_ambiguous():
     assert result["status"] == "success"
     assert result["is_ambiguous"] is True
     assert 0 <= result["risk_score"] <= 100
-

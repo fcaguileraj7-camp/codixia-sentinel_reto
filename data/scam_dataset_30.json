@@ -238,5 +238,85 @@
     "text": "Mercado Libre: Tu compra ya fue entregada por la transportadora en la portería del edificio. Gracias por confiar en nosotros.",
     "entity_target": "Comercio Electrónico",
     "has_malicious_url": false
+  },
+  {
+    "id": "CASE-031",
+    "category": "FALSO_COMPROBANTE_NEQUI",
+    "expected_verdict": "CRÍTICO",
+    "text": "Ya le transferí los .000 por Nequi y le mandé el comprobante. Envíe el producto inmediatamente o transfiera la plata de regreso a este Nequi o lo denuncio ante la fiscalía por robo.",
+    "entity_target": "NEQUI",
+    "has_malicious_url": false
+  },
+  {
+    "id": "CASE-032",
+    "category": "PHISHING_BANCOLOMBIA",
+    "expected_verdict": "CRÍTICO",
+    "text": "BANCOLOMBIA: Detectamos movimientos inusuales en su cuenta. Para evitar el bloqueo definitivo, valide su identidad ahora en https://bancolombia-validacion.example/cliente. Ingrese usuario, clave y código de seguridad. Tiene 15 minutos para completar el proceso.",
+    "entity_target": "BANCOLOMBIA",
+    "has_malicious_url": true
+  },
+  {
+    "id": "CASE-033",
+    "category": "ESTAFA_INVERSION_CRIPTOMONEDAS",
+    "expected_verdict": "CRÍTICO",
+    "text": "Tenemos un sistema privado de inversión en criptomonedas. Invierte .000 y recibirás .000.000 en cinco días. La rentabilidad está garantizada. Si consignas hoy te activo un cupo VIP. No necesitas experiencia y puedes retirar cuando quieras.",
+    "entity_target": "PLATAFORMA_DE_CRIPTOMONEDAS",
+    "has_malicious_url": false
+  },
+  {
+    "id": "CASE-034",
+    "category": "FALSO_SOPORTE_TECNICO",
+    "expected_verdict": "CRÍTICO",
+    "text": "Le hablamos del departamento de seguridad de su banco. Detectamos actividad inusual y su cuenta está bloqueada temporalmente. Para desbloquearla, comparta el código de seguridad que aparece en pantalla inmediatamente.",
+    "entity_target": "ENTIDAD_BANCARIA",
+    "has_malicious_url": false
+  },
+  {
+    "id": "CASE-035",
+    "category": "FRAUDE_QR_PAGO",
+    "expected_verdict": "CRÍTICO",
+    "text": "Para recibir el pago de .000 escanea este código QR o ingresa a https://pasarela-pse-segura.top/liberar-pago. Valide su cuenta bancaria e ingrese el código de seguridad SMS inmediatamente para autorizar el desembolso.",
+    "entity_target": "PASARELA_DE_PAGOS",
+    "has_malicious_url": true
+  },
+  {
+    "id": "CASE-036",
+    "category": "FALSA_OFERTA_LABORAL",
+    "expected_verdict": "ALTO",
+    "text": "Felicitaciones, tu perfil fue seleccionado para trabajar desde casa. Ganarás .000 diarios sin experiencia. Solo debes pagar .000 por la activación de tu usuario y el kit de capacitación. Tenemos pocos cupos y debes transferir hoy para asegurar tu contratación.",
+    "entity_target": "FALSA_EMPRESA_EMPLEADORA",
+    "has_malicious_url": false
+  },
+  {
+    "id": "CASE-037",
+    "category": "FRAUDE_COMPRAVENTA_DIGITAL",
+    "expected_verdict": "CRÍTICO",
+    "text": "Ya compré tu consola y el pago está protegido. Para liberar los fondos entra de inmediato a https://mercadolibre-proteccion-pago.site/liberar y confirme sus credenciales con su clave dinámica y código SMS.",
+    "entity_target": "PLATAFORMA_DE_COMPRAVENTA",
+    "has_malicious_url": true
+  },
+  {
+    "id": "CASE-038",
+    "category": "SUPLANTACION_OPERADOR_SIM",
+    "expected_verdict": "CRÍTICO",
+    "text": "Claro Seguridad: Detectamos una solicitud urgente de duplicado de SIM y su línea está bloqueada preventivamente. Para cancelar el trámite y desbloquear su línea, comparta de inmediato el código de seguridad recibido por SMS.",
+    "entity_target": "OPERADOR_MOVIL",
+    "has_malicious_url": false
+  },
+  {
+    "id": "CASE-039",
+    "category": "FALSO_REEMBOLSO_DIAN",
+    "expected_verdict": "CRÍTICO",
+    "text": "DIAN - Notificación de devolución. Usted tiene un saldo a favor de .280.000 pendiente de reembolso. Para recibirlo hoy, actualice sus datos personales y bancarios en https://devolucion-dian.example/consulta. Si no completa el formulario en las próximas 24 horas perderá el beneficio.",
+    "entity_target": "DIAN",
+    "has_malicious_url": true
+  },
+  {
+    "id": "CASE-040",
+    "category": "EXTORSION_DIGITAL",
+    "expected_verdict": "CRÍTICO",
+    "text": "Tengo tus fotos y conversaciones privadas. Si no me transfieres .500.000 en la próxima hora las voy a enviar a todos tus contactos y familiares. No intentes denunciar ni bloquearme porque ya tengo tus datos. Te enviaré una prueba de que tengo acceso a tu información si no pagas.",
+    "entity_target": "DESCONOCIDO",
+    "has_malicious_url": false
   }
 ]

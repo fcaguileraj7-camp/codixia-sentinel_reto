@@ -91,6 +91,10 @@ THREAT_VECTORS: Dict[str, Dict[str, Any]] = {
         "patrones": [
             r"grabaciones? ([íi]ntimas|[íi]ntimo)", r"v[íi]deos? ([íi]ntimas?|[íi]ntimo)",
             r"c[áa]mara web", r"fotos? ([íi]ntimas?|[íi]ntimo)",
+            r"fotos?.{0,20}(?:[íi]ntimas?|privadas?)",
+            r"conversaciones? privadas",
+            r"(?:enviar|publicar|difundir|compartir).{0,80}"
+            r"(?:fotos?|im[aá]genes?|conversaciones?|contactos|familiares)",
             r"enviar[eé] (el video|las fotos)", r"difundir", r"todos sus contactos",
             r"bitcoin", r"billetera", r"criptomoneda"
         ],
@@ -99,7 +103,7 @@ THREAT_VECTORS: Dict[str, Dict[str, Any]] = {
     "solicitud_dinero": {
         "peso": 15,
         "patrones": [
-            r"transfier[ae]", r"consign", r"dep[oó]sit[aeo]", r"pague (en|ya|de inmediato)",
+            r"transfier\w*", r"consign", r"dep[oó]sit[aeo]", r"pague (en|ya|de inmediato)",
             r"env[ií][ae] (el dinero|plata|\$)", r"colabor\w* con",
             r"n[uú]mero de (cuenta|nequi|daviplata)", r"recarg", r"abone",
             r"(pague|consigne|transfiera|env[ií]e).{0,30}\d+\s?(mil|millones)"
@@ -114,10 +118,13 @@ THREAT_VECTORS: Dict[str, Dict[str, Any]] = {
             r"(env[íi]e|ind[íi]quenos|comparta|confirme|ingrese|proporcione|digite|suministre)"
             r"(?:\s+(?:de inmediato|inmediatamente|ahora|por favor))?"
             r"\s+(su\s+)?(el\s+)?c[oó]digo",
+            r"(?:pida|pide|pedir|solicita|solicite).{0,40}"
+            r"(?:c[oó]digo|otp|clave|contrase[ñn]a)",
             r"clave (din[áa]mica|de seguridad)", r"token", r"\botp\b",
             r"actualice sus datos", r"valide su (identidad|cuenta)",
             r"confirme sus (datos|credenciales)", r"n[uú]mero de (tarjeta|c[eé]dula)",
-            r"ingrese su (clave|contrase[ñn]a|usuario)"
+            r"ingrese su (clave|contrase[ñn]a|usuario)",
+            r"confirme su (clave|contrase[ñn]a)"
         ],
         "descripcion": "Solicitud de credenciales, claves dinámicas o datos sensibles",
     },
@@ -221,6 +228,9 @@ def _looks_like_transport_panic(text: str) -> bool:
         "no me deja", "nos vamos por otra ruta", "me amenaza", "me obliga",
         "me retiene", "no me deja salir", "coacciÃ³n", "coaccion"
     ]
+    transport_markers.extend(
+        ("desvi\u00f3", "apag\u00f3 las luces", "coacci\u00f3n")
+    )
     digital_markers = [
         "banco", "bancolombia", "nequi", "daviplata", "simit", "dian",
         "claro", "sorteo", "premio", "ganador", "código", "codigo",
@@ -244,7 +254,7 @@ def _looks_like_legitimate_confirmation(text: str) -> bool:
 
 def _looks_like_direct_money_request(text: str) -> bool:
     lower = text.lower()
-    return bool(re.search(r"(?:transfier[ae]|consign|dep[oó]sit[ae]|pague|env[ií][ae]|devuelva|devuelv|entregue|abone)", lower))
+    return bool(re.search(r"(?:transfier\w*|consign|dep[oó]sit[ae]|pague|env[ií][ae]|devuelva|devuelv|entregue|abone)", lower))
 
 
 def _looks_like_fake_offer(text: str) -> bool:
@@ -322,7 +332,7 @@ def inspect_threat(content: str) -> Dict[str, Any]:
         if vector_name == "solicitud_dinero" and _looks_like_legitimate_confirmation(content):
             continue
         if vector_name == "solicitud_credenciales" and not re.search(
-            r"(?:env[ií]e|ind[ií]quenos|comparta|confirme|ingrese|proporcione|digite|suministre|verifique|compartir)",
+            r"(?:env[ií]e|ind[ií]quenos|comparta|confirme|ingrese|proporcione|digite|suministre|verifique|compartir|pida|pide|pedir|solicita|solicite)",
             text,
         ):
             continue
