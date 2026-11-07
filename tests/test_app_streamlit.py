@@ -977,6 +977,559 @@ def test_apptest_multiple_consecutive_analyses_increment_count():
     assert at.session_state["session_telemetry"]["interaction_count"] == 3
 
 
+# =============================================================================
+# PRUEBAS DE TELEMETRÍA Y OBSERVABILIDAD DETERMINISTA (FASE 3 - HITO S3)
+# =============================================================================
+
+def test_apptest_telemetry_synthetic_live_scenario_math_120_80_200():
+    """
+    Etapa 3.1 & 3.2: Valida la visualización matemática exacta de tokens y costo:
+    - prompt_tokens = 120
+    - completion_tokens = 80
+    - total_tokens = 200
+    - Costo esperado: (120 * 0.000002) + (80 * 0.000010) = 0.000240 + 0.000800 = $0.001040 USD
+    - Tarifa identificada como CONFIGURED_UNVERIFIED.
+    """
+    at = AppTest.from_file(APP_PATH, default_timeout=30)
+    at.run()
+
+    at.text_area(key="user_input_text").input("Consulta de prueba con escenario matemático").run()
+
+    with patch("src.agent.sentinel.SentinelAgent.process_message") as mock_agent:
+        mock_agent.return_value = {
+            "status": "success",
+            "session_id": "sess_math_01",
+            "turn_id": 1,
+            "decision": {
+                "risk_level": "MEDIO",
+                "action": "ANALYZE_ONLY",
+                "response_to_user": "Validación matemática de telemetría.",
+                "reasoning": "Inspección semántica sintética",
+                "analysis_source": "grok_4.7",
+                "simulated": False
+            },
+            "tool_results": {},
+            "telemetry": {
+                "prompt_tokens": 120,
+                "completion_tokens": 80,
+                "total_tokens": 200,
+                "estimated_cost_usd": 0.001040,
+                "mode": "live_api"
+            },
+            "simulated": False,
+            "analysis_source": "grok_4.7"
+        }
+        at.button(key="btn_analyze_main").click().run()
+
+    assert len(at.exception) == 0
+
+    metrics_map = {m.label: m.value for m in at.metric}
+    assert metrics_map.get("Tokens Entrada") == "120"
+    assert metrics_map.get("Tokens Salida") == "80"
+    assert metrics_map.get("Tokens Totales") == "200"
+    assert metrics_map.get("Costo Consulta") == "$0.001040 USD"
+
+    caption_texts = [c.value for c in at.caption]
+    assert any("CONFIGURED_UNVERIFIED" in t for t in caption_texts)
+
+
+def test_apptest_telemetry_synthetic_multi_interaction_accumulation():
+    """
+    Etapa 3.3: Valida la acumulación de varias interacciones y su idempotencia:
+    - Interacción 1: Entrada 120, Salida 80, Total 200 ($0.001040 USD)
+    - Interacción 2: Entrada 200, Salida 100, Total 300 ($0.001400 USD)
+    - Acumulado sesión: Entrada 320, Salida 180, Total 500, Costo $0.002440 USD, 2 interacciones.
+    - Idempotencia: un rerun no duplica las métricas.
+    """
+    at = AppTest.from_file(APP_PATH, default_timeout=30)
+    at.run()
+
+    # Interacción 1
+    at.text_area(key="user_input_text").input("Interacción uno").run()
+    with patch("src.agent.sentinel.SentinelAgent.process_message") as mock_agent:
+        mock_agent.return_value = {
+            "status": "success",
+            "session_id": "sess_multi",
+            "turn_id": 1,
+            "decision": {
+                "risk_level": "BAJO",
+                "action": "INFORMATIVE_ONLY",
+                "response_to_user": "Turno 1",
+                "reasoning": "Normal",
+                "analysis_source": "grok_4.7",
+                "simulated": False
+            },
+            "tool_results": {},
+            "telemetry": {
+                "prompt_tokens": 120,
+                "completion_tokens": 80,
+                "total_tokens": 200,
+                "estimated_cost_usd": 0.001040,
+                "mode": "live_api"
+            },
+            "simulated": False,
+            "analysis_source": "grok_4.7"
+        }
+        at.button(key="btn_analyze_main").click().run()
+
+    assert at.session_state["session_telemetry"]["interaction_count"] == 1
+    assert at.session_state["session_telemetry"]["prompt_tokens"] == 120
+    assert at.session_state["session_telemetry"]["completion_tokens"] == 80
+    assert at.session_state["session_telemetry"]["total_tokens"] == 200
+    assert at.session_state["session_telemetry"]["total_cost_usd"] == pytest.approx(0.001040, rel=1e-5)
+
+    # Rerun de verificación de idempotencia
+    at.run()
+    assert at.session_state["session_telemetry"]["interaction_count"] == 1
+    assert at.session_state["session_telemetry"]["total_tokens"] == 200
+
+    # Interacción 2
+    at.text_area(key="user_input_text").input("Interacción dos").run()
+    with patch("src.agent.sentinel.SentinelAgent.process_message") as mock_agent2:
+        mock_agent2.return_value = {
+            "status": "success",
+            "session_id": "sess_multi",
+            "turn_id": 2,
+            "decision": {
+                "risk_level": "ALTO",
+                "action": "BLOCK_AND_REPORT",
+                "response_to_user": "Turno 2",
+                "reasoning": "Phishing",
+                "analysis_source": "grok_4.7",
+                "simulated": False
+            },
+            "tool_results": {},
+            "telemetry": {
+                "prompt_tokens": 200,
+                "completion_tokens": 100,
+                "total_tokens": 300,
+                "estimated_cost_usd": 0.001400,
+                "mode": "live_api"
+            },
+            "simulated": False,
+            "analysis_source": "grok_4.7"
+        }
+        at.button(key="btn_analyze_main").click().run()
+
+    s_tel = at.session_state["session_telemetry"]
+    assert s_tel["interaction_count"] == 2
+    assert s_tel["prompt_tokens"] == 320
+    assert s_tel["completion_tokens"] == 180
+    assert s_tel["total_tokens"] == 500
+    assert s_tel["total_cost_usd"] == pytest.approx(0.002440, rel=1e-5)
+
+
+def test_apptest_telemetry_differential_neutral_note():
+    """
+    Prompt 63821: Valida que ante un diferencial de tokens (total > prompt + completion):
+    - Se presente la métrica 'Diferencia de tokens' con el valor exacto (350 - (250 + 50) = 50).
+    - La antigua nota de observabilidad haya desaparecido completamente.
+    """
+    at = AppTest.from_file(APP_PATH, default_timeout=30)
+    at.run()
+
+    at.text_area(key="user_input_text").input("Consulta con diferencial de tokens").run()
+
+    with patch("src.agent.sentinel.SentinelAgent.process_message") as mock_agent:
+        mock_agent.return_value = {
+            "status": "success",
+            "session_id": "sess_diff_01",
+            "turn_id": 1,
+            "decision": {
+                "risk_level": "CRÍTICO",
+                "action": "BLOCK_AND_REPORT",
+                "response_to_user": "Veredicto",
+                "reasoning": "Ataque",
+                "analysis_source": "grok_4.7",
+                "simulated": False
+            },
+            "tool_results": {},
+            "telemetry": {
+                "prompt_tokens": 250,
+                "completion_tokens": 50,
+                "total_tokens": 350,
+                "estimated_cost_usd": 0.001000,
+                "mode": "live_api"
+            },
+            "simulated": False,
+            "analysis_source": "grok_4.7"
+        }
+        at.button(key="btn_analyze_main").click().run()
+
+    # Verificación de la quinta métrica Diferencia de tokens
+    metrics_map = {m.label: m.value for m in at.metric}
+    assert metrics_map.get("Tokens Entrada") == "250"
+    assert metrics_map.get("Tokens Salida") == "50"
+    assert metrics_map.get("Tokens Totales") == "350"
+    assert metrics_map.get("Diferencia de tokens") == "50"
+    assert metrics_map.get("Costo Consulta") == "$0.001000 USD"
+
+    # Verificación de que la antigua nota de observabilidad no aparece
+    caption_texts = [c.value for c in at.caption]
+    assert not any("refleja el total global reportado por la API" in t for t in caption_texts)
+    assert not any("Nota de observabilidad" in t for t in caption_texts)
+
+
+def test_apptest_telemetry_missing_usage_displayed_as_nd():
+    """
+    Etapa 4 Escenario C: Cuando no exista información de uso (telemetry=None o vacío):
+    - No inventa tokens ni asume cero.
+    - Muestra los valores como 'N/D'.
+    - El costo se presenta como 'N/D'.
+    """
+    at = AppTest.from_file(APP_PATH, default_timeout=30)
+    at.run()
+
+    at.text_area(key="user_input_text").input("Consulta con telemetría no provista").run()
+
+    with patch("src.agent.sentinel.SentinelAgent.process_message") as mock_agent:
+        mock_agent.return_value = {
+            "status": "success",
+            "session_id": "sess_no_usage",
+            "turn_id": 1,
+            "decision": {
+                "risk_level": "MEDIO",
+                "action": "INFORMATIVE_ONLY",
+                "response_to_user": "Respuesta sin telemetría de proveedor.",
+                "reasoning": "Veredicto sin usage",
+                "analysis_source": "grok_4.7",
+                "simulated": False
+            },
+            "tool_results": {},
+            "telemetry": None,
+            "simulated": False,
+            "analysis_source": "grok_4.7"
+        }
+        at.button(key="btn_analyze_main").click().run()
+
+    metrics_map = {m.label: m.value for m in at.metric}
+    assert metrics_map.get("Tokens Entrada") == "N/D"
+    assert metrics_map.get("Tokens Salida") == "N/D"
+    assert metrics_map.get("Tokens Totales") == "N/D"
+    assert metrics_map.get("Costo Consulta") == "N/D"
+
+
+def test_apptest_telemetry_incomplete_usage_fields():
+    """
+    Etapa 4 Escenario D: Cuando la telemetría tiene campos incompletos:
+    - No completa con suposiciones los campos faltantes.
+    - Los campos ausentes se presentan como 'N/D'.
+    - El costo se muestra como 'N/D' si no se puede calcular de forma confiable.
+    """
+    at = AppTest.from_file(APP_PATH, default_timeout=30)
+    at.run()
+
+    at.text_area(key="user_input_text").input("Consulta con telemetría parcial").run()
+
+    with patch("src.agent.sentinel.SentinelAgent.process_message") as mock_agent:
+        mock_agent.return_value = {
+            "status": "success",
+            "session_id": "sess_partial_usage",
+            "turn_id": 1,
+            "decision": {
+                "risk_level": "BAJO",
+                "action": "INFORMATIVE_ONLY",
+                "response_to_user": "Respuesta parcial",
+                "reasoning": "Sin salida",
+                "analysis_source": "grok_4.7",
+                "simulated": False
+            },
+            "tool_results": {},
+            "telemetry": {
+                "prompt_tokens": 120,
+            },
+            "simulated": False,
+            "analysis_source": "grok_4.7"
+        }
+        at.button(key="btn_analyze_main").click().run()
+
+    metrics_map = {m.label: m.value for m in at.metric}
+    assert metrics_map.get("Tokens Entrada") == "120"
+    assert metrics_map.get("Tokens Salida") == "N/D"
+    assert metrics_map.get("Tokens Totales") == "N/D"
+    assert metrics_map.get("Costo Consulta") == "N/D"
+
+
+def test_apptest_telemetry_no_stale_metrics_reuse():
+    """
+    Etapa 4 Escenario E: Interacción sin usage después de una interacción válida:
+    - La interacción 2 no hereda los tokens ni costo de la interacción 1.
+    """
+    at = AppTest.from_file(APP_PATH, default_timeout=30)
+    at.run()
+
+    # Interacción 1: válida con telemetría
+    at.text_area(key="user_input_text").input("Interacción 1 con uso").run()
+    with patch("src.agent.sentinel.SentinelAgent.process_message") as mock_agent:
+        mock_agent.return_value = {
+            "status": "success",
+            "session_id": "sess_stale",
+            "turn_id": 1,
+            "decision": {
+                "risk_level": "MEDIO",
+                "action": "INFORMATIVE_ONLY",
+                "response_to_user": "Turno 1",
+                "reasoning": "Normal",
+                "analysis_source": "grok_4.7",
+                "simulated": False
+            },
+            "tool_results": {},
+            "telemetry": {
+                "prompt_tokens": 500,
+                "completion_tokens": 100,
+                "total_tokens": 600,
+                "estimated_cost_usd": 0.002000,
+                "mode": "live_api"
+            },
+            "simulated": False,
+            "analysis_source": "grok_4.7"
+        }
+        at.button(key="btn_analyze_main").click().run()
+
+    metrics_map = {m.label: m.value for m in at.metric}
+    assert metrics_map.get("Tokens Totales") == "600"
+
+    # Interacción 2: sin telemetría (None)
+    at.text_area(key="user_input_text").input("Interacción 2 sin uso").run()
+    with patch("src.agent.sentinel.SentinelAgent.process_message") as mock_agent2:
+        mock_agent2.return_value = {
+            "status": "success",
+            "session_id": "sess_stale",
+            "turn_id": 2,
+            "decision": {
+                "risk_level": "BAJO",
+                "action": "INFORMATIVE_ONLY",
+                "response_to_user": "Turno 2",
+                "reasoning": "Normal",
+                "analysis_source": "grok_4.7",
+                "simulated": False
+            },
+            "tool_results": {},
+            "telemetry": None,
+            "simulated": False,
+            "analysis_source": "grok_4.7"
+        }
+        at.button(key="btn_analyze_main").click().run()
+
+    metrics_map2 = {m.label: m.value for m in at.metric}
+    assert metrics_map2.get("Tokens Totales") == "N/D"
+    assert metrics_map2.get("Tokens Entrada") == "N/D"
+    assert metrics_map2.get("Costo Consulta") == "N/D"
+
+
+def test_apptest_telemetry_mock_and_live_alternation():
+    """
+    Etapa 4 Escenario F: Alternancia entre respuestas MOCK y LIVE sintéticas:
+    - Cada interacción conserva su fuente y badge.
+    - Se contabilizan correctamente live_count y simulated_count.
+    """
+    at = AppTest.from_file(APP_PATH, default_timeout=30)
+    at.run()
+
+    # Turno 1: MOCK
+    at.text_area(key="user_input_text").input("Turno 1 en mock").run()
+    with patch("src.agent.sentinel.SentinelAgent.process_message") as m1:
+        m1.return_value = {
+            "status": "success",
+            "session_id": "sess_alt",
+            "turn_id": 1,
+            "decision": {
+                "risk_level": "BAJO",
+                "action": "INFORMATIVE_ONLY",
+                "response_to_user": "Mock 1",
+                "reasoning": "conversación cotidiana sin patrones",
+                "analysis_source": "simulated",
+                "simulated": True
+            },
+            "tool_results": {},
+            "telemetry": {
+                "prompt_tokens": 0,
+                "completion_tokens": 0,
+                "total_tokens": 0,
+                "estimated_cost_usd": 0.0,
+                "mode": "simulated_local"
+            },
+            "simulated": True,
+            "analysis_source": "simulated"
+        }
+        at.button(key="btn_analyze_main").click().run()
+
+    # Turno 2: LIVE sintético
+    at.text_area(key="user_input_text").input("Turno 2 en live").run()
+    with patch("src.agent.sentinel.SentinelAgent.process_message") as m2:
+        m2.return_value = {
+            "status": "success",
+            "session_id": "sess_alt",
+            "turn_id": 2,
+            "decision": {
+                "risk_level": "CRÍTICO",
+                "action": "BLOCK_AND_REPORT",
+                "response_to_user": "Live 2",
+                "reasoning": "Ataque bancario",
+                "analysis_source": "grok_4.7",
+                "simulated": False
+            },
+            "tool_results": {},
+            "telemetry": {
+                "prompt_tokens": 120,
+                "completion_tokens": 80,
+                "total_tokens": 200,
+                "estimated_cost_usd": 0.001040,
+                "mode": "live_api"
+            },
+            "simulated": False,
+            "analysis_source": "grok_4.7"
+        }
+        at.button(key="btn_analyze_main").click().run()
+
+    s_tel = at.session_state["session_telemetry"]
+    assert s_tel["interaction_count"] == 2
+    assert s_tel["simulated_count"] == 1
+    assert s_tel["live_count"] == 1
+    assert s_tel["total_tokens"] == 200
+
+
+# =============================================================================
+# PRUEBAS DEL PROMPT 63821: QUINTA MÉTRICA «DIFERENCIA DE TOKENS» Y ELIMINACIÓN DE NOTA
+# =============================================================================
+
+def test_telemetry_token_difference_calculation_standard_case():
+    """
+    Verifica que la quinta métrica 'Diferencia de tokens' se calcule dinámicamente:
+    token_difference = total_tokens - (prompt_tokens + completion_tokens)
+    Caso de prueba oficial (Prompt 63821):
+      prompt_tokens = 2359
+      completion_tokens = 269
+      total_tokens = 2808
+      expected_difference = 180
+      cost = $0.007408 USD
+    Y verifica que no exista la antigua nota de observabilidad.
+    """
+    at = AppTest.from_file(APP_PATH, default_timeout=30)
+    at.run()
+
+    at.text_area(key="user_input_text").input("Mensaje de prueba cálculo de diferencia").run()
+    with patch("src.agent.sentinel.SentinelAgent.process_message") as mock_agent:
+        mock_agent.return_value = {
+            "status": "success",
+            "session_id": "sess_diff_standard",
+            "turn_id": 1,
+            "decision": {
+                "risk_level": "CRÍTICO",
+                "action": "BLOCK_AND_REPORT",
+                "response_to_user": "Alerta de fraude",
+                "reasoning": "Diferencial de tokens activo",
+                "analysis_source": "grok_4.7",
+                "simulated": False
+            },
+            "tool_results": {},
+            "telemetry": {
+                "prompt_tokens": 2359,
+                "completion_tokens": 269,
+                "total_tokens": 2808,
+                "estimated_cost_usd": 0.007408,
+                "mode": "live_api"
+            },
+            "simulated": False,
+            "analysis_source": "grok_4.7"
+        }
+        at.button(key="btn_analyze_main").click().run()
+
+    assert len(at.exception) == 0
+
+    metrics_map = {m.label: m.value for m in at.metric}
+    assert metrics_map.get("Tokens Entrada") == "2,359"
+    assert metrics_map.get("Tokens Salida") == "269"
+    assert metrics_map.get("Tokens Totales") == "2,808"
+    assert metrics_map.get("Diferencia de tokens") == "180"
+    assert metrics_map.get("Costo Consulta") == "$0.007408 USD"
+
+    # Verificar que la antigua nota de observabilidad no existe en la interfaz
+    all_captions = [c.value for c in at.caption]
+    assert not any("Nota de observabilidad" in c for c in all_captions)
+
+
+def test_telemetry_token_difference_negative_value_preserves_sign():
+    """
+    Verifica que si la diferencia es negativa, se conserve el signo (ej. -50).
+    """
+    at = AppTest.from_file(APP_PATH, default_timeout=30)
+    at.run()
+
+    at.text_area(key="user_input_text").input("Mensaje prueba diferencia negativa").run()
+    with patch("src.agent.sentinel.SentinelAgent.process_message") as mock_agent:
+        mock_agent.return_value = {
+            "status": "success",
+            "session_id": "sess_diff_neg",
+            "turn_id": 1,
+            "decision": {
+                "risk_level": "MEDIO",
+                "action": "INFORMATIVE_ONLY",
+                "response_to_user": "Prueba",
+                "reasoning": "Negativo",
+                "analysis_source": "grok_4.7",
+                "simulated": False
+            },
+            "tool_results": {},
+            "telemetry": {
+                "prompt_tokens": 150,
+                "completion_tokens": 100,
+                "total_tokens": 200,
+                "estimated_cost_usd": 0.001300,
+                "mode": "live_api"
+            },
+            "simulated": False,
+            "analysis_source": "grok_4.7"
+        }
+        at.button(key="btn_analyze_main").click().run()
+
+    metrics_map = {m.label: m.value for m in at.metric}
+    assert metrics_map.get("Tokens Entrada") == "150"
+    assert metrics_map.get("Tokens Salida") == "100"
+    assert metrics_map.get("Tokens Totales") == "200"
+    assert metrics_map.get("Diferencia de tokens") == "-50"
+
+
+def test_telemetry_token_difference_missing_fields_shows_nd():
+    """
+    Verifica que si alguno de los campos de tokens requeridos falta,
+    la métrica 'Diferencia de tokens' muestre 'N/D'.
+    """
+    at = AppTest.from_file(APP_PATH, default_timeout=30)
+    at.run()
+
+    at.text_area(key="user_input_text").input("Mensaje prueba campos incompletos").run()
+    with patch("src.agent.sentinel.SentinelAgent.process_message") as mock_agent:
+        mock_agent.return_value = {
+            "status": "success",
+            "session_id": "sess_diff_nd",
+            "turn_id": 1,
+            "decision": {
+                "risk_level": "BAJO",
+                "action": "INFORMATIVE_ONLY",
+                "response_to_user": "Prueba ND",
+                "reasoning": "ND",
+                "analysis_source": "grok_4.7",
+                "simulated": False
+            },
+            "tool_results": {},
+            "telemetry": {
+                "prompt_tokens": 100,
+                # completion_tokens y total_tokens faltantes
+            },
+            "simulated": False,
+            "analysis_source": "grok_4.7"
+        }
+        at.button(key="btn_analyze_main").click().run()
+
+    metrics_map = {m.label: m.value for m in at.metric}
+    assert metrics_map.get("Tokens Entrada") == "100"
+    assert metrics_map.get("Tokens Salida") == "N/D"
+    assert metrics_map.get("Tokens Totales") == "N/D"
+    assert metrics_map.get("Diferencia de tokens") == "N/D"
+
+
+
 
 
 

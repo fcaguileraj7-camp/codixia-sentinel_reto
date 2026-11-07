@@ -15,8 +15,6 @@ import sys
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 
 from src.agent.sentinel import SentinelAgent
-from src.tools.threat_inspector import inspect_threat
-from src.tools.url_sandbox import analyze_url
 from src.tools.police_reporter import generate_police_report
 from src.utils.logger import logger
 
@@ -240,25 +238,35 @@ with tab1:
                             "input_snippet": user_input[:60] + "..." if len(user_input) > 60 else user_input
                         })
 
-                        # Actualización de telemetría de sesión sin duplicación en reruns
+                        # Actualización de telemetría de sesión con idempotencia estricta ante reruns
                         turn_id = result.get("turn_id")
                         sess_id = result.get("session_id", session_id)
-                        req_seq = len(st.session_state["session_telemetry"]["recorded_turns"]) + 1
-                        turn_sig = f"{sess_id}_turn_{turn_id}_req_{req_seq}"
+                        turn_sig = f"{sess_id}_turn_{turn_id}" if turn_id is not None else f"{sess_id}_req_{len(st.session_state['session_telemetry']['recorded_turns']) + 1}"
 
                         if turn_sig not in st.session_state["session_telemetry"]["recorded_turns"]:
-                            tel = result.get("telemetry") or {}
-                            p_tok = int(tel.get("prompt_tokens", 0) or 0)
-                            c_tok = int(tel.get("completion_tokens", 0) or 0)
-                            t_tok = int(tel.get("total_tokens", 0) or (p_tok + c_tok))
-                            c_usd = float(tel.get("estimated_cost_usd", 0.0) or 0.0)
-
+                            tel = result.get("telemetry")
                             is_sim, _ = get_analysis_metadata(result, agent)
 
-                            st.session_state["session_telemetry"]["prompt_tokens"] += p_tok
-                            st.session_state["session_telemetry"]["completion_tokens"] += c_tok
-                            st.session_state["session_telemetry"]["total_tokens"] += t_tok
-                            st.session_state["session_telemetry"]["total_cost_usd"] += c_usd
+                            if tel and isinstance(tel, dict):
+                                p_tok = tel.get("prompt_tokens")
+                                c_tok = tel.get("completion_tokens")
+                                t_tok = tel.get("total_tokens")
+                                c_usd = tel.get("estimated_cost_usd")
+
+                                if p_tok is not None:
+                                    st.session_state["session_telemetry"]["prompt_tokens"] += int(p_tok)
+                                if c_tok is not None:
+                                    st.session_state["session_telemetry"]["completion_tokens"] += int(c_tok)
+                                if t_tok is not None:
+                                    st.session_state["session_telemetry"]["total_tokens"] += int(t_tok)
+                                elif p_tok is not None and c_tok is not None:
+                                    st.session_state["session_telemetry"]["total_tokens"] += (int(p_tok) + int(c_tok))
+
+                                if c_usd is not None:
+                                    st.session_state["session_telemetry"]["total_cost_usd"] += float(c_usd)
+                                elif p_tok is not None and c_tok is not None:
+                                    st.session_state["session_telemetry"]["total_cost_usd"] += (int(p_tok) * 0.000002) + (int(c_tok) * 0.000010)
+
                             st.session_state["session_telemetry"]["interaction_count"] += 1
                             if is_sim:
                                 st.session_state["session_telemetry"]["simulated_count"] += 1

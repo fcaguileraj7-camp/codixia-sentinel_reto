@@ -263,12 +263,6 @@ def render_telemetry_panel(
     Renderiza el panel de telemetría de inferencia, consumo de tokens y costos proyectados
     para Grok 4.7, distinguiendo explícitamente entre el modo LIVE y el modo SIMULADO.
     """
-    tel = telemetry or {}
-    p_tokens = int(tel.get("prompt_tokens", 0) or 0)
-    c_tokens = int(tel.get("completion_tokens", 0) or 0)
-    t_tokens = int(tel.get("total_tokens", 0) or (p_tokens + c_tokens))
-    cost_usd = float(tel.get("estimated_cost_usd", 0.0) or 0.0)
-
     st.write("#### ⚡ Telemetría de Inferencia & Consumo de Tokens (Grok 4.7)")
 
     # 1. Encabezado de estado de conexión y modo de ejecución
@@ -291,11 +285,48 @@ def render_telemetry_panel(
     # 2. Métricas de la interacción actual
     st.write("##### 📊 Consumo de la Interacción Actual:")
     st.caption("ℹ️ Métrica individual: refleja únicamente los tokens y costo de la última consulta analizada.")
-    c1, c2, c3, c4 = st.columns(4)
-    c1.metric(label="Tokens Entrada", value=f"{p_tokens:,}")
-    c2.metric(label="Tokens Salida", value=f"{c_tokens:,}")
-    c3.metric(label="Tokens Totales", value=f"{t_tokens:,}")
-    c4.metric(label="Costo Consulta", value=f"${cost_usd:.6f} USD")
+
+    # Extracción rigurosa sin inventar tokens ni suponer ceros cuando el dato no existe
+    has_usage_data = bool(telemetry and isinstance(telemetry, dict) and len(telemetry) > 0)
+    
+    if not has_usage_data:
+        p_display = "N/D"
+        c_display = "N/D"
+        t_display = "N/D"
+        diff_display = "N/D"
+        cost_display = "N/D"
+        st.caption("ℹ️ *Aviso de telemetría:* Información de uso no disponible en la respuesta del proveedor. No se registraron tokens ni costos para esta consulta.")
+    else:
+        tel = telemetry
+        p_raw = tel.get("prompt_tokens")
+        c_raw = tel.get("completion_tokens")
+        t_raw = tel.get("total_tokens")
+        cost_raw = tel.get("estimated_cost_usd")
+
+        p_display = f"{int(p_raw):,}" if p_raw is not None else "N/D"
+        c_display = f"{int(c_raw):,}" if c_raw is not None else "N/D"
+        t_display = f"{int(t_raw):,}" if t_raw is not None else "N/D"
+
+        if t_raw is not None and p_raw is not None and c_raw is not None:
+            token_difference = int(t_raw) - (int(p_raw) + int(c_raw))
+            diff_display = f"{token_difference:,}"
+        else:
+            diff_display = "N/D"
+
+        if cost_raw is not None:
+            cost_display = f"${float(cost_raw):.6f} USD"
+        elif p_raw is not None and c_raw is not None:
+            calc_cost = (int(p_raw) * 0.000002) + (int(c_raw) * 0.000010)
+            cost_display = f"${calc_cost:.6f} USD"
+        else:
+            cost_display = "N/D"
+
+    c1, c2, c3, c4, c5 = st.columns(5)
+    c1.metric(label="Tokens Entrada", value=p_display)
+    c2.metric(label="Tokens Salida", value=c_display)
+    c3.metric(label="Tokens Totales", value=t_display)
+    c4.metric(label="Diferencia de tokens", value=diff_display)
+    c5.metric(label="Costo Consulta", value=cost_display)
 
     # 3. Métricas acumuladas de la sesión si se proporcionan
     if session_telemetry:
