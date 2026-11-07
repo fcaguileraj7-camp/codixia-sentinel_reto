@@ -15,7 +15,12 @@ from src.agent.prompts import SENTINEL_SYSTEM_PROMPT
 from src.agent.memory import ConversationMemory
 from src.tools.threat_inspector import inspect_threat
 from src.tools.emergency_escalator import escalate_emergency
-from src.tools.route_companion import register_trip, evaluate_trip_audio_response
+from src.tools.route_companion import (
+    register_trip,
+    evaluate_trip_audio_response,
+    confirm_checkin,
+    finalize_trip,
+)
 from src.utils.logger import logger
 
 
@@ -65,6 +70,67 @@ def _is_physical_route_request(
     has_trip_context = any(w in t for w in ["hacia", "destino", "camino", "conductor", "ruta", "llegando", "desplaz"])
 
     return has_plate and has_trip_context
+
+
+# Frases con las que el pasajero da por terminado el viaje. Solo cierran el viaje si el
+# mensaje no es de pánico y, cuando hay palabra segura, la respuesta la confirma.
+_TRIP_CLOSING_RE = re.compile(
+    r"\b(ya llegu[eé]|llegu[eé] bien|llegamos|finaliz(?:ar|o|amos) (?:el )?viaje|"
+    r"termin(?:ar|o|é|e|amos) (?:el )?viaje|fin del viaje|me baj[eé]|cancel(?:ar|o) (?:el )?viaje)\b"
+)
+
+
+def _is_trip_closing(text: str) -> bool:
+    """Indica si el texto del pasajero comunica que el viaje terminó."""
+    return bool(_TRIP_CLOSING_RE.search(str(text).lower()))
+
+
+def _close_trip(active_trip: Dict[str, Any]) -> Dict[str, Any]:
+    """
+    Cierra el viaje en route_companion y devuelve el estado de ruta con status "finished",
+    que es el que ConversationMemory interpreta como viaje terminado y limpia de la sesión.
+    Un fallo de la herramienta no impide cerrar el viaje del lado de la conversación.
+    """
+    closing = {
+        **active_trip,
+        "status": "finished",
+        "event": "TRIP_FINISHED",
+        "monitoring_active": False,
+    }
+    try:
+        result = finalize_trip(active_trip.get("trip_id"), reason="arrival_confirmed")
+        closing["finalize_status"] = result.get("status")
+        if result.get("status") == "error":
+            closing["finalize_error"] = result.get("error")
+    except Exception as e:
+        logger.warning(f"[yellow]⚠ Falla en tool finalize_trip ({e}). El viaje se cierra solo en la conversación.[/yellow]")
+        closing["finalize_status"] = "error"
+        closing["finalize_error"] = str(e)
+    return closing
+
+
+def _checkin_fields(active_trip: Dict[str, Any]) -> Dict[str, Any]:
+    """Registra el check-in en route_companion y devuelve sus campos para el estado de ruta."""
+    try:
+        result = confirm_checkin(active_trip.get("trip_id"))
+    except Exception as e:
+        logger.warning(f"[yellow]⚠ Falla en tool confirm_checkin ({e}). Continuando con fallback.[/yellow]")
+        return {}
+    if result.get("status") != "success":
+        return {}
+    return {k: result[k] for k in ("last_checkin_at", "next_checkin_scheduled", "checkin_count") if k in result}
+
+
+def _redact_for_prompt(tool_results: Dict[str, Any]) -> Dict[str, Any]:
+    """
+    Copia de tool_results sin la palabra segura del viaje. Grok no la necesita (la validación
+    se hace en local en evaluate_trip_audio_response) y es un secreto del pasajero.
+    """
+    redacted = dict(tool_results)
+    route = redacted.get("route")
+    if isinstance(route, dict) and "safe_word" in route:
+        redacted["route"] = {k: v for k, v in route.items() if k != "safe_word"}
+    return redacted
 
 
 class RouteCompanionHandler:
@@ -199,10 +265,15 @@ class RouteCompanionHandler:
                 "event": "CHECKIN_PENDING",
                 "monitoring_active": True
             }
+        elif _is_trip_closing(f"{user_input} {transcript}"):
+            # solo llega aquí sin pánico y con la palabra segura confirmada (o sin palabra segura)
+            tool_results["route"] = _close_trip(active_trip)
+            logger.info(f"[green]⚡ Viaje finalizado por el pasajero: {active_trip.get('trip_id')}[/green]")
         else:
             # Viaje en curso, check-in ordinario
             tool_results["route"] = {
                 **active_trip,
+                **_checkin_fields(active_trip),
                 "event": "CHECKIN_NORMAL",
                 "monitoring_active": True
             }
@@ -212,7 +283,7 @@ class RouteCompanionHandler:
         context_prompt = (
             f"SOLICITUD DE ACOMPAÑAMIENTO FÍSICO EN RUTA:\n"
             f"Mensaje del usuario: \"{user_input}\"\n\n"
-            f"Telemetría y herramientas:\n{json.dumps(tool_results, ensure_ascii=False, indent=2)}\n\n"
+            f"Telemetría y herramientas:\n{json.dumps(_redact_for_prompt(tool_results), ensure_ascii=False, indent=2)}\n\n"
             f"Analiza la situación del trayecto y decide el plan de acción en formato JSON."
         )
         if history_summary:
