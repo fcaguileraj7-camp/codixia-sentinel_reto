@@ -710,6 +710,275 @@ def test_apptest_metric_cards_contain_no_taxi_accompaniment():
     assert "Auditoría de Enlaces" in all_rendered
 
 
+# =============================================================================
+# PRUEBAS DE TELEMETRÍA GROK 4.7, CONSUMO DE TOKENS Y COSTOS (ROL 5)
+# =============================================================================
+
+def test_apptest_telemetry_panel_simulated_mode():
+    """
+    Verifica que en modo simulado/fallback local:
+    - Se indique claramente el estado SIMULADO ($0.00 USD).
+    - Se reporten 0 tokens y $0.000000 USD de consumo de API.
+    - Se actualicen las métricas de sesión como contingencia local.
+    """
+    at = AppTest.from_file(APP_PATH, default_timeout=30)
+    at.run()
+
+    at.text_area(key="user_input_text").input("Mensaje de prueba para fallback").run()
+
+    with patch("src.agent.sentinel.SentinelAgent.process_message") as mock_agent:
+        mock_agent.return_value = {
+            "status": "success",
+            "session_id": "sess_sim_01",
+            "turn_id": 1,
+            "decision": {
+                "risk_level": "CRÍTICO",
+                "action": "ESCALATE_AND_REPORT",
+                "response_to_user": "Alerta crítica de prueba en fallback.",
+                "reasoning": "Ingeniería social bancaria local",
+                "analysis_source": "simulated",
+                "simulated": True
+            },
+            "tool_results": {"threat": {"findings": ["Enlace malicioso"]}},
+            "telemetry": {
+                "prompt_tokens": 0,
+                "completion_tokens": 0,
+                "total_tokens": 0,
+                "estimated_cost_usd": 0.0,
+                "mode": "simulated_local"
+            },
+            "simulated": True,
+            "analysis_source": "simulated"
+        }
+        at.button(key="btn_analyze_main").click().run()
+
+    assert len(at.exception) == 0
+
+    # Verificación del estado visual SIMULADO
+    info_texts = [i.value for i in at.info]
+    assert any("SIMULADO / FALLBACK LOCAL" in t for t in info_texts)
+    assert any("$0.000000 USD" in t for t in info_texts)
+
+    # Verificación de las tarjetas métricas de tokens
+    metrics_map = {m.label: m.value for m in at.metric}
+    assert metrics_map.get("Tokens Entrada") == "0"
+    assert metrics_map.get("Tokens Salida") == "0"
+    assert metrics_map.get("Tokens Totales") == "0"
+    assert metrics_map.get("Costo Consulta") == "$0.000000 USD"
+
+    # Verificación del estado de sesión acumulado
+    s_tel = at.session_state["session_telemetry"]
+    assert s_tel["interaction_count"] == 1
+    assert s_tel["simulated_count"] == 1
+    assert s_tel["live_count"] == 0
+    assert s_tel["total_tokens"] == 0
+    assert s_tel["total_cost_usd"] == 0.0
+
+
+def test_apptest_telemetry_panel_live_mode_real_tokens():
+    """
+    Verifica que en modo LIVE real de Grok 4.7:
+    - Se indique explícitamente el estado LIVE con conexión a Grok 4.7.
+    - Se extraigan y muestren los tokens reales (prompt, completion, total).
+    - Se calcule y muestre el costo proyectado en USD con 6 decimales.
+    - Se acumulen correctamente en la sesión como interacción en vivo.
+    """
+    at = AppTest.from_file(APP_PATH, default_timeout=30)
+    at.run()
+
+    at.text_area(key="user_input_text").input("Mensaje para inferencia Grok en vivo").run()
+
+    with patch("src.agent.sentinel.SentinelAgent.process_message") as mock_agent:
+        mock_agent.return_value = {
+            "status": "success",
+            "session_id": "sess_live_01",
+            "turn_id": 101,
+            "decision": {
+                "risk_level": "ALTO",
+                "action": "BLOCK_AND_REPORT",
+                "response_to_user": "Amenaza interceptada por Grok 4.7.",
+                "reasoning": "Detección semántica avanzada",
+                "analysis_source": "grok_4.7",
+                "simulated": False
+            },
+            "tool_results": {"threat": {"findings": ["Urgencia temporal"]}},
+            "telemetry": {
+                "prompt_tokens": 420,
+                "completion_tokens": 85,
+                "total_tokens": 505,
+                "estimated_cost_usd": 0.001690,
+                "mode": "live_api"
+            },
+            "simulated": False,
+            "analysis_source": "grok_4.7"
+        }
+        at.button(key="btn_analyze_main").click().run()
+
+    assert len(at.exception) == 0
+
+    # Verificación del banner de éxito LIVE
+    success_texts = [s.value for s in at.success]
+    assert any("LIVE" in t and "grok-4.7" in t for t in success_texts)
+
+    # Verificación de las métricas numéricas de tokens
+    metrics_map = {m.label: m.value for m in at.metric}
+    assert metrics_map.get("Tokens Entrada") == "420"
+    assert metrics_map.get("Tokens Salida") == "85"
+    assert metrics_map.get("Tokens Totales") == "505"
+    assert metrics_map.get("Costo Consulta") == "$0.001690 USD"
+
+    # Verificación del estado de sesión acumulado
+    s_tel = at.session_state["session_telemetry"]
+    assert s_tel["interaction_count"] == 1
+    assert s_tel["live_count"] == 1
+    assert s_tel["simulated_count"] == 0
+    assert s_tel["prompt_tokens"] == 420
+    assert s_tel["completion_tokens"] == 85
+    assert s_tel["total_tokens"] == 505
+    assert s_tel["total_cost_usd"] == pytest.approx(0.001690, rel=1e-4)
+
+
+def test_apptest_telemetry_session_accumulation_and_idempotent_rerun():
+    """
+    Verifica que múltiples consultas acumulen correctamente los tokens y costos
+    y que los reruns de Streamlit no dupliquen métricas (idempotencia estricta).
+    """
+    at = AppTest.from_file(APP_PATH, default_timeout=30)
+    at.run()
+
+    # --- Consulta 1 ---
+    at.text_area(key="user_input_text").input("Primera consulta de prueba").run()
+    with patch("src.agent.sentinel.SentinelAgent.process_message") as mock_agent:
+        mock_agent.return_value = {
+            "status": "success",
+            "session_id": "sess_accum",
+            "turn_id": 1,
+            "decision": {
+                "risk_level": "MEDIO",
+                "action": "ANALYZE_ONLY",
+                "response_to_user": "Primer veredicto",
+                "reasoning": "Normal",
+                "analysis_source": "grok_4.7",
+                "simulated": False
+            },
+            "tool_results": {},
+            "telemetry": {
+                "prompt_tokens": 300,
+                "completion_tokens": 50,
+                "total_tokens": 350,
+                "estimated_cost_usd": 0.001100,
+                "mode": "live_api"
+            },
+            "simulated": False,
+            "analysis_source": "grok_4.7"
+        }
+        at.button(key="btn_analyze_main").click().run()
+
+    assert at.session_state["session_telemetry"]["interaction_count"] == 1
+    assert at.session_state["session_telemetry"]["total_tokens"] == 350
+
+    # --- Rerun sin nuevo clic (simula interacción con otro widget) ---
+    at.run()
+    # Debe mantener exactamente los mismos valores sin duplicar
+    assert at.session_state["session_telemetry"]["interaction_count"] == 1
+    assert at.session_state["session_telemetry"]["total_tokens"] == 350
+    assert at.session_state["session_telemetry"]["total_cost_usd"] == pytest.approx(0.001100, rel=1e-4)
+
+    # --- Consulta 2 ---
+    at.text_area(key="user_input_text").input("Segunda consulta de prueba").run()
+    with patch("src.agent.sentinel.SentinelAgent.process_message") as mock_agent2:
+        mock_agent2.return_value = {
+            "status": "success",
+            "session_id": "sess_accum",
+            "turn_id": 2,
+            "decision": {
+                "risk_level": "CRÍTICO",
+                "action": "ESCALATE_AND_REPORT",
+                "response_to_user": "Segundo veredicto",
+                "reasoning": "Phishing",
+                "analysis_source": "grok_4.7",
+                "simulated": False
+            },
+            "tool_results": {},
+            "telemetry": {
+                "prompt_tokens": 200,
+                "completion_tokens": 40,
+                "total_tokens": 240,
+                "estimated_cost_usd": 0.000800,
+                "mode": "live_api"
+            },
+            "simulated": False,
+            "analysis_source": "grok_4.7"
+        }
+        at.button(key="btn_analyze_main").click().run()
+
+    # Acumulación: 350 + 240 = 590 tokens; $0.001100 + $0.000800 = $0.001900 USD
+    s_tel = at.session_state["session_telemetry"]
+    assert s_tel["interaction_count"] == 2
+    assert s_tel["prompt_tokens"] == 500
+    assert s_tel["completion_tokens"] == 90
+    assert s_tel["total_tokens"] == 590
+    assert s_tel["total_cost_usd"] == pytest.approx(0.001900, rel=1e-4)
+
+    # Segundo rerun de control: debe permanecer idéntico
+    at.run()
+    assert at.session_state["session_telemetry"]["interaction_count"] == 2
+    assert at.session_state["session_telemetry"]["total_tokens"] == 590
+
+
+def test_apptest_sidebar_telemetry_reset_button():
+    """Verifica que el botón de reinicio en la barra lateral restablezca el acumulador a ceros."""
+    at = AppTest.from_file(APP_PATH, default_timeout=30)
+    at.run()
+
+    # Inyectar métricas previas en session_state
+    at.session_state["session_telemetry"]["prompt_tokens"] = 1500
+    at.session_state["session_telemetry"]["completion_tokens"] = 300
+    at.session_state["session_telemetry"]["total_tokens"] = 1800
+    at.session_state["session_telemetry"]["total_cost_usd"] = 0.006000
+    at.session_state["session_telemetry"]["interaction_count"] = 5
+    at.session_state["session_telemetry"]["recorded_turns"] = ["turn_1", "turn_2"]
+
+    # Hacer clic en el botón de reinicio
+    at.button(key="btn_reset_session_telemetry").click().run()
+    assert len(at.exception) == 0
+
+    s_tel = at.session_state["session_telemetry"]
+    assert s_tel["prompt_tokens"] == 0
+    assert s_tel["completion_tokens"] == 0
+    assert s_tel["total_tokens"] == 0
+    assert s_tel["total_cost_usd"] == 0.0
+    assert s_tel["interaction_count"] == 0
+    assert len(s_tel["recorded_turns"]) == 0
+
+
+def test_apptest_multiple_consecutive_analyses_increment_count():
+    """
+    Verifica que cada nuevo mensaje enviado incremente consecutivamente
+    el contador de consultas (1 -> 2 -> 3) y acumule la telemetría,
+    resolviendo el problema reportado de consultas congeladas en 1.
+    """
+    at = AppTest.from_file(APP_PATH, default_timeout=30)
+    at.run()
+
+    # Consulta 1
+    at.text_area(key="user_input_text").input("Mensaje 1").run()
+    at.button(key="btn_analyze_main").click().run()
+    assert at.session_state["session_telemetry"]["interaction_count"] == 1
+
+    # Consulta 2
+    at.text_area(key="user_input_text").input("Mensaje 2").run()
+    at.button(key="btn_analyze_main").click().run()
+    assert at.session_state["session_telemetry"]["interaction_count"] == 2
+
+    # Consulta 3
+    at.text_area(key="user_input_text").input("Mensaje 3").run()
+    at.button(key="btn_analyze_main").click().run()
+    assert at.session_state["session_telemetry"]["interaction_count"] == 3
+
+
+
+
 
 
 

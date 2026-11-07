@@ -253,6 +253,73 @@ def render_source_badge(is_simulated: bool, source: Optional[str] = None) -> Non
     render_html(html)
 
 
+def render_telemetry_panel(
+    telemetry: Optional[Dict[str, Any]],
+    is_simulated: bool,
+    session_telemetry: Optional[Dict[str, Any]] = None,
+    model_name: str = "grok-4.7"
+) -> None:
+    """
+    Renderiza el panel de telemetría de inferencia, consumo de tokens y costos proyectados
+    para Grok 4.7, distinguiendo explícitamente entre el modo LIVE y el modo SIMULADO.
+    """
+    tel = telemetry or {}
+    p_tokens = int(tel.get("prompt_tokens", 0) or 0)
+    c_tokens = int(tel.get("completion_tokens", 0) or 0)
+    t_tokens = int(tel.get("total_tokens", 0) or (p_tokens + c_tokens))
+    cost_usd = float(tel.get("estimated_cost_usd", 0.0) or 0.0)
+
+    st.write("#### ⚡ Telemetría de Inferencia & Consumo de Tokens (Grok 4.7)")
+
+    # 1. Encabezado de estado de conexión y modo de ejecución
+    if not is_simulated:
+        st.success(
+            f"🟢 **Modo de Inferencia:** LIVE — Conectado a **{model_name}** (xAI API Real). "
+            f"Telemetría capturada en tiempo real del usage payload de respuesta."
+        )
+    else:
+        st.info(
+            f"🧪 **Modo de Inferencia:** SIMULADO / FALLBACK LOCAL — "
+            f"Adaptador determinista offline. Consumo de API xAI: **0 tokens · $0.000000 USD**."
+        )
+
+    st.caption(
+        f"⚙️ **Modelo:** `{model_name}` · **Gateway:** `api.reto.pltk.mx/v1` · "
+        f"**Tarifa:** `$2.00 / 1M prompt` · `$10.00 / 1M completion` (xAI Standard · `CONFIGURED_UNVERIFIED`)"
+    )
+
+    # 2. Métricas de la interacción actual
+    st.write("##### 📊 Consumo de la Interacción Actual:")
+    st.caption("ℹ️ Métrica individual: refleja únicamente los tokens y costo de la última consulta analizada.")
+    c1, c2, c3, c4 = st.columns(4)
+    c1.metric(label="Tokens Entrada", value=f"{p_tokens:,}")
+    c2.metric(label="Tokens Salida", value=f"{c_tokens:,}")
+    c3.metric(label="Tokens Totales", value=f"{t_tokens:,}")
+    c4.metric(label="Costo Consulta", value=f"${cost_usd:.6f} USD")
+
+    # 3. Métricas acumuladas de la sesión si se proporcionan
+    if session_telemetry:
+        with st.expander("📈 Métricas Acumuladas de la Sesión", expanded=True):
+            s_interactions = session_telemetry.get("interaction_count", 0)
+            s_prompt = session_telemetry.get("prompt_tokens", 0)
+            s_comp = session_telemetry.get("completion_tokens", 0)
+            s_total = session_telemetry.get("total_tokens", 0)
+            s_cost = session_telemetry.get("total_cost_usd", 0.0)
+            s_live = session_telemetry.get("live_count", 0)
+            s_sim = session_telemetry.get("simulated_count", 0)
+
+            sc1, sc2, sc3, sc4 = st.columns(4)
+            sc1.metric(label="Consultas Procesadas", value=f"{s_interactions}")
+            sc2.metric(label="Tokens Entrada (Sesión)", value=f"{s_prompt:,}")
+            sc3.metric(label="Tokens Salida (Sesión)", value=f"{s_comp:,}")
+            sc4.metric(label="Costo Total Acumulado", value=f"${s_cost:.6f} USD")
+
+            st.caption(
+                f"📋 Sumatoria histórica de la sesión: **{s_interactions}** consultas en total "
+                f"(**{s_live}** en vivo xAI API · **{s_sim}** en contingencia local $0.00 USD)."
+            )
+
+
 def render_analysis_unavailable(error_message: str = "") -> None:
     """
     Renderiza un estado claro cuando el análisis no está disponible o falló,

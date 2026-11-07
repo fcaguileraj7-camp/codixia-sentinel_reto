@@ -56,6 +56,7 @@ from src.ui.components import (
     render_tool_results_human,
     render_escalation_human,
     render_source_badge,
+    render_telemetry_panel,
     render_analysis_unavailable,
     get_analysis_metadata,
 )
@@ -90,9 +91,65 @@ if "selected_sample" not in st.session_state:
     st.session_state["selected_sample"] = st.session_state["user_input_text"]
 if "selected_phone" not in st.session_state:
     st.session_state["selected_phone"] = st.session_state["sender_phone_text"]
+if "session_telemetry" not in st.session_state:
+    st.session_state["session_telemetry"] = {
+        "prompt_tokens": 0,
+        "completion_tokens": 0,
+        "total_tokens": 0,
+        "total_cost_usd": 0.0,
+        "interaction_count": 0,
+        "live_count": 0,
+        "simulated_count": 0,
+        "recorded_turns": []
+    }
+if "session_id" not in st.session_state:
+    import uuid
+    st.session_state["session_id"] = f"session_{uuid.uuid4().hex[:8]}"
+session_id = st.session_state["session_id"]
 
-# Instancia del orquestador del agente
-agent = SentinelAgent()
+# Instancia del orquestador del agente persistida en sesión para memoria conversacional y turn_id secuencial
+if "agent" not in st.session_state:
+    st.session_state["agent"] = SentinelAgent()
+agent = st.session_state["agent"]
+
+# Barra lateral para monitoreo global de telemetría y estado de Grok 4.7
+with st.sidebar:
+    st.write("### 🛡️ SentinelGuard AI")
+    st.write("#### Telemetría de Inferencia")
+    
+    client_live = getattr(agent.client, "live_mode", False)
+    if client_live:
+        st.success("🟢 **xAI Grok 4.7:** LIVE")
+    else:
+        st.info("🧪 **xAI Grok 4.7:** SIMULADO")
+
+    st.caption(f"**Modelo:** `{getattr(agent.client, 'model', 'grok-4.7')}`")
+    st.caption("**Gateway:** `api.reto.pltk.mx/v1`")
+    st.divider()
+
+    st.write("##### 📊 Monitor de Sesión")
+    s_tel = st.session_state.get("session_telemetry", {})
+    st.write(f"• Consultas: **{s_tel.get('interaction_count', 0)}**")
+    st.write(f"• Tokens Totales: **{s_tel.get('total_tokens', 0):,}**")
+    st.write(f"• Inversión Acumulada: **${s_tel.get('total_cost_usd', 0.0):.6f} USD**")
+
+    st.divider()
+    if st.button("🔄 Reiniciar Métricas", key="btn_reset_session_telemetry", use_container_width=True):
+        st.session_state["session_telemetry"] = {
+            "prompt_tokens": 0,
+            "completion_tokens": 0,
+            "total_tokens": 0,
+            "total_cost_usd": 0.0,
+            "interaction_count": 0,
+            "live_count": 0,
+            "simulated_count": 0,
+            "recorded_turns": []
+        }
+        st.session_state["agent"] = SentinelAgent()
+        import uuid
+        st.session_state["session_id"] = f"session_{uuid.uuid4().hex[:8]}"
+        st.session_state["last_result"] = None
+        st.rerun()
 
 # Pestañas principales de navegación
 tab1, tab2 = st.tabs([
@@ -160,7 +217,7 @@ with tab1:
             
             try:
                 with st.spinner("SentinelGuard ejecutando ciclo autónomo de inspección..."):
-                    result = agent.process_message(user_input, metadata={"sender": sender_phone})
+                    result = agent.process_message(user_input, metadata={"sender": sender_phone}, session_id=session_id)
                     if not isinstance(result, dict):
                         st.session_state["last_result"] = {
                             "status": "error",
@@ -182,6 +239,32 @@ with tab1:
                             "risk": (result.get("decision") or {}).get("risk_level", "DESCONOCIDO"),
                             "input_snippet": user_input[:60] + "..." if len(user_input) > 60 else user_input
                         })
+
+                        # Actualización de telemetría de sesión sin duplicación en reruns
+                        turn_id = result.get("turn_id")
+                        sess_id = result.get("session_id", session_id)
+                        req_seq = len(st.session_state["session_telemetry"]["recorded_turns"]) + 1
+                        turn_sig = f"{sess_id}_turn_{turn_id}_req_{req_seq}"
+
+                        if turn_sig not in st.session_state["session_telemetry"]["recorded_turns"]:
+                            tel = result.get("telemetry") or {}
+                            p_tok = int(tel.get("prompt_tokens", 0) or 0)
+                            c_tok = int(tel.get("completion_tokens", 0) or 0)
+                            t_tok = int(tel.get("total_tokens", 0) or (p_tok + c_tok))
+                            c_usd = float(tel.get("estimated_cost_usd", 0.0) or 0.0)
+
+                            is_sim, _ = get_analysis_metadata(result, agent)
+
+                            st.session_state["session_telemetry"]["prompt_tokens"] += p_tok
+                            st.session_state["session_telemetry"]["completion_tokens"] += c_tok
+                            st.session_state["session_telemetry"]["total_tokens"] += t_tok
+                            st.session_state["session_telemetry"]["total_cost_usd"] += c_usd
+                            st.session_state["session_telemetry"]["interaction_count"] += 1
+                            if is_sim:
+                                st.session_state["session_telemetry"]["simulated_count"] += 1
+                            else:
+                                st.session_state["session_telemetry"]["live_count"] += 1
+                            st.session_state["session_telemetry"]["recorded_turns"].append(turn_sig)
             except Exception as e:
                 logger.error(f"Excepción durante la ejecución del análisis: {e}", exc_info=True)
                 clean_err = sanitize_error_message(str(e))
@@ -281,6 +364,14 @@ with tab1:
 
             # Veredicto del Agente (Visualización moderna sin afirmar falsamente Grok si es simulado)
             render_verdict_card(decision, is_simulated=is_simulated, analysis_source=source_label)
+
+            # Panel de Telemetría LLM & Consumo de Tokens (Grok 4.7)
+            render_telemetry_panel(
+                telemetry=result.get("telemetry"),
+                is_simulated=is_simulated,
+                session_telemetry=st.session_state.get("session_telemetry"),
+                model_name=getattr(agent.client, "model", "grok-4.7")
+            )
 
             # Resumen contextual de hallazgos (Efecto 7 Reveal)
             render_threat_findings(
