@@ -116,11 +116,11 @@ def render_metric_cards():
         </div>
         <div class="sg-snap-item sg-neumorphic-card sg-metric-tilt">
             <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 8px;">
-                <span style="font-size: 0.75rem; text-transform: uppercase; font-weight: 700; color: var(--sg-slate-green); letter-spacing: 0.05em;">Acompañamiento en Viajes</span>
-                <span style="font-size: 1.1rem;">🧭</span>
+                <span style="font-size: 0.75rem; text-transform: uppercase; font-weight: 700; color: var(--sg-slate-green); letter-spacing: 0.05em;">Auditoría de Enlaces</span>
+                <span style="font-size: 1.1rem;">🛡️</span>
             </div>
-            <div class="sg-text-masked-metric">Ruta 24/7</div>
-            <div style="font-size: 0.78rem; line-height: 1.35; color: #52685B; margin-top: 4px;">Seguimiento de trayectos, confirmaciones periódicas de bienestar y alertas de emergencia.</div>
+            <div class="sg-text-masked-metric">Sandbox 24/7</div>
+            <div style="font-size: 0.78rem; line-height: 1.35; color: #52685B; margin-top: 4px;">Inspección heurística y simulación segura de URLs sospechosas.</div>
         </div>
     """
     html = f"""
@@ -219,7 +219,6 @@ def get_analysis_metadata(result: Optional[Dict[str, Any]], agent: Optional[Any]
         if (
             "conversación cotidiana sin patrones" in reasoning
             or "mensaje típico de ingeniería social que simula" in reasoning
-            or "el usuario inicia trayecto en taxi" in reasoning
         ):
             return True, "simulated"
 
@@ -674,7 +673,6 @@ CATEGORY_METADATA: Dict[str, Dict[str, str]] = {
     "CLONACION_WHATSAPP": {"icon": "📲", "category_label": "Clonación WhatsApp", "phone": "+57 319 876 5432"},
     "PRESTAMO_GOTA_A_GOTA_APP": {"icon": "💰", "category_label": "Crédito Montadeudas", "phone": "+57 313 567 8901"},
     "PHISHING_TARJETA_CREDITO": {"icon": "💳", "category_label": "Phishing Tarjeta Tuya", "phone": "+57 302 456 7890"},
-    "ACOMPANAMIENTO_FISICO_PANICO": {"icon": "🚖", "category_label": "Alerta SOS Taxi", "phone": "+57 318 901 2345"},
     "LEGITIMO_CONTROL": {"icon": "✅", "category_label": "Mensaje Legítimo", "phone": "+57 315 555 7890"},
 }
 

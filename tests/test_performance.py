@@ -115,35 +115,41 @@ def test_scam_dataset_original_30_records_integrity():
     assert original_30[29]["category"] == "LEGITIMO_CONTROL"
 
 
-def test_scam_dataset_physical_accompaniment_coverage():
+def test_scam_dataset_digital_expansion_coverage():
     """
-    Valida la cobertura del dominio de transporte y acompañamiento físico en taxi:
-    - Se incorporaron al menos 8 casos nuevos a partir de CASE-031.
-    - El conjunto total de casos de taxi alcanza como mínimo 10 escenarios diferenciados.
-    - Existen tanto casos de peligro/pánico como de trayectos seguros de control.
-    - Los casos contienen matrículas de vehículos y referencias geográficas plausibles.
+    Valida la ampliación del dominio Escudo Digital (Hito S3 / Casos Nicolle):
+    - Se incorporaron 10 nuevos casos de ciberfraude a partir de CASE-031 hasta CASE-040.
+    - El conjunto total de casos alcanza 40 registros completos.
+    - Cubre vectores clave: Nequi falso comprobante, Bancolombia, Cripto, Falso Soporte,
+      QRishing, Falsa Oferta, Compraventa, SIM Swapping, Devolución DIAN y Extorsión Digital.
+    - Todos los casos nuevos poseen veredictos esperados de alta severidad (CRÍTICO o ALTO).
     """
     cases = _load_dataset()
-    new_taxi_cases = [c for c in cases[30:] if _is_physical_case(c)]
-    assert len(new_taxi_cases) >= 8, (
-        f"Se requieren al menos 8 nuevos casos de taxi agregados (actual: {len(new_taxi_cases)})"
+    new_digital_cases = [c for c in cases[30:] if not _is_physical_case(c)]
+    assert len(new_digital_cases) == 10, (
+        f"Se requieren exactamente 10 nuevos casos de ciberfraude agregados (actual: {len(new_digital_cases)})"
     )
 
-    all_taxi_cases = [c for c in cases if _is_physical_case(c)]
-    assert len(all_taxi_cases) >= 10, (
-        f"El total acumulado de casos de taxi debe ser al menos 10 (actual: {len(all_taxi_cases)})"
+    expected_categories = {
+        "FALSO_COMPROBANTE_NEQUI",
+        "PHISHING_BANCOLOMBIA",
+        "ESTAFA_INVERSION_CRIPTOMONEDAS",
+        "FALSO_SOPORTE_TECNICO",
+        "FRAUDE_QR_PAGO",
+        "FALSA_OFERTA_LABORAL",
+        "FRAUDE_COMPRAVENTA_DIGITAL",
+        "SUPLANTACION_OPERADOR_SIM",
+        "FALSO_REEMBOLSO_DIAN",
+        "EXTORSION_DIGITAL"
+    }
+    actual_categories = {c["category"] for c in new_digital_cases}
+    assert expected_categories == actual_categories, (
+        f"Las categorías de la ampliación digital deben coincidir exactamente con las modalidades aprobadas: {expected_categories - actual_categories}"
     )
 
-    panic_cases = [c for c in all_taxi_cases if c["expected_verdict"] == "CRÍTICO"]
-    safe_cases = [c for c in all_taxi_cases if c["expected_verdict"] == "BAJO"]
-
-    assert len(panic_cases) >= 5, f"Debe haber al menos 5 escenarios de riesgo/pánico físico (actual: {len(panic_cases)})"
-    assert len(safe_cases) >= 4, f"Debe haber al menos 4 escenarios de trayecto seguro/control (actual: {len(safe_cases)})"
-
-    plate_regex = re.compile(r"\b[A-Za-z]{3}[-\s]?\d{3}\b")
-    for tc in all_taxi_cases:
-        assert plate_regex.search(tc["text"]), (
-            f"El caso de taxi {tc['id']} debe incluir una matrícula vehicular colombiana válida en su texto: {tc['text']}"
+    for case in new_digital_cases:
+        assert case["expected_verdict"] in ["CRÍTICO", "ALTO"], (
+            f"El caso {case['id']} debe tener veredicto de severidad alta (actual: {case['expected_verdict']})"
         )
 
 
@@ -222,7 +228,7 @@ def test_evaluate_physical_accompaniment_routing_and_audio():
     """
     cases = _load_dataset()
     taxi_cases = [c for c in cases if _is_physical_case(c)]
-    assert len(taxi_cases) >= 10, "Deben existir al menos 10 casos en el dominio de acompañamiento físico"
+    assert len(taxi_cases) >= 2, "Deben existir los casos de control histórico de transporte"
 
     routing_ok = 0
     audio_eval_ok = 0

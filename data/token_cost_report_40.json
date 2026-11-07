@@ -1,7 +1,7 @@
 {
   "report_metadata": {
     "report_name": "token_cost_report_40.json",
-    "generated_at": "2026-11-02T02:38:32.393123+00:00",
+    "generated_at": "2026-11-07T16:12:58.006232+00:00",
     "dataset_source": "data/scam_dataset_30.json",
     "scope_description": "40 registros del dataset dual completo (CASE-001 a CASE-040: 30 registros originales más 10 escenarios de acompañamiento físico y emergencias en taxi)",
     "execution_mode": "offline_deterministic_benchmark",
@@ -18,12 +18,12 @@
     "total_cases_evaluated": 40,
     "successful_evaluations": 40,
     "failed_evaluations": 0,
-    "total_prompt_tokens": 42009,
-    "total_completion_tokens": 4255,
-    "total_tokens": 46264,
-    "total_estimated_cost_usd": 0.126568,
-    "average_tokens_per_case": 1156.6,
-    "average_cost_usd_per_case": 0.003164
+    "total_prompt_tokens": 46320,
+    "total_completion_tokens": 4227,
+    "total_tokens": 50547,
+    "total_estimated_cost_usd": 0.13491,
+    "average_tokens_per_case": 1263.67,
+    "average_cost_usd_per_case": 0.003373
   },
   "case_evaluations": [
     {
@@ -73,10 +73,10 @@
       "actual_action": "INFORMATIVE_ONLY",
       "status": "success",
       "error_message": null,
-      "prompt_tokens": 1347,
+      "prompt_tokens": 1346,
       "completion_tokens": 91,
-      "total_tokens": 1438,
-      "estimated_cost_usd": 0.003604
+      "total_tokens": 1437,
+      "estimated_cost_usd": 0.003602
     },
     {
       "case_id": "CASE-005",
@@ -268,10 +268,10 @@
       "actual_action": "BLOCK_AND_REPORT",
       "status": "success",
       "error_message": null,
-      "prompt_tokens": 1431,
+      "prompt_tokens": 1432,
       "completion_tokens": 124,
-      "total_tokens": 1555,
-      "estimated_cost_usd": 0.004102
+      "total_tokens": 1556,
+      "estimated_cost_usd": 0.004104
     },
     {
       "case_id": "CASE-020",
@@ -333,10 +333,10 @@
       "actual_action": "BLOCK_AND_REPORT",
       "status": "success",
       "error_message": null,
-      "prompt_tokens": 1425,
+      "prompt_tokens": 1424,
       "completion_tokens": 124,
-      "total_tokens": 1549,
-      "estimated_cost_usd": 0.00409
+      "total_tokens": 1548,
+      "estimated_cost_usd": 0.004088
     },
     {
       "case_id": "CASE-025",
@@ -418,133 +418,133 @@
     },
     {
       "case_id": "CASE-031",
-      "category": "ACOMPANAMIENTO_FISICO_PANICO",
+      "category": "FALSO_COMPROBANTE_NEQUI",
       "expected_verdict": "CRÍTICO",
       "actual_verdict": "CRÍTICO",
-      "actual_action": "TRIGGER_ALARM",
+      "actual_action": "BLOCK_AND_REPORT",
       "status": "success",
       "error_message": null,
-      "prompt_tokens": 771,
-      "completion_tokens": 119,
-      "total_tokens": 890,
-      "estimated_cost_usd": 0.002732
+      "prompt_tokens": 1105,
+      "completion_tokens": 124,
+      "total_tokens": 1229,
+      "estimated_cost_usd": 0.00345
     },
     {
       "case_id": "CASE-032",
-      "category": "ACOMPANAMIENTO_FISICO_PANICO",
+      "category": "PHISHING_BANCOLOMBIA",
       "expected_verdict": "CRÍTICO",
       "actual_verdict": "CRÍTICO",
-      "actual_action": "TRIGGER_ALARM",
+      "actual_action": "BLOCK_AND_REPORT",
       "status": "success",
       "error_message": null,
-      "prompt_tokens": 778,
-      "completion_tokens": 119,
-      "total_tokens": 897,
-      "estimated_cost_usd": 0.002746
+      "prompt_tokens": 1406,
+      "completion_tokens": 124,
+      "total_tokens": 1530,
+      "estimated_cost_usd": 0.004052
     },
     {
       "case_id": "CASE-033",
-      "category": "ACOMPANAMIENTO_FISICO_PANICO",
+      "category": "ESTAFA_INVERSION_CRIPTOMONEDAS",
       "expected_verdict": "CRÍTICO",
-      "actual_verdict": "CRÍTICO",
-      "actual_action": "TRIGGER_ALARM",
+      "actual_verdict": "BAJO",
+      "actual_action": "INFORMATIVE_ONLY",
       "status": "success",
       "error_message": null,
-      "prompt_tokens": 773,
-      "completion_tokens": 119,
-      "total_tokens": 892,
-      "estimated_cost_usd": 0.002736
+      "prompt_tokens": 1050,
+      "completion_tokens": 91,
+      "total_tokens": 1141,
+      "estimated_cost_usd": 0.00301
     },
     {
       "case_id": "CASE-034",
-      "category": "ACOMPANAMIENTO_FISICO_PANICO",
+      "category": "FALSO_SOPORTE_TECNICO",
       "expected_verdict": "CRÍTICO",
       "actual_verdict": "CRÍTICO",
-      "actual_action": "TRIGGER_ALARM",
+      "actual_action": "BLOCK_AND_REPORT",
       "status": "success",
       "error_message": null,
-      "prompt_tokens": 776,
-      "completion_tokens": 119,
-      "total_tokens": 895,
-      "estimated_cost_usd": 0.002742
+      "prompt_tokens": 1172,
+      "completion_tokens": 124,
+      "total_tokens": 1296,
+      "estimated_cost_usd": 0.003584
     },
     {
       "case_id": "CASE-035",
-      "category": "ACOMPANAMIENTO_FISICO_PANICO",
+      "category": "FRAUDE_QR_PAGO",
       "expected_verdict": "CRÍTICO",
-      "actual_verdict": "CRÍTICO",
-      "actual_action": "TRIGGER_ALARM",
+      "actual_verdict": "BAJO",
+      "actual_action": "INFORMATIVE_ONLY",
       "status": "success",
       "error_message": null,
-      "prompt_tokens": 771,
-      "completion_tokens": 119,
-      "total_tokens": 890,
-      "estimated_cost_usd": 0.002732
+      "prompt_tokens": 1383,
+      "completion_tokens": 91,
+      "total_tokens": 1474,
+      "estimated_cost_usd": 0.003676
     },
     {
       "case_id": "CASE-036",
-      "category": "ACOMPANAMIENTO_FISICO_CONTROL",
-      "expected_verdict": "BAJO",
+      "category": "FALSA_OFERTA_LABORAL",
+      "expected_verdict": "ALTO",
       "actual_verdict": "BAJO",
-      "actual_action": "SCHEDULE_CHECKIN",
+      "actual_action": "INFORMATIVE_ONLY",
       "status": "success",
       "error_message": null,
-      "prompt_tokens": 763,
-      "completion_tokens": 89,
-      "total_tokens": 852,
-      "estimated_cost_usd": 0.002416
+      "prompt_tokens": 1038,
+      "completion_tokens": 91,
+      "total_tokens": 1129,
+      "estimated_cost_usd": 0.002986
     },
     {
       "case_id": "CASE-037",
-      "category": "ACOMPANAMIENTO_FISICO_CONTROL",
-      "expected_verdict": "BAJO",
+      "category": "FRAUDE_COMPRAVENTA_DIGITAL",
+      "expected_verdict": "CRÍTICO",
       "actual_verdict": "BAJO",
-      "actual_action": "SCHEDULE_CHECKIN",
+      "actual_action": "INFORMATIVE_ONLY",
       "status": "success",
       "error_message": null,
-      "prompt_tokens": 771,
-      "completion_tokens": 89,
-      "total_tokens": 860,
-      "estimated_cost_usd": 0.002432
+      "prompt_tokens": 1364,
+      "completion_tokens": 91,
+      "total_tokens": 1455,
+      "estimated_cost_usd": 0.003638
     },
     {
       "case_id": "CASE-038",
-      "category": "ACOMPANAMIENTO_FISICO_CONTROL",
-      "expected_verdict": "BAJO",
-      "actual_verdict": "BAJO",
-      "actual_action": "SCHEDULE_CHECKIN",
+      "category": "SUPLANTACION_OPERADOR_SIM",
+      "expected_verdict": "CRÍTICO",
+      "actual_verdict": "CRÍTICO",
+      "actual_action": "BLOCK_AND_REPORT",
       "status": "success",
       "error_message": null,
-      "prompt_tokens": 766,
-      "completion_tokens": 89,
-      "total_tokens": 855,
-      "estimated_cost_usd": 0.002422
+      "prompt_tokens": 1155,
+      "completion_tokens": 124,
+      "total_tokens": 1279,
+      "estimated_cost_usd": 0.00355
     },
     {
       "case_id": "CASE-039",
-      "category": "ACOMPANAMIENTO_FISICO_CONTROL",
-      "expected_verdict": "BAJO",
+      "category": "FALSO_REEMBOLSO_DIAN",
+      "expected_verdict": "CRÍTICO",
       "actual_verdict": "BAJO",
-      "actual_action": "SCHEDULE_CHECKIN",
+      "actual_action": "INFORMATIVE_ONLY",
       "status": "success",
       "error_message": null,
-      "prompt_tokens": 762,
-      "completion_tokens": 89,
-      "total_tokens": 851,
-      "estimated_cost_usd": 0.002414
+      "prompt_tokens": 1281,
+      "completion_tokens": 91,
+      "total_tokens": 1372,
+      "estimated_cost_usd": 0.003472
     },
     {
       "case_id": "CASE-040",
-      "category": "ACOMPANAMIENTO_FISICO_PANICO",
+      "category": "EXTORSION_DIGITAL",
       "expected_verdict": "CRÍTICO",
-      "actual_verdict": "CRÍTICO",
-      "actual_action": "TRIGGER_ALARM",
+      "actual_verdict": "BAJO",
+      "actual_action": "INFORMATIVE_ONLY",
       "status": "success",
       "error_message": null,
-      "prompt_tokens": 775,
-      "completion_tokens": 119,
-      "total_tokens": 894,
-      "estimated_cost_usd": 0.00274
+      "prompt_tokens": 1064,
+      "completion_tokens": 91,
+      "total_tokens": 1155,
+      "estimated_cost_usd": 0.003038
     }
   ]
 }

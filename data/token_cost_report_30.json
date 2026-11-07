@@ -1,7 +1,7 @@
 {
   "report_metadata": {
     "report_name": "token_cost_report_30.json",
-    "generated_at": "2026-11-02T02:38:32.393123+00:00",
+    "generated_at": "2026-11-07T16:12:58.006232+00:00",
     "dataset_source": "data/scam_dataset_30.json",
     "scope_description": "30 registros originales del dataset histórico (CASE-001 a CASE-030: 29 casos de auditoría digital y 1 control legítimo de transporte)",
     "execution_mode": "offline_deterministic_benchmark",
@@ -18,12 +18,12 @@
     "total_cases_evaluated": 30,
     "successful_evaluations": 30,
     "failed_evaluations": 0,
-    "total_prompt_tokens": 34303,
+    "total_prompt_tokens": 34302,
     "total_completion_tokens": 3185,
-    "total_tokens": 37488,
-    "total_estimated_cost_usd": 0.100456,
-    "average_tokens_per_case": 1249.6,
-    "average_cost_usd_per_case": 0.003349
+    "total_tokens": 37487,
+    "total_estimated_cost_usd": 0.100454,
+    "average_tokens_per_case": 1249.57,
+    "average_cost_usd_per_case": 0.003348
   },
   "case_evaluations": [
     {
@@ -73,10 +73,10 @@
       "actual_action": "INFORMATIVE_ONLY",
       "status": "success",
       "error_message": null,
-      "prompt_tokens": 1347,
+      "prompt_tokens": 1346,
       "completion_tokens": 91,
-      "total_tokens": 1438,
-      "estimated_cost_usd": 0.003604
+      "total_tokens": 1437,
+      "estimated_cost_usd": 0.003602
     },
     {
       "case_id": "CASE-005",
@@ -268,10 +268,10 @@
       "actual_action": "BLOCK_AND_REPORT",
       "status": "success",
       "error_message": null,
-      "prompt_tokens": 1431,
+      "prompt_tokens": 1432,
       "completion_tokens": 124,
-      "total_tokens": 1555,
-      "estimated_cost_usd": 0.004102
+      "total_tokens": 1556,
+      "estimated_cost_usd": 0.004104
     },
     {
       "case_id": "CASE-020",
@@ -333,10 +333,10 @@
       "actual_action": "BLOCK_AND_REPORT",
       "status": "success",
       "error_message": null,
-      "prompt_tokens": 1425,
+      "prompt_tokens": 1424,
       "completion_tokens": 124,
-      "total_tokens": 1549,
-      "estimated_cost_usd": 0.00409
+      "total_tokens": 1548,
+      "estimated_cost_usd": 0.004088
     },
     {
       "case_id": "CASE-025",
