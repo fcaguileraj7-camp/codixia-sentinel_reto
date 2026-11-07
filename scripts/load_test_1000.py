@@ -79,32 +79,40 @@ def load_existing_bitacora(json_path: Path) -> List[Dict[str, Any]]:
     return []
 
 
-def append_csv_record(csv_path: Path, record: Dict[str, Any]):
-    """Agrega un registro individual al archivo CSV."""
-    with open(csv_path, "a", newline="", encoding="utf-8") as f:
-        writer = csv.writer(f)
-        writer.writerow([
-            record.get("task_id", ""),
-            record.get("timestamp", ""),
-            record.get("category", ""),
-            record.get("sender", ""),
-            record.get("user_input", "").replace("\n", " "),
-            record.get("risk_level", ""),
-            record.get("action", ""),
-            record.get("police_report_id", ""),
-            record.get("status", ""),
-            record.get("execution_status", ""),
-            record.get("prompt_tokens", 0),
-            record.get("completion_tokens", 0),
-            record.get("total_tokens", 0),
-            record.get("estimated_cost_usd", 0.0),
-            record.get("latency_sec", 0.0),
-            record.get("error_details", "")
-        ])
+def append_csv_record(csv_path: Path, record: Dict[str, Any], max_retries: int = 5):
+    """Agrega un registro individual al archivo CSV con reintentos si el archivo está bloqueado (ej. por Excel)."""
+    for attempt in range(max_retries):
+        try:
+            with open(csv_path, "a", newline="", encoding="utf-8") as f:
+                writer = csv.writer(f)
+                writer.writerow([
+                    record.get("task_id", ""),
+                    record.get("timestamp", ""),
+                    record.get("category", ""),
+                    record.get("sender", ""),
+                    record.get("user_input", "").replace("\n", " "),
+                    record.get("risk_level", ""),
+                    record.get("action", ""),
+                    record.get("police_report_id", ""),
+                    record.get("status", ""),
+                    record.get("execution_status", ""),
+                    record.get("prompt_tokens", 0),
+                    record.get("completion_tokens", 0),
+                    record.get("total_tokens", 0),
+                    record.get("estimated_cost_usd", 0.0),
+                    record.get("latency_sec", 0.0),
+                    record.get("error_details", "")
+                ])
+            return
+        except PermissionError:
+            time.sleep(1.0)
+        except Exception as e:
+            logger.warning(f"Error escribiendo en CSV ({e})")
+            return
 
 
-def save_json_state(json_path: Path, tasks_records: List[Dict[str, Any]], stats: Dict[str, Any]):
-    """Guarda el estado completo de la bitácora en JSON de forma atómica."""
+def save_json_state(json_path: Path, tasks_records: List[Dict[str, Any]], stats: Dict[str, Any], max_retries: int = 5):
+    """Guarda el estado completo de la bitácora en JSON de forma atómica con tolerancia a bloqueos."""
     payload = {
         "metadata": {
             "title": "SentinelGuard AI · Bitácora Oficial de Carga Desatendida (Hito S4)",
@@ -115,10 +123,18 @@ def save_json_state(json_path: Path, tasks_records: List[Dict[str, Any]], stats:
         },
         "tasks": tasks_records
     }
-    temp_path = json_path.with_suffix(".tmp")
-    with open(temp_path, "w", encoding="utf-8") as f:
-        json.dump(payload, f, indent=2, ensure_ascii=False)
-    temp_path.replace(json_path)
+    for attempt in range(max_retries):
+        try:
+            temp_path = json_path.with_suffix(".tmp")
+            with open(temp_path, "w", encoding="utf-8") as f:
+                json.dump(payload, f, indent=2, ensure_ascii=False)
+            temp_path.replace(json_path)
+            return
+        except PermissionError:
+            time.sleep(1.0)
+        except Exception as e:
+            logger.warning(f"Error guardando JSON ({e})")
+            return
 
 
 def run_load_test(
