@@ -218,7 +218,8 @@ def _looks_like_transport_panic(text: str) -> bool:
     transport_markers = [
         "taxi", "placa", "conductor", "trocha oscura", "desvió", "desvio",
         "auxilio", "miedo", "no me responde", "apagó las luces", "apago las luces",
-        "no me deja", "nos vamos por otra ruta"
+        "no me deja", "nos vamos por otra ruta", "me amenaza", "me obliga",
+        "me retiene", "no me deja salir", "coacción", "coaccion"
     ]
     digital_markers = [
         "banco", "bancolombia", "nequi", "daviplata", "simit", "dian",
