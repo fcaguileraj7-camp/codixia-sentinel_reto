@@ -85,11 +85,13 @@ Las habilidades técnicas desarrolladas en las Semanas 1 y 2 se reutilizan direc
   - [x] Módulo base `src/tools/url_sandbox.py` con detección de TLDs riesgosos (`.xyz`, `.top`, `.cc`).
   - [x] Pruebas unitarias en `tests/test_sandbox.py` pasando con `pytest`.
 - **Semana 2 (Hito S2 · Oct 12 - 18):**
-  - [ ] Desenrollado seguro de enlaces acortados (`bit.ly`, `tinyurl.com`, `t.co`) con peticiones HTTP `HEAD` seguras.
-  - [ ] Detección de typosquatting contra entidades financieras (`banc0lombia`, `nequii-pagos`).
+  - [x] Desenrollado seguro de enlaces acortados (`bit.ly`, `tinyurl.com`, `t.co`) con peticiones HTTP `HEAD` seguras.
+  - [x] Detección de typosquatting contra entidades financieras (`banc0lombia`, `nequii-pagos`).
 - **Semana 3 (Hito S3 · Oct 19 - 25):**
-  - [ ] Blacklist local de URLs fraudulentas reportadas por la Policía Cibernética.
-  - [ ] Telemetría de red y optimización de latencias para el módulo de taxi.
+  - [x] Lista negra local `data/url_blacklist.json`, sembrada con los dominios de `scam_dataset_30.json` (cada entrada lleva su `origin`). `analyze_url` la consulta y marca `is_blacklisted`; con `blacklist=frozenset()` se mide solo la heurística.
+    - [ ] Pendiente: ampliarla con reportes oficiales (por ejemplo, de la Policía Cibernética). Hoy la fuente es el dataset del equipo, no un reporte oficial.
+  - [x] Telemetría de red en `analyze_url`: `telemetry.latency_ms` y `telemetry.expansion_ms` (la telemetría vive en `url_sandbox`; el módulo de taxi `route_companion.py` es lógica local sin peticiones de red).
+  - [ ] Optimización de latencias de conexión (una sola resolución DNS por salto de redirección; irá en un PR aparte).
 - **Semana 4 (Hito S4 · Oct 26 - Nov 1):**
   - [ ] Implementar caché en memoria (`@lru_cache`) para responder consultas repetidas en <1 ms en la prueba de carga.
 - **Cierre Final (Noviembre):**

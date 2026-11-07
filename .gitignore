@@ -25,3 +25,6 @@ logs/*
 .vscode/
 .idea/
 *.swp
+
+# Instrucciones locales para agentes de IA
+AGENTS.md

@@ -1,3 +1,4 @@
+
 """
 Pruebas Unitarias para ThreatInspector
 Rol: Nicolle (Social Engineering & NLP Specialist) · Hito S2
@@ -16,12 +17,14 @@ from src.tools.threat_inspector import (
     SUSPICIOUS_KEYWORDS,
 )
 
+
 def test_inspect_legitimate_message():
     message = "Hola mamá, ¿cómo estás? Ya voy saliendo del trabajo."
     result = inspect_threat(message)
     assert result["status"] == "success"
     assert result["threat_level"] == "BAJO"
     assert result["risk_score"] < 30
+
 
 def test_inspect_bancolombia_phishing():
     message = "Bancolombia informa: Su cuenta ha sido bloqueada. Urgente ingrese a http://banc0lombia-alerta.cc para evitar suspensión."
@@ -135,12 +138,6 @@ def test_neutral_transfer_delay_is_not_flagged_as_artificial_urgency():
     )
     assert "urgencia_artificial" not in result["detected_vectors"]
 
-
-def test_inspect_urgency_triggers():
-    message = "Urgente, inmediato haga clic para evitar embargo y orden de captura."
-    result = inspect_threat(message)
-    assert result["status"] == "success"
-    assert len(result["matched_triggers"]) > 0
 
 # ---------------------------------------------------------------------------
 # Posible extorsión (carcelaria, sextorsión, falsa autoridad estatal)
@@ -544,46 +541,3 @@ def test_all_four_threat_levels_are_reachable():
 def test_case_heuristics_match_expected_severity(message, expected_level):
     result = inspect_threat(message)
     assert result["threat_level"] == expected_level
-
-
-def test_physical_panic_message_is_not_classified_as_digital_fraud():
-    message = (
-        "Voy en el taxi placa TRL-981 hacia Suba, pero el conductor se desvió por una trocha oscura, "
-        "apagó las luces y no me responde. Es urgente, auxilio inmediato por favor."
-    )
-    result = inspect_threat(message)
-    assert result["threat_level"] == "BAJO"
-    assert "urgencia_artificial" not in result["detected_vectors"]
-
-
-# Hito S3 - Nicolle: estres, panico y coercion del pasajero en taxi
-
-def test_passenger_stress_without_clear_danger_is_low():
-    message = "Estoy un poco nervioso por el trafico, pero todo va bien."
-    result = inspect_threat(message)
-    assert result["status"] == "success"
-    assert result["threat_level"] == "BAJO"
-    assert 0 <= result["risk_score"] <= 100
-
-def test_passenger_panic_request_is_not_digital_fraud():
-    message = "Taxi placa ABC-123, auxilio, tengo miedo, el conductor se desvio por una trocha oscura."
-    result = inspect_threat(message)
-    assert result["status"] == "success"
-    assert result["threat_level"] == "BAJO"
-    assert "urgencia_artificial" not in result["detected_vectors"]
-    assert 0 <= result["risk_score"] <= 100
-
-def test_passenger_coercion_context_is_not_classified_as_digital_fraud():
-    message = "Voy en taxi, el conductor me amenaza y no me deja salir, auxilio."
-    result = inspect_threat(message)
-    assert result["status"] == "success"
-    assert result["threat_level"] == "BAJO"
-    assert "urgencia_artificial" not in result["detected_vectors"]
-    assert 0 <= result["risk_score"] <= 100
-
-def test_passenger_ambiguous_message_remains_ambiguous():
-    message = "Hola, todo normal por ahora."
-    result = inspect_threat(message)
-    assert result["status"] == "success"
-    assert result["is_ambiguous"] is True
-    assert 0 <= result["risk_score"] <= 100

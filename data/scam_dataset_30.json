@@ -193,10 +193,10 @@
   },
   {
     "id": "CASE-025",
-    "category": "ACOMPANAMIENTO_FISICO_PANICO",
+    "category": "FALSO_SECUESTRO_EXPRESS",
     "expected_verdict": "CRÍTICO",
-    "text": "Voy en el taxi placa TRL-981 hacia Suba, pero el conductor se desvió por una trocha oscura, apagó las luces y no me responde. Es urgente, auxilio inmediato por favor.",
-    "entity_target": "Seguridad Transporte / Taxi",
+    "text": "Tenemos a su hijo retenido en una camioneta. No cuelgue ni intente llamar a la policía o le pegamos un tiro. Consigne de inmediato 5 millones por Nequi o Daviplata si lo quiere volver a ver con vida.",
+    "entity_target": "Familiar / Emergencia Falsa",
     "has_malicious_url": false
   },
   {
@@ -211,8 +211,8 @@
     "id": "CASE-027",
     "category": "LEGITIMO_CONTROL",
     "expected_verdict": "BAJO",
-    "text": "Acabo de abordar el taxi de placas WDY-452 saliendo de la oficina en Chapinero hacia mi casa en Cedritos. Inicio recorrido tranquilo, les aviso apenas llegue.",
-    "entity_target": "Seguridad Transporte / Taxi",
+    "text": "Hola familia, ya voy saliendo de la oficina hacia la casa en Cedritos. El tráfico está normal, les aviso apenas llegue para cenar.",
+    "entity_target": "Familiar",
     "has_malicious_url": false
   },
   {

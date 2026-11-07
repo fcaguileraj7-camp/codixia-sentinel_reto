@@ -659,4 +659,57 @@ def test_apptest_retry_analysis_after_error():
     assert any("Análisis reintentado con éxito" in m for m in markdown_texts)
 
 
+# =============================================================================
+# PRUEBAS DE ESTRUCTURA SIN MÓDULO DE TAXI (ROL 5 - INTERFAZ OFICIAL)
+# =============================================================================
+
+def test_apptest_two_tabs_rendered_without_taxi():
+    """Verifica que la app renderice exclusivamente 2 pestañas oficiales sin componentes de taxi."""
+    at = AppTest.from_file(APP_PATH, default_timeout=30)
+    at.run()
+    assert len(at.exception) == 0
+
+    # Pestaña 1: Escudo Digital presente e intacto
+    assert at.text_area(key="user_input_text") is not None
+    assert at.button(key="btn_analyze_main") is not None
+
+    # Componentes del servicio de taxi no deben existir en el árbol de renderizado
+    text_input_keys = [getattr(w, "key", None) for w in at.text_input]
+    button_keys = [getattr(w, "key", None) for w in at.button]
+    assert "taxi_plate_input" not in text_input_keys
+    assert "taxi_destination_input" not in text_input_keys
+    assert "taxi_btn_register" not in button_keys
+    assert "taxi_btn_sos" not in button_keys
+    assert "taxi_active_trip" not in at.session_state
+
+
+def test_apptest_cai_virtual_tab_accessible_and_functional():
+    """Verifica que la pestaña de Denuncias para CAI Virtual sea plenamente accesible y funcional."""
+    at = AppTest.from_file(APP_PATH, default_timeout=30)
+    at.run()
+    assert len(at.exception) == 0
+
+    # Generar expediente de ejemplo
+    gen_buttons = [b for b in at.button if "Generar Expediente" in b.label]
+    assert len(gen_buttons) > 0
+    gen_buttons[0].click().run()
+    assert len(at.exception) == 0
+    assert any("Expediente de ejemplo preparado" in i.value for i in at.info)
+
+
+def test_apptest_metric_cards_contain_no_taxi_accompaniment():
+    """Verifica que las tarjetas métricas de la UI no incluyan acompañamiento en viajes."""
+    from src.ui.components import render_metric_cards
+    at = AppTest.from_file(APP_PATH, default_timeout=30)
+    at.run()
+    assert len(at.exception) == 0
+
+    all_rendered = " ".join([m.value for m in at.markdown])
+    assert "Acompañamiento en Viajes" not in all_rendered
+    assert "Ruta 24/7" not in all_rendered
+    assert "Auditoría de Enlaces" in all_rendered
+
+
+
+
 

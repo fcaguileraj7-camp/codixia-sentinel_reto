@@ -180,6 +180,7 @@ THREAT_VECTORS: Dict[str, Dict[str, Any]] = {
     },
 }
 
+
 def _normalize(content: str) -> str:
     """Minúsculas y espacios colapsados. Tolera emojis masivos y caracteres nulos."""
     if not isinstance(content, str):
@@ -223,10 +224,10 @@ def _looks_like_transport_panic(text: str) -> bool:
         return False
     lower = text.lower()
     transport_markers = [
-        "taxi", "placa", "conductor", "trocha oscura", "desviÃ³", "desvio",
-        "auxilio", "miedo", "no me responde", "apagÃ³ las luces", "apago las luces",
+        "taxi", "placa", "conductor", "trocha oscura", "desvió", "desvio",
+        "auxilio", "miedo", "no me responde", "apagó las luces", "apago las luces",
         "no me deja", "nos vamos por otra ruta", "me amenaza", "me obliga",
-        "me retiene", "no me deja salir", "coacciÃ³n", "coaccion"
+        "me retiene", "no me deja salir", "coacción", "coaccion"
     ]
     transport_markers.extend(
         ("desvi\u00f3", "apag\u00f3 las luces", "coacci\u00f3n")
