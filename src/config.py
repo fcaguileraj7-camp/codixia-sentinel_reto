@@ -13,6 +13,12 @@ LOG_LEVEL = os.getenv("LOG_LEVEL", "INFO")
 # Modo de ejecución: "mock" (por defecto, $0 USD) o "live" (llamadas a la API real)
 GROK_MODE = os.getenv("GROK_MODE", "mock").lower()
 
+# Configuración del canal WhatsApp (Meta Cloud API Sandbox / Producción)
+WHATSAPP_VERIFY_TOKEN = os.getenv("WHATSAPP_VERIFY_TOKEN", "sentinelguard_verify_2026")
+WHATSAPP_ACCESS_TOKEN = os.getenv("WHATSAPP_ACCESS_TOKEN", "")
+WHATSAPP_PHONE_NUMBER_ID = os.getenv("WHATSAPP_PHONE_NUMBER_ID", "")
+WHATSAPP_API_VERSION = os.getenv("WHATSAPP_API_VERSION", "v20.0")
+
 def is_configured() -> bool:
     """Verifica si la llave del reto ha sido configurada correctamente en .env."""
     return bool(RETO_API_KEY and RETO_API_KEY.startswith("pk_") and RETO_API_KEY != "pk_tu_llave_aqui")
@@ -26,3 +32,7 @@ def is_live_mode_enabled() -> bool:
     if "PYTEST_CURRENT_TEST" in os.environ and os.getenv("GROK_FORCE_LIVE_TEST") != "1":
         return False
     return is_configured() and GROK_MODE in ["live", "real", "production"]
+
+def is_whatsapp_configured() -> bool:
+    """Verifica si las credenciales de WhatsApp Cloud API están presentes para envíos reales."""
+    return bool(WHATSAPP_ACCESS_TOKEN and WHATSAPP_PHONE_NUMBER_ID)

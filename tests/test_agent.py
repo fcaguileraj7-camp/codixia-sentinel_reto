@@ -126,3 +126,101 @@ def test_sentinel_routing_simit_not_confused_with_taxi():
     assert "route" not in res["tool_results"]
     assert res["police_report"] is not None
     assert "CAI-COL-" in res["police_report"]["report_id"]
+
+# ==============================================================================
+# 5. Pruebas de Integración de Flujo de Taxi y Audio (Hito S3 - Integración Nicolle)
+# ==============================================================================
+
+def test_sentinel_taxi_flow_with_panic_audio_evaluation():
+    """
+    Verifica que en modo taxi se ejecute evaluate_trip_audio_response y el detector de amenazas,
+    se propague risk_score=100 y threat_level=CRÍTICO, y se active escalada PHYSICAL_RISK.
+    """
+    agent = SentinelAgent()
+    res = agent.process_message(
+        "¡Auxilio! El taxista se desvió por una trocha oscura y no me deja bajar",
+        metadata={"plate": "WDY452", "destination": "Centro"}
+    )
+    assert res["status"] == "success"
+    assert "audio_eval" in res["tool_results"]
+    assert res["tool_results"]["audio_eval"]["status"] == "alert"
+    assert res["tool_results"]["audio_eval"]["escalation_required"] is True
+    assert "threat" in res["tool_results"]
+
+    # Propagación de score y niveles
+    assert res["decision"]["risk_level"] == "CRÍTICO"
+    assert res["decision"]["threat_level"] == "CRÍTICO"
+    assert res["decision"]["risk_score"] == 100
+    assert res["decision"]["action"] == "TRIGGER_ALARM"
+
+    # Escalada de emergencia física
+    assert res["escalation"] is not None
+    assert res["escalation"]["incident_type"] == "PHYSICAL_RISK"
+    assert res["escalation"]["status"] == "escalated"
+    assert res["police_report"] is None  # CAI Virtual solo aplica a fraude digital
+
+def test_sentinel_taxi_flow_normal_audio_response():
+    """
+    Verifica que un reporte normal en taxi mantenga status normal,
+    risk_level BAJO, risk_score 0 y sin escalada de emergencia.
+    """
+    agent = SentinelAgent()
+    res = agent.process_message(
+        "Todo va bien, vamos por la avenida 30",
+        metadata={"plate": "WDY452", "destination": "Centro"}
+    )
+    assert res["status"] == "success"
+    assert "audio_eval" in res["tool_results"]
+    assert res["tool_results"]["audio_eval"]["status"] == "normal"
+    assert res["tool_results"]["audio_eval"]["is_safe"] is True
+    assert res["decision"]["risk_level"] == "BAJO"
+    assert res["decision"]["risk_score"] == 0
+    assert res["escalation"] is None
+
+
+# ==============================================================================
+# 5. Pruebas de Desacoplamiento del Pipeline de Sentinel (Hito S3)
+# ==============================================================================
+
+def test_sentinel_process_cyber_audit_strictly_isolated():
+    """
+    Verifica que el pipeline exclusivo de ciberseguridad (process_cyber_audit)
+    no ejecute herramientas de ruta física y opere de forma 100% aislada.
+    """
+    agent = SentinelAgent()
+    res = agent.process_cyber_audit(
+        "Bancolombia informa: Clave bloqueada, ingrese a https://bancolombia-alerta.cc",
+        metadata={"sender": "+573001234567"}
+    )
+
+    assert res["status"] == "success"
+    assert res["decision"]["mode"] == "threat_inspection"
+    assert res["decision"]["risk_level"] in ["ALTO", "CRÍTICO"]
+    assert "threat" in res["tool_results"]
+    assert "url_sandbox" in res["tool_results"]
+    assert "audio_eval" not in res["tool_results"]
+    assert "route" not in res["tool_results"]
+    assert res["police_report"] is not None
+    assert res["police_report"]["incident_category"] == "Tentativa de Estafa / Phishing"
+
+
+def test_route_companion_handler_standalone():
+    """
+    Verifica que RouteCompanionHandler opere de forma autónoma y desacoplada
+    del pipeline principal de ciberamenazas.
+    """
+    from src.agent.route_handler import RouteCompanionHandler
+
+    handler = RouteCompanionHandler()
+    res = handler.process_route_message(
+        "Voy en taxi placas TRL981 hacia Chapinero",
+        metadata={"plate": "TRL981", "destination": "Chapinero"},
+        session_id="standalone_route_test"
+    )
+
+    assert res["status"] == "success"
+    assert res["decision"]["mode"] == "route_companion"
+    assert "audio_eval" in res["tool_results"]
+    assert "route" in res["tool_results"]
+    assert res["tool_results"]["route"]["vehicle_plate"] == "TRL981"
+    assert res["police_report"] is None
