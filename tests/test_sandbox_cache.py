@@ -232,7 +232,7 @@ def test_distinct_cache_keys_separation(monkeypatch):
 
 
 def test_non_string_and_oversized_inputs_not_cached():
-    """Entradas que no son str o que superan MAX_URL_LEN devuelven error y nunca se guardan en caché."""
+    """Las entradas que no son str se rechazan sin guardarse; las mayores que MAX_URL_LEN se analizan pero no se guardan."""
     bad_inputs = [None, 123, ["https://example.com"]]
     for bad in bad_inputs:
         res = sandbox.analyze_url(bad)
@@ -284,3 +284,40 @@ def test_cache_concurrency_threadpool():
     assert misses >= 1
     assert hits >= 1
     assert hits + misses == 200
+
+
+def test_default_blacklist_is_part_of_the_cache_key(monkeypatch):
+    """La lista negra por defecto se resuelve antes de armar la clave: si cambia, no se sirve el veredicto viejo."""
+    lists = iter([frozenset(), frozenset({"x-estafa.com"})])
+    monkeypatch.setattr(sandbox, "_get_blacklist", lambda: next(lists))
+    first = sandbox.analyze_url("x-estafa.com")
+    second = sandbox.analyze_url("x-estafa.com")
+    assert first["is_blacklisted"] is False
+    assert second["is_blacklisted"] is True
+    assert second["telemetry"]["cache_hit"] is False
+
+
+def test_markdown_with_failed_shortener_is_not_cached(monkeypatch):
+    """Si el acortador del destino falla, el fallo se informa y el resultado no se guarda."""
+    calls = []
+
+    def failing_head(url, timeout=sandbox.EXPAND_TIMEOUT):
+        calls.append(url)
+        raise OSError("sin red")
+
+    monkeypatch.setattr(sandbox, "_head_request", failing_head)
+    url = "[https://banc0lombia-seguridad.cc](https://bit.ly/x)"
+    first = sandbox.analyze_url(url, blacklist=frozenset())
+    second = sandbox.analyze_url(url, blacklist=frozenset())
+    assert first["expansion_error"] is not None
+    assert second["telemetry"]["cache_hit"] is False
+    assert len(calls) == 2
+
+
+def test_surrounding_whitespace_shares_the_cache_entry():
+    """La clave usa la URL sin espacios en los extremos, igual que el análisis."""
+    first = sandbox.analyze_url("https://example.com/a", blacklist=frozenset())
+    second = sandbox.analyze_url("  https://example.com/a  ", blacklist=frozenset())
+    assert first["telemetry"]["cache_hit"] is False
+    assert second["telemetry"]["cache_hit"] is True
+    assert second["original_url"] == first["original_url"]

@@ -257,8 +257,12 @@ def run_simulated_shortener_benchmark() -> None:
     print(f"  URL expandida: {res2.get('expanded_url')}")
     print(f"  Latencia: {t2_ms:.4f} ms")
 
-    if hit2 is True and calls_second == 0:
-        print("Resultado: La segunda llamada fue un acierto de caché y no realizó peticiones de red.")
+    same = (
+        {k: v for k, v in res1.items() if k != "telemetry"}
+        == {k: v for k, v in res2.items() if k != "telemetry"}
+    )
+    if hit2 is True and calls_second == 0 and same:
+        print("Resultado: La segunda llamada fue un acierto de caché, sin red y con el mismo resultado.")
     else:
         print("Aviso: Comportamiento inesperado en la caché del acortador.")
 

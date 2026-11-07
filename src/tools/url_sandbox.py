@@ -697,8 +697,10 @@ def analyze_url(raw_url: str, expand: bool = True, blacklist: Optional[frozenset
       el host también se marca como sospechoso.
 
     Cuenta con una caché en memoria LRU de ANALYSIS_CACHE_MAXSIZE entradas y un TTL de
-    ANALYSIS_CACHE_TTL segundos. No guarda resultados con expansion_error ni entradas mayores
-    que MAX_URL_LEN caracteres, y devuelve copias profundas.
+    ANALYSIS_CACHE_TTL segundos. La clave es (URL sin espacios en los extremos, expand, lista
+    negra efectiva). No guarda resultados con expansion_error, entradas que no son texto ni
+    entradas mayores que MAX_URL_LEN caracteres. Guarda una copia profunda y cada acierto
+    devuelve otra, así que modificar un resultado nunca afecta a las llamadas siguientes.
 
     Args:
         raw_url: URL o dominio a analizar (se acepta sin esquema).
@@ -733,9 +735,9 @@ def analyze_url(raw_url: str, expand: bool = True, blacklist: Optional[frozenset
           a 2 decimales) y también presente cuando la entrada es inválida:
             - latency_ms: tiempo total de analyze_url (en la primera llamada incluye la carga
               de la lista negra por defecto).
-            - expansion_ms: tiempo de la llamada a _expand_url (la parte de red), o None si no
-              hubo desenrollado (no es acortador o expand es False). No incluye el re-análisis
-              del destino.
+            - expansion_ms: tiempo de la llamada a _expand_url (la parte de red), o None si esta
+              llamada no hizo red (no es acortador, expand es False o el resultado vino de la
+              caché). No incluye el re-análisis del destino.
             - cache_hit: booleano que indica si el resultado provino de la caché en memoria (True)
               o requirió ejecución del análisis (False). En un acierto, expansion_ms es None.
     """
@@ -748,8 +750,14 @@ def analyze_url(raw_url: str, expand: bool = True, blacklist: Optional[frozenset
         blacklist = frozenset(blacklist)
 
     t0 = time.perf_counter()
-    is_cacheable = isinstance(raw_url, str) and len(raw_url) <= MAX_URL_LEN
-    key = (raw_url, expand, blacklist) if is_cacheable else None
+    # La lista efectiva se resuelve antes de armar la clave: una entrada guardada con None
+    # no debe servir un veredicto viejo si la lista por defecto cambia.
+    if blacklist is None:
+        blacklist = _get_blacklist()
+    # _analyze_url recorta los extremos de la entrada, así que la clave usa la misma forma.
+    norm_url = raw_url.strip() if isinstance(raw_url, str) else ""
+    is_cacheable = bool(norm_url) and len(norm_url) <= MAX_URL_LEN
+    key = (norm_url, expand, blacklist) if is_cacheable else None
 
     if is_cacheable:
         cached = _ANALYSIS_CACHE.get(key)
@@ -852,8 +860,15 @@ def _analyze_url(raw_url: str, expand: bool, blacklist: Optional[frozenset]) -> 
             if r.get("telemetry") and r["telemetry"].get("expansion_ms") is not None
         ]
         expansion_ms = round(sum(exp_times), 2) if exp_times else None
+        # si el desenrollado de algún segmento falló, el error se informa aunque el mejor sea otro
+        expansion_error = best["expansion_error"]
+        if expansion_error is None:
+            expansion_error = next(
+                (r["expansion_error"] for r in results if r.get("expansion_error") is not None), None
+            )
         return {
             **best,
+            "expansion_error": expansion_error,
             "original_url": raw_url,
             "expanded_url": expanded,
             "risk_score": risk_score,
