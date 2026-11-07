@@ -104,12 +104,12 @@ def test_scam_dataset_original_30_records_integrity():
     assert "banc0lombia-seguridad.cc" in original_30[0]["text"]
 
     assert original_30[24]["id"] == "CASE-025"
-    assert original_30[24]["category"] == "ACOMPANAMIENTO_FISICO_PANICO"
-    assert "TRL-981" in original_30[24]["text"]
+    assert original_30[24]["category"] == "FALSO_SECUESTRO_EXPRESS"
+    assert "Tenemos a su hijo retenido" in original_30[24]["text"]
 
     assert original_30[26]["id"] == "CASE-027"
     assert original_30[26]["category"] == "LEGITIMO_CONTROL"
-    assert "WDY-452" in original_30[26]["text"]
+    assert "Hola familia, ya voy saliendo" in original_30[26]["text"]
 
     assert original_30[29]["id"] == "CASE-030"
     assert original_30[29]["category"] == "LEGITIMO_CONTROL"
@@ -217,6 +217,21 @@ def test_evaluate_dataset_precision():
 # 3. EVALUACIÓN Y CERTIFICACIÓN DEL DOMINIO FÍSICO (ACOMPAÑAMIENTO EN TAXI)
 # ==============================================================================
 
+CONTROL_TAXI_CASES = [
+    {
+        "id": "TAXI-CTRL-01",
+        "category": "ACOMPANAMIENTO_FISICO_PANICO",
+        "expected_verdict": "CRÍTICO",
+        "text": "Voy en el taxi placa TRL-981 hacia Suba, pero el conductor se desvió por una trocha oscura, apagó las luces y no me responde. Es urgente, auxilio inmediato por favor."
+    },
+    {
+        "id": "TAXI-CTRL-02",
+        "category": "ACOMPANAMIENTO_FISICO_CONTROL",
+        "expected_verdict": "BAJO",
+        "text": "Acabo de abordar el taxi de placas WDY-452 saliendo de la oficina en Chapinero hacia mi casa en Cedritos. Inicio recorrido tranquilo, les aviso apenas llegue."
+    }
+]
+
 def test_evaluate_physical_accompaniment_routing_and_audio():
     """
     Evalúa los casos de acompañamiento físico en taxi frente a los componentes
@@ -227,7 +242,7 @@ def test_evaluate_physical_accompaniment_routing_and_audio():
        situaciones de pánico activen estado 'alert' y que los trayectos seguros reporten 'normal'.
     """
     cases = _load_dataset()
-    taxi_cases = [c for c in cases if _is_physical_case(c)]
+    taxi_cases = CONTROL_TAXI_CASES
     assert len(taxi_cases) >= 2, "Deben existir los casos de control histórico de transporte"
 
     routing_ok = 0
@@ -271,7 +286,7 @@ def test_evaluate_physical_accompaniment_agent_workflow():
     - Los casos seguros produzcan riesgo 'BAJO', acción 'SCHEDULE_CHECKIN' y sin escalada de emergencia.
     """
     cases = _load_dataset()
-    taxi_cases = [c for c in cases if _is_physical_case(c)]
+    taxi_cases = CONTROL_TAXI_CASES
     agent = SentinelAgent()
 
     agent_eval_ok = 0
