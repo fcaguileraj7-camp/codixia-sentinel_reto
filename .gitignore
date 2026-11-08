@@ -28,3 +28,7 @@ logs/*
 
 # Instrucciones locales para agentes de IA
 AGENTS.md
+
+# Videos pesados de entrega (alojados en Drive/YouTube)
+video/S4_*
+video/Video_S4_*

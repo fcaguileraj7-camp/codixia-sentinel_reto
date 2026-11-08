@@ -4,7 +4,7 @@
 [![Reto Agente 2026](https://img.shields.io/badge/Reto_Agente_2026-Platica.mx_x_Campuslands-2eb872.svg)](https://reto.pltk.mx/)
 [![Core Brain](https://img.shields.io/badge/Brain-Grok_4.7_(xAI)-black.svg)](https://x.ai/)
 [![Team](https://img.shields.io/badge/Team-Codixia-blue.svg)](#-equipo-codixia)
-[![Tests](https://img.shields.io/badge/Tests-74%20Passed%20(100%25)-brightgreen.svg)](#-6-pruebas-y-calidad)
+[![Tests](https://img.shields.io/badge/Tests-517%20Passed%20(100%25)-brightgreen.svg)](#-6-pruebas-y-calidad)
 [![Python](https://img.shields.io/badge/Python-3.10%2B-3776AB.svg)](https://www.python.org/)
 
 > **Protección integral 24/7 en WhatsApp: neutraliza estafas y extorsiones digitales con visión multimodal y cuida tu espalda en calles y taxis en tiempo real con monitoreo desatendido.**
@@ -177,14 +177,16 @@ python -m pytest tests/ -v
 
 * [x] **Semana 1 (S1) · Agente corriendo (Oct 5 - 11)**: Repositorio estructurado, cliente contra Grok funcional en `main.py` con llave oficial y simulación end-to-end.
 * [x] **Semana 2 (S2) · Herramientas reales (Oct 12 - 24)**: Conexión de 5 herramientas reales, tolerancia a fallos sin falsos veredictos, 10 ejecuciones documentadas con Grok 4.7 ($0.06 USD), suite de 74 pruebas e interfaz Streamlit para video demo.
-* [ ] **Semana 3 (S3) · Datos reales (Oct 25 - 31)**: Dataset dual de 30+ casos evaluados, memoria multi-turno en `src/agent/memory.py` y telemetría de costos en USD por tarea.
-* [ ] **Semana 4 (S4) · Semana de carga (Nov 1 - 7)**: Procesamiento de 1.000 peticiones en 12 horas desatendidas con métricas de latencia y concurrencia.
+* [x] **Semana 3 (S3) · Datos reales (Oct 25 - 31)**: Evaluación de 40 casos periciales duales contra Grok 4.7 en vivo (97.5% de precisión, $0.337 USD), memoria multi-turno en `src/agent/memory.py` y telemetría de tokens real de `response.usage`. [Ver Reporte S3](docs/REPORTE_TECNICO_HITO_3.md).
+* [x] **Semana 4 (S4) · Semana de carga (Nov 1 - 7)**: Procesamiento desatendido de 1.050 unidades en 12.6 horas continuas contra Grok 4.7 (100% de éxito, 0 caídas, ~$9.15 USD consumidos), bitácora pericial CSV/JSON, desacoplamiento total del taxi hacia ciberseguridad colombiana, servidor WhatsApp Webhook y suite de 517 tests. [Ver Reporte S4](docs/REPORTE_TECNICO_HITO_4.md).
 * [ ] **Cierre Final & Pitch (Noviembre)**: Mentorías 1 a 1, pitch deck, video final y postulación a premiación.
 
 > 📚 **Documentación técnica para el equipo y evaluadores:**
+> - [Reporte Técnico Oficial de Entrega Hito S4 (docs/REPORTE_TECNICO_HITO_4.md)](docs/REPORTE_TECNICO_HITO_4.md)
+> - [Bitácora Oficial de Carga CSV (data/bitacora_s4_carga.csv)](data/bitacora_s4_carga.csv)
+> - [Reporte Técnico Oficial Hito S3 (docs/REPORTE_TECNICO_HITO_3.md)](docs/REPORTE_TECNICO_HITO_3.md)
+> - [Guía de Integración WhatsApp Webhook (docs/GUIA_INTEGRACION_WHATSAPP.md)](docs/GUIA_INTEGRACION_WHATSAPP.md)
 > - [Plan Maestro de Arquitectura y Roles (MASTER_PLAN_CODIXIA.md)](./MASTER_PLAN_CODIXIA.md)
-> - [Roadmap Semanal y Asignaciones Específicas (HITOS_Y_ASIGNACIONES.md)](./HITOS_Y_ASIGNACIONES.md)
-> - [Bitácora Oficial de 10 Ejecuciones Reales Hito S2 (logs/s2_10_executions.md)](./logs/s2_10_executions.md)
 
 ---
 

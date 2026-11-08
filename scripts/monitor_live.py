@@ -49,6 +49,18 @@ def render_dashboard():
     tokens = meta.get("total_tokens", 0)
     cost = meta.get("total_cost_usd", 0.0)
     elapsed_h = meta.get("elapsed_time_hours", 0.0)
+    
+    # Calcular el tiempo desatendido real acumulado entre el primer y último registro
+    if tasks and len(tasks) >= 2:
+        try:
+            from datetime import datetime
+            t_first = datetime.fromisoformat(tasks[0].get("timestamp"))
+            t_last = datetime.fromisoformat(tasks[-1].get("timestamp"))
+            real_span_h = (t_last - t_first).total_seconds() / 3600.0
+            elapsed_h = max(elapsed_h, real_span_h)
+        except Exception:
+            pass
+
     avg_lat = meta.get("average_latency_sec", 0.0)
     avg_cost = meta.get("average_cost_per_task_usd", 0.0)
 

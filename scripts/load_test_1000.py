@@ -75,6 +75,14 @@ def load_existing_bitacora(json_path: Path):
                 data = json.load(f)
                 tasks = data.get("tasks", [])
                 prev_time = data.get("metadata", {}).get("elapsed_time_sec", 0.0)
+                if tasks and len(tasks) >= 2:
+                    try:
+                        t0 = datetime.fromisoformat(tasks[0].get("timestamp"))
+                        t1 = datetime.fromisoformat(tasks[-1].get("timestamp"))
+                        span = (t1 - t0).total_seconds()
+                        prev_time = max(prev_time, span)
+                    except Exception:
+                        pass
                 return tasks, prev_time
         except Exception:
             return [], 0.0
@@ -312,8 +320,8 @@ def run_load_test(
         # Regulación de cadencia para cumplir las 12 horas desatendidas
         if remaining_tasks > 0 and target_seconds > 0:
             remaining_time = target_seconds - elapsed_total
-            ideal_delay = (remaining_time / remaining_tasks) - latency
-            delay = max(5.0, min(ideal_delay, 50.0))  # Mínimo 5s, máximo 50s
+            ideal_delay = (remaining_time / remaining_tasks) - latency if remaining_time > 0 else 12.0
+            delay = max(5.0, min(ideal_delay, 15.0))  # Máximo 15s de pausa para cumplir 12h y cerrar antes de 23:30 Colombia
             time.sleep(delay)
 
     # 4. Resumen final oficial (Hito S4)

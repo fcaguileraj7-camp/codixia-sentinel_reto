@@ -1,0 +1,15 @@
+{
+  "total_tasks": 1050,
+  "completed_tasks": 1050,
+  "success_count": 1050,
+  "error_count": 0,
+  "success_rate": "100.00%",
+  "total_prompt_tokens": 2642432,
+  "total_completion_tokens": 391912,
+  "total_tokens": 3034344,
+  "total_cost_usd": 9.20398,
+  "average_cost_per_task_usd": 0.008766,
+  "average_latency_sec": 18.23,
+  "elapsed_time_sec": 46074.8,
+  "elapsed_time_hours": 12.8
+}
