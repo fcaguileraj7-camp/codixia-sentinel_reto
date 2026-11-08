@@ -3,6 +3,8 @@ Módulo de Sandbox e Inspección de Enlaces (UrlSandbox)
 Reto Agente 2026 - SentinelGuard AI · Equipo Codixia
 """
 
+from collections import OrderedDict
+import copy
 import http.client
 import ipaddress
 import json
@@ -10,6 +12,7 @@ import re
 import socket
 import ssl
 import stringprep
+import threading
 import time
 import unicodedata
 from functools import lru_cache
@@ -34,6 +37,11 @@ EXPAND_BUDGET = 8
 ALLOWED_PORTS = {80, 443, 8080, 8443}
 
 BLACKLIST_PATH = Path(__file__).resolve().parents[2] / "data" / "url_blacklist.json"
+
+ANALYSIS_CACHE_MAXSIZE = 1024
+ANALYSIS_CACHE_TTL = 600
+
+_now = time.monotonic
 
 # Longitud máxima de un nombre de dominio (RFC 1035); por encima el host se marca inválido
 # y no se ejecutan los chequeos costosos (lista negra y typosquatting).
@@ -586,6 +594,53 @@ def _blacklisted_hops(
     return hops
 
 
+class _AnalysisCache:
+    """Caché LRU con expiración por TTL protegida mediante cerrojo de exclusión mutua."""
+
+    def __init__(self, maxsize: int, ttl: float):
+        self.maxsize = maxsize
+        self.ttl = ttl
+        self._lock = threading.Lock()
+        self._cache: OrderedDict = OrderedDict()
+
+    def get(self, key: Any) -> Any:
+        with self._lock:
+            if key not in self._cache:
+                return None
+            val, expires_at = self._cache[key]
+            if _now() >= expires_at:
+                del self._cache[key]
+                return None
+            self._cache.move_to_end(key)
+            return val
+
+    def put(self, key: Any, value: Any) -> None:
+        with self._lock:
+            if self.maxsize <= 0:
+                return
+            if key in self._cache:
+                self._cache.move_to_end(key)
+            self._cache[key] = (value, _now() + self.ttl)
+            if len(self._cache) > self.maxsize:
+                self._cache.popitem(last=False)
+
+    def clear(self) -> None:
+        with self._lock:
+            self._cache.clear()
+
+    def __len__(self) -> int:
+        with self._lock:
+            return len(self._cache)
+
+
+_ANALYSIS_CACHE = _AnalysisCache(ANALYSIS_CACHE_MAXSIZE, ANALYSIS_CACHE_TTL)
+
+
+def clear_analysis_cache() -> None:
+    """Vacía la caché global en memoria del análisis de URLs."""
+    _ANALYSIS_CACHE.clear()
+
+
 def analyze_url(raw_url: str, expand: bool = True, blacklist: Optional[frozenset] = None) -> Dict[str, Any]:
     """
     Inspecciona una URL sospechosa y calcula su nivel de riesgo.
@@ -641,6 +696,12 @@ def analyze_url(raw_url: str, expand: bool = True, blacklist: Optional[frozenset
       lee solo de los primeros 8192 caracteres, y si la autoridad no se cierra dentro de esa ventana
       el host también se marca como sospechoso.
 
+    Cuenta con una caché en memoria LRU de ANALYSIS_CACHE_MAXSIZE entradas y un TTL de
+    ANALYSIS_CACHE_TTL segundos. La clave es (URL sin espacios en los extremos, expand, lista
+    negra efectiva). No guarda resultados con expansion_error, entradas que no son texto ni
+    entradas mayores que MAX_URL_LEN caracteres. Guarda una copia profunda y cada acierto
+    devuelve otra, así que modificar un resultado nunca afecta a las llamadas siguientes.
+
     Args:
         raw_url: URL o dominio a analizar (se acepta sin esquema).
         expand: si es True, desenrolla los acortadores detectados. Debe ser bool.
@@ -674,9 +735,11 @@ def analyze_url(raw_url: str, expand: bool = True, blacklist: Optional[frozenset
           a 2 decimales) y también presente cuando la entrada es inválida:
             - latency_ms: tiempo total de analyze_url (en la primera llamada incluye la carga
               de la lista negra por defecto).
-            - expansion_ms: tiempo de la llamada a _expand_url (la parte de red), o None si no
-              hubo desenrollado (no es acortador o expand es False). No incluye el re-análisis
-              del destino.
+            - expansion_ms: tiempo de la llamada a _expand_url (la parte de red), o None si esta
+              llamada no hizo red (no es acortador, expand es False o el resultado vino de la
+              caché). No incluye el re-análisis del destino.
+            - cache_hit: booleano que indica si el resultado provino de la caché en memoria (True)
+              o requirió ejecución del análisis (False). En un acierto, expansion_ms es None.
     """
     if not isinstance(expand, bool):
         raise TypeError("expand debe ser bool")
@@ -685,13 +748,41 @@ def analyze_url(raw_url: str, expand: bool = True, blacklist: Optional[frozenset
         raise TypeError("blacklist debe ser un set/frozenset de dominios o None")
     if isinstance(blacklist, set):
         blacklist = frozenset(blacklist)
-    # perf_counter mide duraciones; en Windows con Python < 3.13 monotonic tiene resolución de ~15 ms
+
     t0 = time.perf_counter()
+    # La lista efectiva se resuelve antes de armar la clave: una entrada guardada con None
+    # no debe servir un veredicto viejo si la lista por defecto cambia.
+    if blacklist is None:
+        blacklist = _get_blacklist()
+    # _analyze_url recorta los extremos de la entrada, así que la clave usa la misma forma.
+    norm_url = raw_url.strip() if isinstance(raw_url, str) else ""
+    is_cacheable = bool(norm_url) and len(norm_url) <= MAX_URL_LEN
+    key = (norm_url, expand, blacklist) if is_cacheable else None
+
+    if is_cacheable:
+        cached = _ANALYSIS_CACHE.get(key)
+        if cached is not None:
+            res = copy.deepcopy(cached)
+            latency_ms = round((time.perf_counter() - t0) * 1000, 2)
+            res["telemetry"] = {
+                "expansion_ms": None,
+                "latency_ms": latency_ms,
+                "cache_hit": True,
+            }
+            return res
+
     core = _analyze_url(raw_url, expand, blacklist)
+    if is_cacheable and core.get("expansion_error") is None:
+        _ANALYSIS_CACHE.put(key, copy.deepcopy(core))
+
     latency_ms = round((time.perf_counter() - t0) * 1000, 2)
-    # No muta el resultado del núcleo, para que una caché futura sobre _analyze_url no se contamine.
-    # Ojo: findings y redirect_chain siguen siendo listas compartidas (una caché deberá copiarlas).
-    return {**core, "telemetry": {**core["telemetry"], "latency_ms": latency_ms}}
+    # La caché guardó su propia copia profunda: el resultado devuelto aquí es del llamador.
+    telemetry_data = {
+        **core["telemetry"],
+        "latency_ms": latency_ms,
+        "cache_hit": False,
+    }
+    return {**core, "telemetry": telemetry_data}
 
 
 def _error_result(raw_url: Any, finding: str) -> Dict[str, Any]:
@@ -769,8 +860,15 @@ def _analyze_url(raw_url: str, expand: bool, blacklist: Optional[frozenset]) -> 
             if r.get("telemetry") and r["telemetry"].get("expansion_ms") is not None
         ]
         expansion_ms = round(sum(exp_times), 2) if exp_times else None
+        # si el desenrollado de algún segmento falló, el error se informa aunque el mejor sea otro
+        expansion_error = best["expansion_error"]
+        if expansion_error is None:
+            expansion_error = next(
+                (r["expansion_error"] for r in results if r.get("expansion_error") is not None), None
+            )
         return {
             **best,
+            "expansion_error": expansion_error,
             "original_url": raw_url,
             "expanded_url": expanded,
             "risk_score": risk_score,

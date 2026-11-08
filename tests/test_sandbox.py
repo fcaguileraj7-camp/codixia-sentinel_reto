@@ -547,7 +547,7 @@ def test_telemetry_present_in_error_results():
     for bad in (None, "", "   ", 123):
         res = analyze_url(bad)
         assert res["status"] == "error", bad
-        assert set(res["telemetry"]) == {"expansion_ms", "latency_ms"}, bad
+        assert set(res["telemetry"]) == {"expansion_ms", "latency_ms", "cache_hit"}, bad
         assert res["telemetry"]["expansion_ms"] is None, bad
         _assert_ms(res["telemetry"]["latency_ms"])
 
@@ -587,7 +587,7 @@ def test_telemetry_keys_are_exact(monkeypatch):
     monkeypatch.setattr(sandbox, "_head_request", _one_hop_head())
     res = analyze_url("https://bit.ly/x", blacklist=frozenset())
     assert set(res) >= {"status", "domain", "verdict", "risk_score", "findings", "telemetry"}
-    assert set(res["telemetry"]) == {"expansion_ms", "latency_ms"}
+    assert set(res["telemetry"]) == {"expansion_ms", "latency_ms", "cache_hit"}
 
 
 def _use_clock(monkeypatch, read):
@@ -603,7 +603,7 @@ def test_telemetry_values_with_scripted_clock(monkeypatch):
     _use_clock(monkeypatch, lambda: next(ticks))
     monkeypatch.setattr(sandbox, "_head_request", _one_hop_head())
     res = analyze_url("https://bit.ly/x", blacklist=frozenset())
-    assert res["telemetry"] == {"expansion_ms": 500.0, "latency_ms": 4000.0}
+    assert res["telemetry"] == {"expansion_ms": 500.0, "latency_ms": 4000.0, "cache_hit": False}
     assert res["telemetry"]["latency_ms"] >= res["telemetry"]["expansion_ms"]
     assert next(ticks, None) is None  # se consumieron exactamente 4 lecturas
 
@@ -624,14 +624,14 @@ def test_telemetry_expansion_excludes_destination_reanalysis(monkeypatch):
     monkeypatch.setattr(sandbox, "_detect_brand", _detect_brand)
     res = analyze_url("https://bit.ly/x", blacklist=frozenset())
     assert res["expanded_url"] == "https://example.org/final"
-    assert res["telemetry"] == {"expansion_ms": 1000.0, "latency_ms": 3000.0}
+    assert res["telemetry"] == {"expansion_ms": 1000.0, "latency_ms": 3000.0, "cache_hit": False}
 
 def test_telemetry_expansion_ms_is_rounded_to_two_decimals(monkeypatch):
     ticks = iter([0.0, 1.0, 1.123456, 2.0])
     _use_clock(monkeypatch, lambda: next(ticks))
     monkeypatch.setattr(sandbox, "_head_request", _one_hop_head())
     res = analyze_url("https://bit.ly/x", blacklist=frozenset())
-    assert res["telemetry"] == {"expansion_ms": 123.46, "latency_ms": 2000.0}
+    assert res["telemetry"] == {"expansion_ms": 123.46, "latency_ms": 2000.0, "cache_hit": False}
 
 def test_telemetry_latency_ms_is_rounded_to_two_decimals(monkeypatch):
     clock = {"t": 0.0}
@@ -641,29 +641,30 @@ def test_telemetry_latency_ms_is_rounded_to_two_decimals(monkeypatch):
         return None
     monkeypatch.setattr(sandbox, "_detect_brand", _detect_brand)
     res = analyze_url("https://www.bancolombia.com", blacklist=frozenset())
-    assert res["telemetry"] == {"expansion_ms": None, "latency_ms": 1.23}
+    assert res["telemetry"] == {"expansion_ms": None, "latency_ms": 1.23, "cache_hit": False}
 
 def test_telemetry_clock_without_network_and_on_error(monkeypatch):
     ticks = iter([5.0, 5.25, 7.0, 7.5])
     _use_clock(monkeypatch, lambda: next(ticks))
     ok = analyze_url("https://www.bancolombia.com", blacklist=frozenset())
-    assert ok["telemetry"] == {"expansion_ms": None, "latency_ms": 250.0}
+    assert ok["telemetry"] == {"expansion_ms": None, "latency_ms": 250.0, "cache_hit": False}
     err = analyze_url("")
-    assert err["telemetry"] == {"expansion_ms": None, "latency_ms": 500.0}
+    assert err["telemetry"] == {"expansion_ms": None, "latency_ms": 500.0, "cache_hit": False}
     assert next(ticks, None) is None
 
 def test_analyze_url_wrapper_does_not_mutate_core_result(monkeypatch):
-    # Si el núcleo devolviera siempre el mismo objeto (p. ej. una caché futura), el envoltorio
-    # no debe escribir latency_ms en él ni compartir su dict de telemetría.
+    # Si el núcleo devolviera siempre el mismo objeto, el envoltorio no debe escribir
+    # latency_ms en él ni compartir su dict de telemetría. Se usan dos URL distintas para que
+    # ambas llamadas lleguen al núcleo y no se resuelvan desde la caché.
     shared = {"status": "success", "telemetry": {"expansion_ms": None}}
     monkeypatch.setattr(sandbox, "_analyze_url", lambda *args, **kwargs: shared)
     first = analyze_url("https://www.bancolombia.com")
-    second = analyze_url("https://www.bancolombia.com")
+    second = analyze_url("https://www.nequi.com.co")
     assert shared["telemetry"] == {"expansion_ms": None}
     for res in (first, second):
         assert res is not shared
         assert res["telemetry"] is not shared["telemetry"]
-        assert set(res["telemetry"]) == {"expansion_ms", "latency_ms"}
+        assert set(res["telemetry"]) == {"expansion_ms", "latency_ms", "cache_hit"}
         _assert_ms(res["telemetry"]["latency_ms"])
     assert first["telemetry"] is not second["telemetry"]
 
@@ -960,7 +961,7 @@ def test_url_without_host_is_an_error_result():
         assert res["findings"] == ["No se pudo extraer un host de la entrada"], url
         assert res["domain"] == "" and res["is_blacklisted"] is False, url
         assert isinstance(res["original_url"], str) and isinstance(res["expanded_url"], str), url
-        assert set(res["telemetry"]) == {"expansion_ms", "latency_ms"}, url
+        assert set(res["telemetry"]) == {"expansion_ms", "latency_ms", "cache_hit"}, url
 
 def test_error_result_keeps_the_text_it_received():
     res = analyze_url("http://", blacklist=frozenset())

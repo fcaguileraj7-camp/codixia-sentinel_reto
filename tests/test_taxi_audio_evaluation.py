@@ -196,7 +196,7 @@ def test_taxi_audio_evaluation_graceful_on_tool_failure():
     """
     agent = SentinelAgent()
 
-    with patch("src.agent.sentinel.evaluate_trip_audio_response", side_effect=RuntimeError("Falla de audio DSP")):
+    with patch("src.agent.route_handler.evaluate_trip_audio_response", side_effect=RuntimeError("Falla de audio DSP")):
         res = agent.process_message(
             "Voy en taxi placa TAZ123 al terminal",
             metadata={"plate": "TAZ123", "destination": "Terminal"}

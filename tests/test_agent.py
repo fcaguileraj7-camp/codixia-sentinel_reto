@@ -6,7 +6,7 @@ Reto Agente 2026 - SentinelGuard AI · Equipo Codixia
 """
 
 import pytest
-from unittest.mock import MagicMock
+from unittest.mock import MagicMock, patch
 from src.agent.sentinel import SentinelAgent
 from src.client import GrokClient
 
@@ -236,3 +236,70 @@ def test_route_companion_handler_standalone():
     assert "route" in res["tool_results"]
     assert res["tool_results"]["route"]["vehicle_plate"] == "TRL981"
     assert res["police_report"] is None
+
+
+def test_route_handler_shares_client_and_memory_with_agent():
+    """
+    El handler de ruta usa el mismo cliente y la misma memoria que el agente:
+    el viaje registrado en modo ruta queda visible en la memoria del agente.
+    """
+    agent = SentinelAgent()
+    assert agent.route_handler.client is agent.client
+    assert agent.route_handler.memory is agent.memory
+
+    res = agent.process_message(
+        "Voy en taxi placa TRL981 hacia Chapinero",
+        metadata={"plate": "TRL981", "destination": "Chapinero"},
+        session_id="shared_memory_route_test"
+    )
+
+    assert res["decision"]["mode"] == "route_companion"
+    active_trip = agent.memory.get_active_trip("shared_memory_route_test")
+    assert active_trip is not None
+    assert active_trip["vehicle_plate"] == "TRL981"
+
+
+def test_route_handler_does_not_depend_on_sentinel_module():
+    """
+    El desacoplamiento es real: sentinel.py ya no expone las tools de ruta y
+    el handler resuelve register_trip desde su propio módulo.
+    """
+    import src.agent.sentinel as sentinel_module
+
+    assert not hasattr(sentinel_module, "register_trip")
+    assert not hasattr(sentinel_module, "evaluate_trip_audio_response")
+
+    agent = SentinelAgent()
+    with patch("src.agent.route_handler.register_trip", side_effect=RuntimeError("Falla de registro")):
+        res = agent.process_message(
+            "Voy en taxi placa TRL981 hacia Chapinero",
+            metadata={"plate": "TRL981", "destination": "Chapinero"},
+            session_id="route_register_failure_test"
+        )
+
+    assert res["status"] == "success"
+    assert res["tool_results"]["route"]["status"] == "error"
+    assert "Falla de registro" in res["tool_results"]["route"]["error"]
+
+
+
+def test_injected_route_handler_shares_agent_memory():
+    """Un handler inyectado adopta la memoria del agente (o la aporta si el agente no trae una)."""
+    from src.agent.memory import ConversationMemory
+    from src.agent.route_handler import RouteCompanionHandler
+
+    handler = RouteCompanionHandler()
+    agent = SentinelAgent(route_handler=handler)
+    assert agent.memory is handler.memory
+
+    own_memory = ConversationMemory()
+    agent_with_memory = SentinelAgent(memory=own_memory, route_handler=RouteCompanionHandler())
+    assert agent_with_memory.route_handler.memory is own_memory
+
+    agent.process_message(
+        "Voy en taxi placa TRL981 hacia Chapinero",
+        metadata={"plate": "TRL981", "destination": "Chapinero"},
+        session_id="injected_handler_test"
+    )
+    res = agent.process_message("todo bien, sigo en camino", session_id="injected_handler_test")
+    assert res["decision"]["mode"] == "route_companion"
