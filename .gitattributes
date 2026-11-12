@@ -1,0 +1,5 @@
+# Los scripts de arranque necesitan un fin de linea fijo para funcionar en cualquier sistema:
+# un run.sh con CRLF falla en Linux/Mac ("bad interpreter") y un run.bat con LF puede
+# romper las etiquetas (goto) en cmd.exe.
+*.sh  text eol=lf
+*.bat text eol=crlf
