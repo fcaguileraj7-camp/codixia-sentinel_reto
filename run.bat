@@ -19,22 +19,22 @@ set "LIVE=0"
 
 :parse
 if "%~1"=="" goto parsed
-if /i "%~1"=="--live" (
+if "%~1"=="--live" (
     set "LIVE=1"
     shift
     goto parse
 )
-if /i "%~1"=="-h" goto usage
-if /i "%~1"=="--help" goto usage
-if /i "%~1"=="--cli" (
+if "%~1"=="-h" goto usage
+if "%~1"=="--help" goto usage
+if "%~1"=="--cli" (
     set "NEWMODE=cli"
     goto setmode
 )
-if /i "%~1"=="--test" (
+if "%~1"=="--test" (
     set "NEWMODE=test"
     goto setmode
 )
-if /i "%~1"=="--check" (
+if "%~1"=="--check" (
     set "NEWMODE=check"
     goto setmode
 )
@@ -71,11 +71,12 @@ if not defined PY (
 rem 2. Entorno virtual. Nunca se borra uno existente.
 set "VENV_PY=.venv\Scripts\python.exe"
 if exist ".venv" if not exist "%VENV_PY%" (
-    call :fail ".venv existe pero no es de este sistema. Falta %VENV_PY%. No lo borro: renombralo o eliminalo tu y vuelve a correr run.bat"
+    call :fail ".venv existe pero no es de este sistema o quedo a medias, por ejemplo por un Ctrl+C al crearlo. Falta %VENV_PY%. No lo borro: renombralo o eliminalo tu y vuelve a correr run.bat"
     exit /b 1
 )
-rem Regla de este archivo: nada de exit /b dentro de bloques if anidados, devuelven codigo 0
-rem al ejecutar cmd /c run.bat. Los casos con dos niveles se resuelven con etiquetas.
+rem Regla de este archivo: un exit /b dentro de un bloque anidado en otro bloque, o dentro de un
+rem bloque con else, devolvia codigo 0 al ejecutar cmd /c run.bat. Los bloques de un solo nivel
+rem funcionan bien; lo que necesita dos niveles o else se resuelve con etiquetas.
 if exist ".venv" goto venv_ready
 echo [run] creando entorno virtual .venv ...
 %PY% -m venv .venv
@@ -112,10 +113,14 @@ echo [run] cree .env desde .env.example. Sin llave, modo demo local. Editalo par
 :env_ready
 
 rem 5. Estado de la configuracion. El codigo de salida es 10 + 1 llave valida + 2 el .env pide live:
-rem asi un fallo de Python, codigo 1, no se confunde con un resultado.
+rem asi un fallo de Python, codigo 1, no se confunde con un resultado. Solo 10 a 13 son validos:
+rem un codigo mayor, por ejemplo por una senal, no se debe leer como llave valida.
 "%VENV_PY%" -c "import sys; from dotenv import dotenv_values as d; import src.config as c; m=(d('.env').get('GROK_MODE') or 'mock').lower(); sys.exit(10 + (1 if c.is_configured() else 0) + (2 if m in ('live','real','production') else 0))"
 set "RC=%errorlevel%"
-if %RC% LSS 10 (
+set "RCBAD=0"
+if %RC% LSS 10 set "RCBAD=1"
+if %RC% GTR 13 set "RCBAD=1"
+if "%RCBAD%"=="1" (
     call :fail "no pude leer la configuracion de src/config.py. Revisa .env y requirements.txt"
     exit /b 1
 )
@@ -130,6 +135,13 @@ set "GROK_MODE=mock"
 if "%ENVLIVE%"=="1" echo [run] AVISO: tu .env pide GROK_MODE=live. Este arranque lo ignora y usa mock, costo 0 USD. Usa --live para activarlo.
 if "%KEYOK%"=="1" echo [run] llave del reto: configurada. Modo: mock, costo 0 USD.
 if not "%KEYOK%"=="1" echo [run] llave del reto: no configurada. Modo: demo local mock, costo 0 USD.
+rem Guardia que falla cerrado: con GROK_MODE=mock definido, src/config.py no debe quedar en live.
+rem Si alguien agrega override=True a load_dotenv, el .env en live volveria a ganar y gastaria saldo.
+"%VENV_PY%" -c "import sys; import src.config as c; sys.exit(1 if c.is_live_mode_enabled() else 0)"
+if errorlevel 1 (
+    call :fail "la configuracion quedo en live pese a GROK_MODE=mock, o no se pudo leer. No arranco para no gastar saldo. Avisa al equipo: revisa load_dotenv en src/config.py"
+    exit /b 1
+)
 goto mode_done
 
 :mode_live
@@ -165,7 +177,9 @@ exit /b %errorlevel%
 exit /b %errorlevel%
 
 :do_check
-"%VENV_PY%" -c "from src.agent.sentinel import SentinelAgent; r = SentinelAgent().process_message('Su cuenta Nequi fue bloqueada. Llame ya al 3001234567 para reactivarla'); print('[run] prueba de humo OK, riesgo: ' + str(r['decision'].get('risk_level')))"
+rem sentinel.py atrapa los errores del modelo y devuelve analysis_available=False sin lanzar nada:
+rem por eso la prueba exige True y no basta con que process_message no falle.
+"%VENV_PY%" -c "import sys; from src.agent.sentinel import SentinelAgent; r = SentinelAgent().process_message('Su cuenta Nequi fue bloqueada. Llame ya al 3001234567 para reactivarla'); d = r['decision']; ok = d.get('analysis_available') is True; print('[run] prueba de humo ' + ('OK' if ok else 'FALLO: el agente respondio en modo degradado') + ', riesgo: ' + str(d.get('risk_level'))); sys.exit(0 if ok else 1)"
 if errorlevel 1 (
     call :fail "la prueba de humo del agente fallo"
     exit /b 1
@@ -180,7 +194,7 @@ echo   sin flags    Levanta la interfaz web Streamlit en http://localhost:8501
 echo   --cli        Demostracion por consola, main.py
 echo   --test       Suite de pruebas, pytest con red mockeada y costo 0 USD
 echo   --check      Solo prepara y verifica: venv, dependencias, .env y una prueba de humo en mock
-echo   --live       Permite llamadas reales a Grok, consume saldo. Exige RETO_API_KEY valida.
+echo   --live       Permite llamadas reales a Grok, consume saldo. Exige una RETO_API_KEY con formato pk_.
 echo                No se combina con --test ni --check.
 echo   -h, --help   Muestra esta ayuda
 exit /b 0

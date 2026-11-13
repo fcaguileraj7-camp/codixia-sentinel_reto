@@ -21,7 +21,7 @@ Uso: ./run.sh [--cli | --test | --check] [--live]
   --cli        Demostracion por consola (main.py)
   --test       Suite de pruebas (pytest; red mockeada, costo 0 USD)
   --check      Solo prepara y verifica: venv, dependencias, .env y una prueba de humo en mock
-  --live       Permite llamadas reales a Grok (consume saldo). Exige RETO_API_KEY valida.
+  --live       Permite llamadas reales a Grok (consume saldo). Exige una RETO_API_KEY con formato pk_.
                No se combina con --test ni --check.
   -h, --help   Muestra esta ayuda
 EOF
@@ -66,7 +66,7 @@ case "$(uname -s)" in
   *) VENV_PY=".venv/bin/python" ;;
 esac
 if [ -e .venv ] && [ ! -x "$VENV_PY" ]; then
-  die ".venv existe pero no es de este sistema (falta $VENV_PY). No lo borro: renombralo o eliminalo tu y vuelve a correr ./run.sh"
+  die ".venv existe pero no es de este sistema o quedo a medias, por ejemplo por un Ctrl+C al crearlo (falta $VENV_PY). No lo borro: renombralo o eliminalo tu y vuelve a correr ./run.sh"
 fi
 if [ ! -e .venv ]; then
   say "creando entorno virtual .venv ..."
@@ -89,15 +89,17 @@ fi
 # 4. .env: se crea desde el ejemplo si falta y nunca se imprime su contenido.
 if [ ! -f .env ]; then
   [ -f .env.example ] || die "falta .env.example, no puedo crear .env"
-  cp .env.example .env
+  # umask 077: el .env guardara una llave; en un Linux compartido no debe quedar legible por otros.
+  ( umask 077 && cp .env.example .env ) || die "no pude crear .env desde .env.example"
   say "cree .env desde .env.example. Sin llave, modo demo local. Editalo para poner tu RETO_API_KEY."
 fi
 
 # 5. Estado de la configuracion. El codigo de salida es 10 + 1 (llave valida) + 2 (el .env pide live):
-#    asi un fallo de Python (codigo 1) no se confunde con un resultado.
+#    asi un fallo de Python (codigo 1) no se confunde con un resultado. Solo 10 a 13 son validos:
+#    un codigo mayor, como 137 por una senal, no se debe leer como "llave valida".
 rc=0
 "$VENV_PY" -c "import sys; from dotenv import dotenv_values as d; import src.config as c; m=(d('.env').get('GROK_MODE') or 'mock').lower(); sys.exit(10 + (1 if c.is_configured() else 0) + (2 if m in ('live','real','production') else 0))" || rc=$?
-[ "$rc" -ge 10 ] || die "no pude leer la configuracion (src/config.py). Revisa .env y requirements.txt"
+{ [ "$rc" -ge 10 ] && [ "$rc" -le 13 ]; } || die "no pude leer la configuracion (src/config.py). Revisa .env y requirements.txt"
 key_ok=$(( (rc - 10) & 1 ))
 env_live=$(( ((rc - 10) >> 1) & 1 ))
 
@@ -116,13 +118,19 @@ else
   else
     say "llave del reto: no configurada. Modo: demo local mock, costo 0 USD."
   fi
+  # Guardia que falla cerrado: con GROK_MODE=mock exportado, src/config.py no debe quedar en live.
+  # Si alguien agrega override=True a load_dotenv, el .env en live volveria a ganar y gastaria saldo.
+  "$VENV_PY" -c "import sys; import src.config as c; sys.exit(1 if c.is_live_mode_enabled() else 0)" \
+    || die "la configuracion quedo en live pese a GROK_MODE=mock, o no se pudo leer. No arranco para no gastar saldo. Avisa al equipo: revisa load_dotenv en src/config.py"
 fi
 export PYTHONUTF8=1
 
 # 7. Lanzar el agente.
 case "$MODE" in
   check)
-    "$VENV_PY" -c "from src.agent.sentinel import SentinelAgent; r = SentinelAgent().process_message('Su cuenta Nequi fue bloqueada. Llame ya al 3001234567 para reactivarla'); print('[run] prueba de humo OK, riesgo: ' + str(r['decision'].get('risk_level')))" \
+    # sentinel.py atrapa los errores del modelo y devuelve analysis_available=False sin lanzar nada:
+    # por eso la prueba exige True y no basta con que process_message no falle.
+    "$VENV_PY" -c "import sys; from src.agent.sentinel import SentinelAgent; r = SentinelAgent().process_message('Su cuenta Nequi fue bloqueada. Llame ya al 3001234567 para reactivarla'); d = r['decision']; ok = d.get('analysis_available') is True; print('[run] prueba de humo ' + ('OK' if ok else 'FALLO: el agente respondio en modo degradado') + ', riesgo: ' + str(d.get('risk_level'))); sys.exit(0 if ok else 1)" \
       || die "la prueba de humo del agente fallo"
     say "listo: entorno verificado. Corre ./run.sh para levantar el agente."
     ;;
