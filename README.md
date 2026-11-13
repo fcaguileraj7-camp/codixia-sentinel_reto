@@ -105,10 +105,49 @@ flowchart TD
 ## 🚀 5. Instalación y Ejecución Rápida
 
 ### Requisitos Previos
-* **Python 3.10 o superior** (probado en Python 3.14).
-* Conexión a Internet y llave del Reto Agente (`pk_...`).
+* **Python 3.10 o superior** (versiones verificadas al final de esta sección).
+* Conexión a Internet para instalar las dependencias.
+* Llave del Reto Agente (`pk_...`): **opcional**. Sin ella el agente corre en modo demo local (`mock`, costo $0).
 
-### Paso a Paso
+### ⚡ Arranque de 1 Comando
+
+Clona el repositorio, entra a la carpeta y ejecuta un solo comando. Prepara el entorno (`.venv` + `requirements.txt`), crea y verifica el `.env` y levanta el agente. Es idempotente: se puede repetir las veces que haga falta.
+
+```bash
+git clone https://github.com/fcaguileraj7-camp/codixia-sentinel_reto.git
+cd codixia-sentinel_reto
+
+# Windows (cmd o PowerShell)
+.\run.bat
+
+# Linux / macOS (si no tiene permiso de ejecución: bash run.sh)
+./run.sh
+```
+
+| Comando | Qué hace |
+| :--- | :--- |
+| `run.bat` · `./run.sh` | Levanta la interfaz web (Streamlit) en `http://localhost:8501` |
+| `... --cli` | Demostración por consola (`main.py`) |
+| `... --test` | Suite de pruebas (`pytest`, red mockeada, costo $0) |
+| `... --check` | Solo prepara y verifica el entorno, con una prueba de humo del agente en modo mock |
+| `... --live` | Habilita llamadas reales a Grok. Exige una `RETO_API_KEY` con formato `pk_` (no se comprueba contra la API). No se combina con `--test` ni `--check` |
+
+**Qué garantiza el script:**
+* **Costos protegidos:** por defecto fuerza `GROK_MODE=mock` aunque tu `.env` diga `live`, y te lo avisa. Las llamadas reales a Grok gastan el saldo compartido del equipo y solo se activan con `--live`.
+* **`.env`:** si falta, lo crea desde `.env.example`. Nunca lo sobrescribe ni muestra su contenido (tampoco la llave).
+* **Streamlit local:** con `run.bat` / `run.sh` arranca en `localhost`, sin pedir correo en el primer arranque y sin enviar estadísticas de uso. Si lo lanzas a mano con `streamlit run`, esos ajustes no se aplican.
+* **No destructivo:** nunca borra un `.venv` existente. Si es de otro sistema o está dañado, falla con un mensaje y lo decides tú.
+* **Códigos de salida:** `0` correcto, `1` fallo de entorno, `2` argumentos inválidos. Con `--test`, `--cli` y la interfaz web el script devuelve el código del proceso que lanzó (por ejemplo, `pytest` usa `1` si hay pruebas fallidas y `2` si lo interrumpen).
+* **Alcance del escudo de costos:** solo cubre lo que arranca `run.bat` / `run.sh`. Otros scripts (`scripts/`) no pasan por él y leen el `.env` tal cual. Además, `mock` significa sin costo de Grok, no sin red: el sandbox de URLs hace consultas HEAD reales a los enlaces que analiza.
+* **`--check` no es de solo lectura:** crea `.venv`, instala dependencias y crea el `.env` si faltan, antes de la prueba de humo.
+* **Flags:** se escriben en minúsculas, igual en ambos scripts (`--LIVE` se rechaza con código `2`).
+
+**Problemas frecuentes:**
+* *Windows, error `Long Path` al instalar:* clona el repositorio en una ruta corta, por ejemplo `C:\sentinel`.
+* *Debian/Ubuntu, falta `python3-venv`:* `sudo apt install python3-venv` y vuelve a correr `./run.sh`.
+* *No encuentra Python:* instala 3.10 o superior desde <https://www.python.org/downloads/>.
+
+### Instalación Manual (alternativa)
 
 1. **Clonar el repositorio**:
    ```bash
@@ -152,6 +191,34 @@ flowchart TD
    streamlit run app_streamlit.py
    ```
 
+### ✅ Versiones Verificadas (2026-11-12)
+
+Probado en una carpeta nueva (`git clone`), sin `.venv` ni `.env`, con `run.bat` / `run.sh`: `--check`, `--cli`, `--test` y arranque de Streamlit (salud `ok` en `/_stcore/health`).
+
+| Entorno | Python | Resultado |
+| :--- | :---: | :--- |
+| Windows 10 · `run.bat` | 3.15.0 | ✅ `--check`, `--cli`, `--test` (517 tests) y Streamlit |
+| Windows 10 · Git Bash · `run.sh --check` | 3.15.0 | ✅ |
+| Linux · Docker `python:3.12-slim` · `run.sh` | 3.12.15 | ✅ `--check`, `--cli`, `--test` (517 tests) y Streamlit |
+| Linux · Docker `python:3.10-slim` · `run.sh` | 3.10.22 | ✅ `--check`, `--cli`, `--test` (517 tests) y Streamlit |
+
+No se probó en macOS. En Ubuntu 26.04 y Debian 13 (WSL) solo se comprobaron los mensajes de error cuando falta `python3-venv` o Python.
+
+`requirements.txt` fija mínimos (`>=`) sin tope, así que una instalación futura puede traer versiones más nuevas. Esto es lo que se instaló en esas pruebas:
+
+| Paquete | Windows · 3.15 | Linux · 3.12 | Linux · 3.10 |
+| :--- | :---: | :---: | :---: |
+| `openai` | 3.49.0 | 3.50.0 | 3.50.0 |
+| `streamlit` | 1.67.0 | 1.67.0 | 1.65.0 |
+| `pydantic` | 2.14.3 | 2.14.3 | 2.14.3 |
+| `fastapi` | 0.162.5 | 0.162.5 | 0.162.5 |
+| `uvicorn` | 0.54.0 | 0.54.0 | 0.54.0 |
+| `pillow` | 13.0.0 | 13.0.0 | 12.3.0 |
+| `python-dotenv` | 1.2.4 | 1.2.4 | 1.2.4 |
+| `rich` | 15.0.0 | 15.0.0 | 15.0.0 |
+| `requests` | 2.34.2 | 2.34.2 | 2.34.2 |
+| `pytest` | 9.2.0 | 9.2.0 | 9.2.0 |
+
 ---
 
 ## 🧪 6. Pruebas y Calidad de Código
@@ -191,4 +258,4 @@ python -m pytest tests/ -v
 ---
 
 ## 📄 Licencia y Transparencia
-Proyecto desarrollado para el **Reto Agente 2026** por el **Equipo Codixia**. Licencia abierta MIT.
+Proyecto desarrollado para el **Reto Agente 2026** por el **Equipo Codixia**. Licencia abierta [MIT](./LICENSE).
