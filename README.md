@@ -130,14 +130,17 @@ cd codixia-sentinel_reto
 | `... --cli` | Demostración por consola (`main.py`) |
 | `... --test` | Suite de pruebas (`pytest`, red mockeada, costo $0) |
 | `... --check` | Solo prepara y verifica el entorno, con una prueba de humo del agente en modo mock |
-| `... --live` | Habilita llamadas reales a Grok. Exige una `RETO_API_KEY` válida. No se combina con `--test` ni `--check` |
+| `... --live` | Habilita llamadas reales a Grok. Exige una `RETO_API_KEY` con formato `pk_` (no se comprueba contra la API). No se combina con `--test` ni `--check` |
 
 **Qué garantiza el script:**
 * **Costos protegidos:** por defecto fuerza `GROK_MODE=mock` aunque tu `.env` diga `live`, y te lo avisa. Las llamadas reales a Grok gastan el saldo compartido del equipo y solo se activan con `--live`.
 * **`.env`:** si falta, lo crea desde `.env.example`. Nunca lo sobrescribe ni muestra su contenido (tampoco la llave).
-* **Streamlit local:** arranca en `localhost`, sin pedir correo en el primer arranque y sin enviar estadísticas de uso.
+* **Streamlit local:** con `run.bat` / `run.sh` arranca en `localhost`, sin pedir correo en el primer arranque y sin enviar estadísticas de uso. Si lo lanzas a mano con `streamlit run`, esos ajustes no se aplican.
 * **No destructivo:** nunca borra un `.venv` existente. Si es de otro sistema o está dañado, falla con un mensaje y lo decides tú.
-* **Códigos de salida:** `0` correcto, `1` fallo de entorno, `2` argumentos inválidos.
+* **Códigos de salida:** `0` correcto, `1` fallo de entorno, `2` argumentos inválidos. Con `--test`, `--cli` y la interfaz web el script devuelve el código del proceso que lanzó (por ejemplo, `pytest` usa `1` si hay pruebas fallidas y `2` si lo interrumpen).
+* **Alcance del escudo de costos:** solo cubre lo que arranca `run.bat` / `run.sh`. Otros scripts (`scripts/`) no pasan por él y leen el `.env` tal cual. Además, `mock` significa sin costo de Grok, no sin red: el sandbox de URLs hace consultas HEAD reales a los enlaces que analiza.
+* **`--check` no es de solo lectura:** crea `.venv`, instala dependencias y crea el `.env` si faltan, antes de la prueba de humo.
+* **Flags:** se escriben en minúsculas, igual en ambos scripts (`--LIVE` se rechaza con código `2`).
 
 **Problemas frecuentes:**
 * *Windows, error `Long Path` al instalar:* clona el repositorio en una ruta corta, por ejemplo `C:\sentinel`.
